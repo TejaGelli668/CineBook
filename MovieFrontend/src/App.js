@@ -304,7 +304,6 @@
 //     </div>
 //   );
 // };
-
 // export default App;
 import React, { useState, useEffect } from "react";
 import "./App.css";
@@ -317,6 +316,7 @@ import PaymentPage from "./components/user/PaymentPage";
 import SuccessPage from "./components/user/SuccessPage";
 import AdminDashboard from "./components/admin/AdminDashboard";
 import LoginModal from "./components/auth/LoginModal";
+import AuthTestComponent from "./components/AuthTestComponent";
 import UserDashboard from "./components/user/UserDashboard";
 
 // Utility Imports
@@ -351,6 +351,8 @@ const App = () => {
       } else if (isAuthenticated()) {
         setIsUserLoggedIn(true);
         setCurrentUser(getCurrentUser());
+        // FIXED: Set default page for logged-in users to HOME, not dashboard
+        setCurrentPage("home");
       }
     };
 
@@ -384,8 +386,15 @@ const App = () => {
     setBookingData(null);
   };
 
+  // FIXED: Navigation handlers for dashboard
   const handleDashboardClick = () => {
-    setCurrentPage("dashboard");
+    console.log("Dashboard clicked - navigating to userDashboard");
+    setCurrentPage("userDashboard");
+  };
+
+  const handleBackToMovies = () => {
+    console.log("Back to movies clicked - navigating to home");
+    setCurrentPage("home");
   };
 
   // Authentication Handlers
@@ -415,6 +424,8 @@ const App = () => {
       setIsUserLoggedIn(true);
       setCurrentUser(getCurrentUser());
       setShowLoginModal(false);
+      // FIXED: Redirect to HOME page after login, not dashboard
+      setCurrentPage("home");
       alert("User login successful!");
     } catch (error) {
       console.error("User login error:", error);
@@ -431,7 +442,6 @@ const App = () => {
       alert("Admin logged out successfully!");
     } catch (error) {
       console.error("Admin logout error:", error);
-      // Still log out locally even if API call fails
       setIsAdminLoggedIn(false);
       setCurrentUser(null);
       setCurrentPage("home");
@@ -443,12 +453,13 @@ const App = () => {
       await logoutUser();
       setIsUserLoggedIn(false);
       setCurrentUser(null);
+      setCurrentPage("home");
       alert("Logged out successfully!");
     } catch (error) {
       console.error("User logout error:", error);
-      // Still log out locally even if API call fails
       setIsUserLoggedIn(false);
       setCurrentUser(null);
+      setCurrentPage("home");
     }
   };
 
@@ -459,10 +470,10 @@ const App = () => {
     );
   }
 
-  // Main Application Render
+  // Main app render - works for both logged in and non-logged in users
   return (
     <div className="App">
-      {/* User Pages */}
+      {/* Home Page */}
       {currentPage === "home" && (
         <HomePage
           onMovieSelect={handleMovieSelect}
@@ -470,18 +481,20 @@ const App = () => {
           isUserLoggedIn={isUserLoggedIn}
           currentUser={currentUser}
           onUserLogout={handleUserLogout}
-          onDashboardClick={handleDashboardClick}
+          onDashboardClick={handleDashboardClick} // FIXED: Proper function
         />
       )}
 
-      {currentPage === "dashboard" && (
+      {/* User Dashboard - FIXED: Only show when user is logged in */}
+      {currentPage === "userDashboard" && isUserLoggedIn && (
         <UserDashboard
           currentUser={currentUser}
-          onBackToHome={handleBackToHome}
           onLogout={handleUserLogout}
+          onBackToMovies={handleBackToMovies} // FIXED: Correct prop name
         />
       )}
 
+      {/* Booking Flow Pages */}
       {currentPage === "booking" && selectedMovie && (
         <BookingPage
           movie={selectedMovie}
@@ -520,7 +533,29 @@ const App = () => {
         />
       )}
 
-      {/* Authentication Modal */}
+      {/* Test Component */}
+      {currentPage === "test" && <AuthTestComponent />}
+
+      {/* Test Auth Button */}
+      <button
+        onClick={() => setCurrentPage("test")}
+        style={{
+          position: "fixed",
+          bottom: "20px",
+          right: "20px",
+          zIndex: 1000,
+          background: "#007bff",
+          color: "white",
+          border: "none",
+          padding: "10px",
+          borderRadius: "5px",
+          cursor: "pointer",
+        }}
+      >
+        Test Auth
+      </button>
+
+      {/* Login Modal */}
       <LoginModal
         isOpen={showLoginModal}
         onClose={handleCloseLoginModal}

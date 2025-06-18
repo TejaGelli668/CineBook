@@ -50,7 +50,7 @@ const AuthTestComponent = () => {
   const testGetCurrentAdmin = async () => {
     setLoading(true);
     try {
-      const admin = await getCurrentAdminFromBackend();
+      const admin = await getCurrentAdmin();
       setResult(JSON.stringify(admin, null, 2));
     } catch (error) {
       setResult(`Get admin error: ${error.message}`);
