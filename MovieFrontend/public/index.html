@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#000000" />
+<meta
+name="description"
+content="CineBook - Your ultimate movie booking experience"
+/>
+<link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+<link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+
+<!-- Tailwind CSS CDN -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- Tailwind Configuration -->
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        'custom-dark': '#0f172a',
+        'custom-purple': '#7c3aed',
+      },
+      aspectRatio: {
+        'square': '1',
+        '2/3': '2 / 3',
+        '3/2': '3 / 2',
+      },
+      backdropBlur: {
+        'xs': '2px',
+        'sm': '4px',
+        'md': '12px',
+        'lg': '16px',
+        'xl': '24px',
+      }
+    }
+  }
+}
+</script>
+
+<!-- Custom CSS for additional styling -->
+<style>
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.backdrop-blur-sm {
+  backdrop-filter: blur(4px);
+}
+
+.backdrop-blur-md {
+  backdrop-filter: blur(12px);
+}
+
+.backdrop-blur-lg {
+  backdrop-filter: blur(16px);
+}
+
+.backdrop-blur-xl {
+  backdrop-filter: blur(24px);
+}
+
+input:focus,
+select:focus,
+button:focus {
+  outline: none;
+}
+
+::placeholder {
+  opacity: 0.6;
+}
+
+/* Fallback aspect ratios for older browsers */
+.aspect-square {
+  aspect-ratio: 1 / 1;
+}
+
+.aspect-2\/3 {
+  aspect-ratio: 2 / 3;
+}
+
+.aspect-3\/2 {
+  aspect-ratio: 3 / 2;
+}
+
+/* Background clip text support */
+.bg-clip-text {
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+/* Transform support */
+.transform {
+  transform: translateZ(0);
+}
+
+/* Animation support */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(-25%);
+    animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+  }
+  50% {
+    transform: none;
+    animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+  }
+}
+
+.animate-bounce {
+  animation: bounce 1s infinite;
+}
+
+/* Smooth transitions */
+* {
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Fix for any missing Tailwind classes */
+.min-h-\[2\.5rem\] {
+  min-height: 2.5rem;
+}
+</style>
+
+<title>CineBook - Movie Booking App</title>
+</head>
+<body>
+<noscript>You need to enable JavaScript to run this app.</noscript>
+<div id="root"></div>
+</body>
+</html>
