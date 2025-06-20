@@ -155,20 +155,17 @@ const LoginModal = ({ isOpen, onClose, onAdminLogin, onUserLogin }) => {
         >
           <X size={24} />
         </button>
-
         <h2 className="text-3xl text-white font-bold text-center mb-2">
           Welcome
         </h2>
         <p className="text-white text-opacity-75 text-center mb-6">
           Access your account or join the community
         </p>
-
         {error && (
           <div className="bg-red-500 bg-opacity-20 border border-red-500 text-red-100 px-4 py-2 rounded-lg mb-4">
             {error}
           </div>
         )}
-
         <div className="flex bg-white bg-opacity-20 rounded-lg overflow-hidden mb-6">
           {["signin", "signup", "admin"].map((tab) => (
             <button
@@ -189,7 +186,6 @@ const LoginModal = ({ isOpen, onClose, onAdminLogin, onUserLogin }) => {
             </button>
           ))}
         </div>
-
         {activeTab === "signin" && (
           <form onSubmit={handleSignIn} className="space-y-4">
             <div>
@@ -259,7 +255,6 @@ const LoginModal = ({ isOpen, onClose, onAdminLogin, onUserLogin }) => {
             </p>
           </form>
         )}
-
         {activeTab === "signup" && (
           <form onSubmit={handleSignUp} className="space-y-4">
             <div>
@@ -389,7 +384,7 @@ const LoginModal = ({ isOpen, onClose, onAdminLogin, onUserLogin }) => {
             </button>
           </form>
         )}
-
+        // In your LoginModal.js, update the admin form section:
         {activeTab === "admin" && (
           <form onSubmit={handleAdminSubmit} className="space-y-4">
             <div>
@@ -399,8 +394,8 @@ const LoginModal = ({ isOpen, onClose, onAdminLogin, onUserLogin }) => {
               <input
                 id="admin-email"
                 name="admin-email"
-                type="email"
-                placeholder="admin@cinebook.com"
+                type="text" // Changed from "email" to "text"
+                placeholder="admin" // Updated placeholder
                 required
                 disabled={loading}
                 className="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-60 border border-white border-opacity-30 focus:outline-none focus:border-opacity-50 disabled:opacity-50"

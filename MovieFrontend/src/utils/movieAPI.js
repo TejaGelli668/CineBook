@@ -1,6 +1,6 @@
 // src/utils/movieAPI.js
 
-const API_BASE_URL = "http://localhost:8080/api";
+const API_BASE_URL = "http://localhost:8080";
 
 // Generic API helper – always forces JSON content type
 const apiCall = async (endpoint, options = {}) => {

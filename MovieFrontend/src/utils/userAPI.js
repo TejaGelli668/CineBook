@@ -1,5 +1,5 @@
 // User API service for Spring Boot backend integration
-const API_BASE_URL = "http://localhost:8080/api";
+const API_BASE_URL = "http://localhost:8080";
 
 // Helper function for API calls
 const apiCall = async (endpoint, options = {}) => {
