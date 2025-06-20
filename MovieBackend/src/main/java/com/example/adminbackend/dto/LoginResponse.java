@@ -1,32 +1,62 @@
 package com.example.adminbackend.dto;
 
 public class LoginResponse {
-
     private String token;
-    private String type;
-    private AdminResponse admin;
-    private String message;
+    private String username;
+    private String email;
+    private String role;
 
-    // Constructors
+    // Default constructor
     public LoginResponse() {}
 
-    public LoginResponse(String token, String type, AdminResponse admin, String message) {
+    // Constructor with parameters
+    public LoginResponse(String token, String username, String email, String role) {
         this.token = token;
-        this.type = type;
-        this.admin = admin;
-        this.message = message;
+        this.username = username;
+        this.email = email;
+        this.role = role;
     }
 
-    // Getters and Setters
-    public String getToken() { return token; }
-    public void setToken(String token) { this.token = token; }
+    // Getters and setters
+    public String getToken() {
+        return token;
+    }
 
-    public String getType() { return type; }
-    public void setType(String type) { this.type = type; }
+    public void setToken(String token) {
+        this.token = token;
+    }
 
-    public AdminResponse getAdmin() { return admin; }
-    public void setAdmin(AdminResponse admin) { this.admin = admin; }
+    public String getUsername() {
+        return username;
+    }
 
-    public String getMessage() { return message; }
-    public void setMessage(String message) { this.message = message; }
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
+    }
+
+    @Override
+    public String toString() {
+        return "LoginResponse{" +
+                "token='[PROTECTED]'" +
+                ", username='" + username + '\'' +
+                ", email='" + email + '\'' +
+                ", role='" + role + '\'' +
+                '}';
+    }
 }

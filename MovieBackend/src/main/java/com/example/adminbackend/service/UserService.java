@@ -9,7 +9,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -22,7 +21,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -50,40 +48,48 @@ public class UserService {
     @Transactional
     public UserResponse registerUser(UserRegistrationRequest request) {
         try {
+            logger.info("Starting user registration for email: {}", request.getEmail());
+
             // Check if user already exists
             if (userRepository.existsByEmail(request.getEmail())) {
+                logger.warn("User already exists with email: {}", request.getEmail());
                 throw new RuntimeException("User already exists with email: " + request.getEmail());
             }
 
             // Create new user
             User user = new User();
             user.setEmail(request.getEmail());
-            user.setPassword(passwordEncoder.encode(request.getPassword()));
+
+            // Encode password and log for debugging
+            String encodedPassword = passwordEncoder.encode(request.getPassword());
+            logger.info("Password encoded successfully for user: {}", request.getEmail());
+            user.setPassword(encodedPassword);
+
             user.setFirstName(request.getFirstName());
             user.setLastName(request.getLastName());
             user.setPhoneNumber(request.getPhoneNumber());
 
-            // Parse birthday
+            // Parse birthday and convert to string
             if (request.getBirthday() != null) {
-                LocalDate birthday = LocalDate.of(
+                String birthday = String.format("%04d-%02d-%02d",
                         request.getBirthday().getYear(),
                         request.getBirthday().getMonth(),
                         request.getBirthday().getDay()
                 );
                 user.setDateOfBirth(birthday);
+                logger.info("Birthday set to: {}", birthday);
             }
 
             user.setRole(User.Role.USER);
             user.setIsActive(true);
 
             User savedUser = userRepository.save(user);
-
-            logger.info("User registered successfully: {}", savedUser.getEmail());
+            logger.info("User registered successfully with ID: {} and email: {}", savedUser.getId(), savedUser.getEmail());
 
             return convertToUserResponse(savedUser);
 
         } catch (Exception e) {
-            logger.error("User registration failed for email: {} - Error: {}", request.getEmail(), e.getMessage());
+            logger.error("User registration failed for email: {} - Error: {}", request.getEmail(), e.getMessage(), e);
             throw new RuntimeException("Registration failed: " + e.getMessage());
         }
     }
@@ -92,32 +98,49 @@ public class UserService {
      * Authenticate user and generate JWT token
      */
     @Transactional
-    public Map<String, Object> loginUser(LoginRequest loginRequest) {
+    public Map<String, Object> loginUser(UserLoginRequest loginRequest) {
         try {
-            // Use email for authentication (changed from getUsername() to getEmail())
-            Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(
-                            loginRequest.getEmail(), // ✅ Changed from getUsername() to getEmail()
-                            loginRequest.getPassword()
-                    )
-            );
+            logger.info("=== Starting login process for email: {} ===", loginRequest.getEmail());
 
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+            // First, check if user exists in database
+            Optional<User> userOpt = userRepository.findByEmail(loginRequest.getEmail());
+            if (userOpt.isEmpty()) {
+                logger.error("User not found in database with email: {}", loginRequest.getEmail());
+                throw new BadCredentialsException("Invalid email or password");
+            }
 
-            // Get user details
-            User user = (User) authentication.getPrincipal();
+            User dbUser = userOpt.get();
+            logger.info("User found in database: ID={}, Email={}, Active={}, Role={}",
+                    dbUser.getId(), dbUser.getEmail(), dbUser.getIsActive(), dbUser.getRole());
 
-            // Generate JWT token
-            String jwt = jwtUtils.generateToken(user);
+            // Check if user is active
+            if (!dbUser.getIsActive()) {
+                logger.error("User account is deactivated: {}", loginRequest.getEmail());
+                throw new BadCredentialsException("Account is deactivated");
+            }
+
+            // Verify password manually first for debugging
+            boolean passwordMatches = passwordEncoder.matches(loginRequest.getPassword(), dbUser.getPassword());
+            logger.info("Password verification result: {}", passwordMatches);
+
+            if (!passwordMatches) {
+                logger.error("Password does not match for user: {}", loginRequest.getEmail());
+                throw new BadCredentialsException("Invalid email or password");
+            }
+
+            // Generate JWT token using the string overloaded method
+            String jwt = jwtUtils.generateToken(dbUser.getEmail());
+            logger.info("JWT token generated successfully");
 
             // Update last login time
-            user.setLastLogin(LocalDateTime.now());
-            userRepository.updateLastLogin(user.getId(), user.getLastLogin());
+            dbUser.setLastLogin(LocalDateTime.now());
+            userRepository.save(dbUser);
+            logger.info("Last login time updated");
 
             // Create response
-            UserResponse userResponse = convertToUserResponse(user);
+            UserResponse userResponse = convertToUserResponse(dbUser);
 
-            logger.info("User logged in successfully: {}", user.getEmail());
+            logger.info("User logged in successfully: {}", dbUser.getEmail());
 
             // Return a Map that matches the expected structure
             Map<String, Object> response = new HashMap<>();
@@ -126,14 +149,73 @@ public class UserService {
             response.put("user", userResponse);
             response.put("message", "Login successful");
 
+            logger.info("=== Login process completed successfully ===");
             return response;
 
         } catch (BadCredentialsException e) {
-            logger.warn("Login failed for email: {} - Bad credentials", loginRequest.getEmail());
+            logger.warn("Login failed for email: {} - Bad credentials: {}", loginRequest.getEmail(), e.getMessage());
             throw new BadCredentialsException("Invalid email or password");
         } catch (Exception e) {
-            logger.error("Login failed for email: {} - Error: {}", loginRequest.getEmail(), e.getMessage());
+            logger.error("Login failed for email: {} - Unexpected error: {}", loginRequest.getEmail(), e.getMessage(), e);
             throw new RuntimeException("Login failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Manual login method for testing
+     */
+    @Transactional
+    public Map<String, Object> manualLoginUser(UserLoginRequest loginRequest) {
+        try {
+            logger.info("=== Manual login attempt for email: {} ===", loginRequest.getEmail());
+
+            // Find user by email
+            Optional<User> userOpt = userRepository.findByEmail(loginRequest.getEmail());
+            if (userOpt.isEmpty()) {
+                logger.error("User not found: {}", loginRequest.getEmail());
+                throw new RuntimeException("Invalid email or password");
+            }
+
+            User user = userOpt.get();
+            logger.info("User found: {}", user.getEmail());
+
+            // Check if user is active
+            if (!user.getIsActive()) {
+                logger.error("User account is deactivated: {}", loginRequest.getEmail());
+                throw new RuntimeException("Account is deactivated");
+            }
+
+            // Verify password
+            if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPassword())) {
+                logger.error("Password verification failed for user: {}", loginRequest.getEmail());
+                throw new RuntimeException("Invalid email or password");
+            }
+
+            logger.info("Password verified successfully");
+
+            // Generate JWT token using the string overloaded method
+            String jwt = jwtUtils.generateToken(user.getEmail());
+            logger.info("JWT token generated");
+
+            // Update last login
+            user.setLastLogin(LocalDateTime.now());
+            userRepository.save(user);
+
+            // Create response
+            UserResponse userResponse = convertToUserResponse(user);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("token", jwt);
+            response.put("type", "Bearer");
+            response.put("user", userResponse);
+            response.put("message", "Manual login successful");
+
+            logger.info("=== Manual login completed successfully ===");
+            return response;
+
+        } catch (Exception e) {
+            logger.error("Manual login failed for email: {} - Error: {}", loginRequest.getEmail(), e.getMessage(), e);
+            throw new RuntimeException("Manual login failed: " + e.getMessage());
         }
     }
 
@@ -147,8 +229,15 @@ public class UserService {
             throw new RuntimeException("No authenticated user found");
         }
 
-        User user = (User) authentication.getPrincipal();
-        return convertToUserResponse(user);
+        // For JWT-based authentication, get user by email from token
+        String email = authentication.getName();
+        Optional<User> userOpt = userRepository.findByEmail(email);
+
+        if (userOpt.isEmpty()) {
+            throw new RuntimeException("User not found: " + email);
+        }
+
+        return convertToUserResponse(userOpt.get());
     }
 
     /**
@@ -173,7 +262,7 @@ public class UserService {
     }
 
     /**
-     * Update user profile
+     * Update user profile - ORIGINAL METHOD (keep for backward compatibility)
      */
     @Transactional
     public UserResponse updateUser(Long id, UserRegistrationRequest request) {
@@ -189,7 +278,7 @@ public class UserService {
         user.setPhoneNumber(request.getPhoneNumber());
 
         if (request.getBirthday() != null) {
-            LocalDate birthday = LocalDate.of(
+            String birthday = String.format("%04d-%02d-%02d",
                     request.getBirthday().getYear(),
                     request.getBirthday().getMonth(),
                     request.getBirthday().getDay()
@@ -202,6 +291,58 @@ public class UserService {
     }
 
     /**
+     * Update user profile - Works with ProfileUpdateRequest
+     */
+    @Transactional
+    public UserResponse updateUserProfile(Long id, ProfileUpdateRequest request) {
+        try {
+            logger.info("Updating user profile for ID: {} with data: {}", id, request);
+
+            Optional<User> userOpt = userRepository.findById(id);
+            if (userOpt.isEmpty()) {
+                throw new RuntimeException("User not found with id: " + id);
+            }
+
+            User user = userOpt.get();
+
+            // Update basic fields
+            user.setFirstName(request.getFirstName());
+            user.setLastName(request.getLastName());
+            user.setEmail(request.getEmail());
+            user.setPhoneNumber(request.getPhoneNumber());
+
+            // Handle birthday conversion from Birthday object to string
+            if (request.getBirthday() != null) {
+                UserRegistrationRequest.Birthday birthday = request.getBirthday();
+
+                if (birthday.getYear() > 0 && birthday.getMonth() > 0 && birthday.getDay() > 0) {
+                    String dateOfBirth = String.format("%04d-%02d-%02d",
+                            birthday.getYear(),
+                            birthday.getMonth(),
+                            birthday.getDay()
+                    );
+                    logger.info("Setting date of birth to: {}", dateOfBirth);
+                    user.setDateOfBirth(dateOfBirth);
+                    logger.info("Date of birth set successfully as string: {}", dateOfBirth);
+                } else {
+                    logger.warn("Invalid birthday data: year={}, month={}, day={}",
+                            birthday.getYear(), birthday.getMonth(), birthday.getDay());
+                }
+            }
+
+            User updatedUser = userRepository.save(user);
+
+            logger.info("User profile updated successfully. Date of birth: {}", updatedUser.getDateOfBirth());
+
+            return convertToUserResponse(updatedUser);
+
+        } catch (Exception e) {
+            logger.error("Failed to update user profile: {}", e.getMessage());
+            throw new RuntimeException("Profile update failed: " + e.getMessage());
+        }
+    }
+
+    /**
      * Change user password
      */
     @Transactional
@@ -209,7 +350,14 @@ public class UserService {
         try {
             // Get current authenticated user
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-            User currentUser = (User) authentication.getPrincipal();
+            String email = authentication.getName();
+
+            Optional<User> userOpt = userRepository.findByEmail(email);
+            if (userOpt.isEmpty()) {
+                throw new RuntimeException("User not found");
+            }
+
+            User currentUser = userOpt.get();
 
             // Verify current password
             if (!passwordEncoder.matches(request.getCurrentPassword(), currentUser.getPassword())) {
@@ -218,18 +366,10 @@ public class UserService {
 
             // Update password
             String newHashedPassword = passwordEncoder.encode(request.getNewPassword());
+            currentUser.setPassword(newHashedPassword);
+            userRepository.save(currentUser);
 
-            // Find user in database and update
-            Optional<User> userOpt = userRepository.findById(currentUser.getId());
-            if (userOpt.isEmpty()) {
-                throw new RuntimeException("User not found");
-            }
-
-            User user = userOpt.get();
-            user.setPassword(newHashedPassword);
-            userRepository.save(user);
-
-            logger.info("Password changed successfully for user: {}", user.getEmail());
+            logger.info("Password changed successfully for user: {}", currentUser.getEmail());
 
         } catch (Exception e) {
             logger.error("Password change failed: {}", e.getMessage());
@@ -240,17 +380,21 @@ public class UserService {
     /**
      * Upload profile picture
      */
-    // In UserService.java, update the uploadProfilePicture method:
-
     @Transactional
     public String uploadProfilePicture(MultipartFile file) {
         try {
             // Get current authenticated user
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-            User currentUser = (User) authentication.getPrincipal();
+            String email = authentication.getName();
+
+            Optional<User> userOpt = userRepository.findByEmail(email);
+            if (userOpt.isEmpty()) {
+                throw new RuntimeException("User not found");
+            }
+
+            User currentUser = userOpt.get();
 
             // Create upload directory if it doesn't exist
-            // Change this to save in the project root directory, not inside src
             String uploadDir = "uploads/profile-pictures";
             Path uploadPath = Paths.get(uploadDir);
 
@@ -274,16 +418,10 @@ public class UserService {
             // Update user profile picture URL
             String profilePictureUrl = "/uploads/profile-pictures/" + filename;
 
-            Optional<User> userOpt = userRepository.findById(currentUser.getId());
-            if (userOpt.isEmpty()) {
-                throw new RuntimeException("User not found");
-            }
+            currentUser.setProfilePicture(profilePictureUrl);
+            userRepository.save(currentUser);
 
-            User user = userOpt.get();
-            user.setProfilePicture(profilePictureUrl);
-            userRepository.save(user);
-
-            logger.info("Profile picture uploaded successfully for user: {}", user.getEmail());
+            logger.info("Profile picture uploaded successfully for user: {}", currentUser.getEmail());
 
             return profilePictureUrl;
 

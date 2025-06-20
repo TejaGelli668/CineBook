@@ -10,20 +10,23 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 @Service
 public class AuthService {
 
     private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
+
+    @Autowired
+    private AuthenticationManager authenticationManager;
 
     @Autowired
     private AdminRepository adminRepository;
@@ -32,67 +35,76 @@ public class AuthService {
     private JwtUtils jwtUtils;
 
     @Autowired
-    private AuthenticationManager authenticationManager;
+    private PasswordEncoder passwordEncoder;
 
-    /**
-     * Authenticate admin and generate JWT token
-     */
-    @Transactional
     public LoginResponse login(LoginRequest loginRequest) {
         try {
-            // Authenticate user
-            Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(
-                            loginRequest.getUsername(),
-                            loginRequest.getPassword()
-                    )
-            );
+            logger.info("Processing admin login for username: {}", loginRequest.getUsername());
 
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+            // Step 1: Check if admin exists
+            Optional<Admin> adminOpt = adminRepository.findByUsername(loginRequest.getUsername());
+            if (adminOpt.isEmpty()) {
+                logger.warn("Admin not found with username: {}", loginRequest.getUsername());
+                throw new RuntimeException("Admin not found with username: " + loginRequest.getUsername());
+            }
 
-            // Get admin details
-            Admin admin = (Admin) authentication.getPrincipal();
+            Admin admin = adminOpt.get();
+            logger.info("Admin found: {} (ID: {})", admin.getUsername(), admin.getId());
 
-            // Generate JWT token
-            String jwt = jwtUtils.generateToken(admin);
+            // Step 2: Check if admin is active
+            if (!admin.getIsActive()) {
+                logger.warn("Admin account is disabled: {}", loginRequest.getUsername());
+                throw new RuntimeException("Admin account is disabled");
+            }
 
-            // Update last login time
+            // Step 3: Verify password manually (since we're dealing with admin-specific logic)
+            if (!passwordEncoder.matches(loginRequest.getPassword(), admin.getPassword())) {
+                logger.warn("Invalid password for admin: {}", loginRequest.getUsername());
+                throw new RuntimeException("Invalid credentials");
+            }
+
+            logger.info("Password verification successful for admin: {}", loginRequest.getUsername());
+
+            // Step 4: Generate JWT token
+            // Create UserDetails for token generation
+            UserDetails userDetails = org.springframework.security.core.userdetails.User.builder()
+                    .username(admin.getUsername())
+                    .password(admin.getPassword())
+                    .authorities("ROLE_" + admin.getRole().toString())
+                    .accountExpired(false)
+                    .accountLocked(false)
+                    .credentialsExpired(false)
+                    .disabled(!admin.getIsActive())
+                    .build();
+
+            String token = jwtUtils.generateToken(userDetails);
+            logger.info("JWT token generated for admin: {}", admin.getUsername());
+
+            // Step 5: Update last login time
             admin.setLastLogin(LocalDateTime.now());
-            adminRepository.updateLastLogin(admin.getId(), admin.getLastLogin());
+            adminRepository.save(admin);
 
-            // Create response
-            AdminResponse adminResponse = new AdminResponse(
-                    admin.getId(),
-                    admin.getUsername(),
-                    admin.getEmail(),
-                    admin.getFirstName(),
-                    admin.getLastName(),
-                    admin.getRole().name(),
-                    admin.getIsActive(),
-                    admin.getCreatedAt(),
-                    admin.getLastLogin()
-            );
+            // Step 6: Create response
+            LoginResponse response = new LoginResponse();
+            response.setToken(token);
+            response.setUsername(admin.getUsername());
+            response.setEmail(admin.getEmail());
+            response.setRole(admin.getRole().toString());
 
-            logger.info("Admin logged in successfully: {}", admin.getUsername());
+            logger.info("Admin login successful for: {}", loginRequest.getUsername());
+            return response;
 
-            return new LoginResponse(jwt, "Bearer", adminResponse, "Login successful");
-
-        } catch (BadCredentialsException e) {
-            logger.warn("Login failed for username: {} - Bad credentials", loginRequest.getUsername());
-            throw new BadCredentialsException("Invalid username or password");
         } catch (Exception e) {
-            logger.error("Login failed for username: {} - Error: {}", loginRequest.getUsername(), e.getMessage());
+            logger.error("Admin login failed for username: {} - Error: {}", loginRequest.getUsername(), e.getMessage());
             throw new RuntimeException("Login failed: " + e.getMessage());
         }
     }
 
-    /**
-     * Logout admin (invalidate token on client side)
-     */
     public String logout() {
         try {
+            // Clear security context
             SecurityContextHolder.clearContext();
-            logger.info("Admin logged out successfully");
+            logger.info("Admin logout successful");
             return "Logout successful";
         } catch (Exception e) {
             logger.error("Logout failed: {}", e.getMessage());
@@ -100,42 +112,39 @@ public class AuthService {
         }
     }
 
-    /**
-     * Get current authenticated admin
-     */
     public AdminResponse getCurrentAdmin() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated()) {
+                throw new RuntimeException("No authenticated admin found");
+            }
 
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new RuntimeException("No authenticated admin found");
+            String username = authentication.getName();
+            logger.info("Getting current admin details for: {}", username);
+
+            Optional<Admin> adminOpt = adminRepository.findByUsername(username);
+            if (adminOpt.isEmpty()) {
+                throw new RuntimeException("Admin not found: " + username);
+            }
+
+            Admin admin = adminOpt.get();
+
+            AdminResponse response = new AdminResponse();
+            response.setId(admin.getId());
+            response.setUsername(admin.getUsername());
+            response.setEmail(admin.getEmail());
+            response.setFirstName(admin.getFirstName());
+            response.setLastName(admin.getLastName());
+            response.setRole(admin.getRole().toString());
+            response.setIsActive(admin.getIsActive());
+            response.setCreatedAt(admin.getCreatedAt());
+            response.setLastLogin(admin.getLastLogin());
+
+            return response;
+
+        } catch (Exception e) {
+            logger.error("Failed to get current admin: {}", e.getMessage());
+            throw new RuntimeException("Failed to get current admin: " + e.getMessage());
         }
-
-        Admin admin = (Admin) authentication.getPrincipal();
-
-        return new AdminResponse(
-                admin.getId(),
-                admin.getUsername(),
-                admin.getEmail(),
-                admin.getFirstName(),
-                admin.getLastName(),
-                admin.getRole().name(),
-                admin.getIsActive(),
-                admin.getCreatedAt(),
-                admin.getLastLogin()
-        );
-    }
-
-    /**
-     * Check if username exists
-     */
-    public boolean existsByUsername(String username) {
-        return adminRepository.existsByUsername(username);
-    }
-
-    /**
-     * Check if email exists
-     */
-    public boolean existsByEmail(String email) {
-        return adminRepository.existsByEmail(email);
     }
 }

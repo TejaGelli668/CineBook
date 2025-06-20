@@ -53,12 +53,12 @@ public class UserController {
     }
 
     /**
-     * User login endpoint
+     * User login endpoint - UPDATED to use UserLoginRequest
      */
     @PostMapping("/login")
-    public ResponseEntity<?> loginUser(@Valid @RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<?> loginUser(@Valid @RequestBody UserLoginRequest loginRequest) {
         try {
-            logger.info("User login attempt for email: {}", loginRequest.getEmail()); // ✅ Changed from getUsername()
+            logger.info("User login attempt for email: {}", loginRequest.getEmail());
 
             Map<String, Object> loginResponse = userService.loginUser(loginRequest);
 
@@ -69,7 +69,7 @@ public class UserController {
             ));
 
         } catch (Exception e) {
-            logger.error("User login failed for email: {} - Error: {}", loginRequest.getEmail(), e.getMessage()); // ✅ Changed from getUsername()
+            logger.error("User login failed for email: {} - Error: {}", loginRequest.getEmail(), e.getMessage());
 
             return ResponseEntity.badRequest()
                     .body(new ApiResponse<>(
@@ -108,7 +108,7 @@ public class UserController {
     }
 
     /**
-     * Update user profile
+     * Update user profile - UPDATED TO WORK WITH EXISTING ProfileUpdateRequest
      */
     @PutMapping("/profile")
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
@@ -117,16 +117,17 @@ public class UserController {
             // Get current user ID from security context
             UserResponse currentUser = userService.getCurrentUser();
 
-            // Create UserRegistrationRequest manually
-            UserRegistrationRequest serviceRequest = new UserRegistrationRequest();
-            serviceRequest.setEmail((String) requestBody.get("email"));
-            serviceRequest.setFirstName((String) requestBody.get("firstName"));
-            serviceRequest.setLastName((String) requestBody.get("lastName"));
-            serviceRequest.setPhoneNumber((String) requestBody.get("phoneNumber"));
+            // Create ProfileUpdateRequest using existing structure
+            ProfileUpdateRequest profileRequest = new ProfileUpdateRequest();
+            profileRequest.setEmail((String) requestBody.get("email"));
+            profileRequest.setFirstName((String) requestBody.get("firstName"));
+            profileRequest.setLastName((String) requestBody.get("lastName"));
+            profileRequest.setPhoneNumber((String) requestBody.get("phoneNumber"));
 
-            // Handle birthday conversion
+            // Handle birthday conversion to existing Birthday object
             Object birthdayObj = requestBody.get("birthday");
             if (birthdayObj != null && birthdayObj instanceof Map) {
+                @SuppressWarnings("unchecked")
                 Map<String, Object> birthdayMap = (Map<String, Object>) birthdayObj;
                 UserRegistrationRequest.Birthday birthday = new UserRegistrationRequest.Birthday();
 
@@ -140,12 +141,11 @@ public class UserController {
                     birthday.setDay((Integer) birthdayMap.get("day"));
                 }
 
-                serviceRequest.setBirthday(birthday);
+                profileRequest.setBirthday(birthday);
             }
 
-            // Don't set password - it's not needed for updates
-
-            UserResponse updatedUser = userService.updateUser(currentUser.getId(), serviceRequest);
+            // Use the updateUserProfile method that works with ProfileUpdateRequest
+            UserResponse updatedUser = userService.updateUserProfile(currentUser.getId(), profileRequest);
 
             return ResponseEntity.ok(new ApiResponse<>(
                     true,

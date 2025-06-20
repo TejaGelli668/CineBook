@@ -6,6 +6,7 @@ import com.example.adminbackend.dto.AdminResponse;
 import com.example.adminbackend.dto.ApiResponse;
 import com.example.adminbackend.service.AuthService;
 import com.example.adminbackend.security.JwtUtils;
+import com.example.adminbackend.repository.AdminRepository;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,15 +31,35 @@ public class AuthController {
     @Autowired
     private JwtUtils jwtUtils;
 
+    @Autowired
+    private AdminRepository adminRepository;
+
     /**
-     * Admin login endpoint
+     * Admin login endpoint - PUBLIC ACCESS
      */
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest loginRequest) {
         try {
-            logger.info("Login attempt for username: {}", loginRequest.getUsername());
+            logger.info("=== ADMIN LOGIN ATTEMPT ===");
+            logger.info("Username: {}", loginRequest.getUsername());
+            logger.info("Password length: {}", loginRequest.getPassword() != null ? loginRequest.getPassword().length() : 0);
+
+            // Check if admin exists in database
+            boolean adminExists = adminRepository.existsByUsername(loginRequest.getUsername());
+            logger.info("Admin exists in database: {}", adminExists);
+
+            if (!adminExists) {
+                logger.warn("Admin with username {} not found in database", loginRequest.getUsername());
+                return ResponseEntity.badRequest()
+                        .body(new ApiResponse<>(
+                                false,
+                                "Admin not found. Please contact system administrator.",
+                                null
+                        ));
+            }
 
             LoginResponse loginResponse = authService.login(loginRequest);
+            logger.info("Login successful for: {}", loginRequest.getUsername());
 
             return ResponseEntity.ok(new ApiResponse<>(
                     true,
@@ -47,21 +68,72 @@ public class AuthController {
             ));
 
         } catch (Exception e) {
-            logger.error("Login failed for username: {} - Error: {}", loginRequest.getUsername(), e.getMessage());
+            logger.error("Login failed for username: {} - Error: {}", loginRequest.getUsername(), e.getMessage(), e);
 
             return ResponseEntity.badRequest()
                     .body(new ApiResponse<>(
                             false,
-                            e.getMessage(),
+                            "Login failed: " + e.getMessage(),
                             null
                     ));
         }
     }
 
     /**
-     * Admin logout endpoint
+     * Debug endpoint to check login without security
+     */
+    @PostMapping("/debug-login")
+    public ResponseEntity<?> debugLogin(@RequestBody Map<String, String> credentials) {
+        try {
+            logger.info("=== DEBUG LOGIN ENDPOINT ===");
+            String username = credentials.get("username");
+            String password = credentials.get("password");
+
+            logger.info("Received username: {}", username);
+            logger.info("Received password length: {}", password != null ? password.length() : 0);
+
+            // Check database
+            long adminCount = adminRepository.count();
+            boolean adminExists = adminRepository.existsByUsername(username);
+
+            Map<String, Object> debugInfo = new HashMap<>();
+            debugInfo.put("totalAdmins", adminCount);
+            debugInfo.put("adminExists", adminExists);
+            debugInfo.put("receivedUsername", username);
+            debugInfo.put("passwordReceived", password != null && !password.isEmpty());
+
+            if (adminExists) {
+                var admin = adminRepository.findByUsername(username);
+                debugInfo.put("adminFound", admin.isPresent());
+                if (admin.isPresent()) {
+                    debugInfo.put("adminEmail", admin.get().getEmail());
+                    debugInfo.put("adminRole", admin.get().getRole());
+                    debugInfo.put("adminActive", admin.get().getIsActive());
+                }
+            }
+
+            return ResponseEntity.ok(new ApiResponse<>(
+                    true,
+                    "Debug info collected",
+                    debugInfo
+            ));
+
+        } catch (Exception e) {
+            logger.error("Debug login failed: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest()
+                    .body(new ApiResponse<>(
+                            false,
+                            "Debug failed: " + e.getMessage(),
+                            null
+                    ));
+        }
+    }
+
+    /**
+     * Admin logout endpoint - REQUIRES AUTHENTICATION
      */
     @PostMapping("/logout")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
     public ResponseEntity<?> logout() {
         try {
             String message = authService.logout();
@@ -85,9 +157,10 @@ public class AuthController {
     }
 
     /**
-     * Get current authenticated admin details
+     * Get current authenticated admin details - REQUIRES AUTHENTICATION
      */
     @GetMapping("/me")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
     public ResponseEntity<?> getCurrentAdmin() {
         try {
             AdminResponse adminResponse = authService.getCurrentAdmin();
@@ -111,9 +184,10 @@ public class AuthController {
     }
 
     /**
-     * Validate JWT token
+     * Validate JWT token - REQUIRES AUTHENTICATION
      */
     @GetMapping("/validate")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
     public ResponseEntity<?> validateToken() {
         try {
             AdminResponse adminResponse = authService.getCurrentAdmin();
@@ -137,77 +211,29 @@ public class AuthController {
     }
 
     /**
-     * Debug JWT token (temporary endpoint for debugging)
-     */
-    @PostMapping("/debug-token")
-    public ResponseEntity<?> debugToken(@RequestHeader(value = "Authorization", required = false) String authHeader) {
-        try {
-            logger.info("Debug token endpoint called");
-            logger.info("Authorization header: {}", authHeader != null ? "Bearer ***" : "Not present");
-
-            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                return ResponseEntity.badRequest()
-                        .body(new ApiResponse<>(
-                                false,
-                                "No valid Authorization header found",
-                                null
-                        ));
-            }
-
-            String token = authHeader.substring(7);
-            logger.info("Token length: {}", token.length());
-            logger.info("Token starts with: {}", token.substring(0, Math.min(20, token.length())));
-
-            // Test JWT validation using the autowired JwtUtils
-            boolean isValid = false;
-            String username = null;
-            String error = null;
-
-            try {
-                isValid = jwtUtils.validateToken(token);
-                if (isValid) {
-                    username = jwtUtils.extractUsername(token);
-                }
-                logger.info("JWT validation result: valid={}, username={}", isValid, username);
-            } catch (Exception e) {
-                error = e.getMessage();
-                logger.error("JWT validation error: {}", e.getMessage(), e);
-            }
-
-            Map<String, Object> debugInfo = new HashMap<>();
-            debugInfo.put("tokenLength", token.length());
-            debugInfo.put("tokenPrefix", token.substring(0, Math.min(30, token.length())));
-            debugInfo.put("isValid", isValid);
-            debugInfo.put("username", username);
-            debugInfo.put("error", error);
-            debugInfo.put("message", "Token validation completed");
-
-            return ResponseEntity.ok(new ApiResponse<>(
-                    true,
-                    "Debug info",
-                    debugInfo
-            ));
-
-        } catch (Exception e) {
-            logger.error("Debug token failed: {}", e.getMessage(), e);
-            return ResponseEntity.badRequest()
-                    .body(new ApiResponse<>(
-                            false,
-                            "Debug failed: " + e.getMessage(),
-                            null
-                    ));
-        }
-    }
-
-    /**
-     * Health check endpoint
+     * Health check endpoint - PUBLIC ACCESS
      */
     @GetMapping("/health")
     public ResponseEntity<?> healthCheck() {
-        return ResponseEntity.ok(new ApiResponse<>(
-                true,
-                "Auth service is healthy",
-                null
-        ));
+        try {
+            long adminCount = adminRepository.count();
+
+            Map<String, Object> health = new HashMap<>();
+            health.put("status", "healthy");
+            health.put("adminCount", adminCount);
+            health.put("timestamp", java.time.LocalDateTime.now());
+
+            return ResponseEntity.ok(new ApiResponse<>(
+                    true,
+                    "Auth service is healthy",
+                    health
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.ok(new ApiResponse<>(
+                    false,
+                    "Health check failed: " + e.getMessage(),
+                    null
+            ));
+        }
     }
 }

@@ -27,7 +27,7 @@ public class JwtUtils {
     private int jwtExpirationMs;
 
     /**
-     * Generate JWT token for user
+     * Generate JWT token for user (UserDetails)
      */
     public String generateToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
@@ -35,23 +35,54 @@ public class JwtUtils {
     }
 
     /**
-     * Generate JWT token with extra claims
+     * Generate JWT token for username (String) - ADDED THIS METHOD
+     */
+    public String generateToken(String username) {
+        Map<String, Object> claims = new HashMap<>();
+        return createToken(claims, username);
+    }
+
+    /**
+     * Generate JWT token with extra claims (UserDetails)
      */
     public String generateToken(Map<String, Object> extraClaims, UserDetails userDetails) {
         return createToken(extraClaims, userDetails.getUsername());
     }
 
     /**
+     * Generate JWT token with extra claims (String) - ADDED THIS METHOD
+     */
+    public String generateToken(Map<String, Object> extraClaims, String username) {
+        return createToken(extraClaims, username);
+    }
+
+    /**
      * Create JWT token
      */
     private String createToken(Map<String, Object> claims, String subject) {
-        return Jwts.builder()
-                .setClaims(claims)
-                .setSubject(subject)
-                .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
-                .signWith(getSignKey(), SignatureAlgorithm.HS256)
-                .compact();
+        try {
+            logger.debug("Creating JWT token for subject: {}", subject);
+
+            Date now = new Date(System.currentTimeMillis());
+            Date expiration = new Date(System.currentTimeMillis() + jwtExpirationMs);
+
+            logger.debug("Token expiration time: {}", expiration);
+
+            String token = Jwts.builder()
+                    .setClaims(claims)
+                    .setSubject(subject)
+                    .setIssuedAt(now)
+                    .setExpiration(expiration)
+                    .signWith(getSignKey(), SignatureAlgorithm.HS256)
+                    .compact();
+
+            logger.debug("JWT token created successfully for subject: {}", subject);
+            return token;
+
+        } catch (Exception e) {
+            logger.error("Error creating JWT token for subject: {} - {}", subject, e.getMessage(), e);
+            throw new RuntimeException("Could not create JWT token", e);
+        }
     }
 
     /**
@@ -96,7 +127,12 @@ public class JwtUtils {
      * Check if token is expired
      */
     private Boolean isTokenExpired(String token) {
-        return extractExpiration(token).before(new Date());
+        try {
+            return extractExpiration(token).before(new Date());
+        } catch (Exception e) {
+            logger.error("Error checking token expiration: {}", e.getMessage());
+            return true; // Consider expired if we can't parse it
+        }
     }
 
     /**
@@ -105,7 +141,9 @@ public class JwtUtils {
     public Boolean validateToken(String token, UserDetails userDetails) {
         try {
             final String username = extractUsername(token);
-            return (username.equals(userDetails.getUsername()) && !isTokenExpired(token));
+            boolean isValid = (username.equals(userDetails.getUsername()) && !isTokenExpired(token));
+            logger.debug("Token validation result for user {}: {}", username, isValid);
+            return isValid;
         } catch (MalformedJwtException e) {
             logger.error("Invalid JWT token: {}", e.getMessage());
         } catch (ExpiredJwtException e) {
@@ -142,10 +180,22 @@ public class JwtUtils {
     }
 
     /**
+     * Get token expiration time in milliseconds
+     */
+    public long getExpirationTime() {
+        return jwtExpirationMs;
+    }
+
+    /**
      * Get signing key
      */
     private Key getSignKey() {
-        // Use the secret directly as bytes (not base64 decoded)
-        return Keys.hmacShaKeyFor(jwtSecret.getBytes());
+        try {
+            // Use the secret directly as bytes (not base64 decoded)
+            return Keys.hmacShaKeyFor(jwtSecret.getBytes());
+        } catch (Exception e) {
+            logger.error("Error creating signing key: {}", e.getMessage());
+            throw new RuntimeException("Could not create JWT signing key", e);
+        }
     }
 }

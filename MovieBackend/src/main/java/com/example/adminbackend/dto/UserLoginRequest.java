@@ -1,34 +1,35 @@
 package com.example.adminbackend.dto;
 
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
-public class LoginRequest {
+public class UserLoginRequest {
 
-    @NotBlank(message = "Username is required")
-    @Size(min = 3, max = 100, message = "Username must be between 3 and 100 characters")
-    private String username;  // Changed from email validation to username
+    @NotBlank(message = "Email is required")
+    @Email(message = "Please provide a valid email")
+    private String email;
 
     @NotBlank(message = "Password is required")
     @Size(min = 6, max = 100, message = "Password must be between 6 and 100 characters")
     private String password;
 
     // Default constructor
-    public LoginRequest() {}
+    public UserLoginRequest() {}
 
     // Constructor with parameters
-    public LoginRequest(String username, String password) {
-        this.username = username;
+    public UserLoginRequest(String email, String password) {
+        this.email = email;
         this.password = password;
     }
 
     // Getters and setters
-    public String getUsername() {
-        return username;
+    public String getEmail() {
+        return email;
     }
 
-    public void setUsername(String username) {
-        this.username = username;
+    public void setEmail(String email) {
+        this.email = email;
     }
 
     public String getPassword() {
@@ -41,8 +42,8 @@ public class LoginRequest {
 
     @Override
     public String toString() {
-        return "LoginRequest{" +
-                "username='" + username + '\'' +
+        return "UserLoginRequest{" +
+                "email='" + email + '\'' +
                 ", password='[PROTECTED]'" +
                 '}';
     }
