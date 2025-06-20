@@ -1,9 +1,10 @@
+// src/components/AuthTestComponent.js
 import React, { useState } from "react";
 import {
   validateAdminLogin,
   logoutAdmin,
   verifyToken,
-  getCurrentAdminFromBackend,
+  getCurrentAdmin, // <-- corrected import
 } from "../utils/auth";
 
 const AuthTestComponent = () => {
@@ -50,7 +51,7 @@ const AuthTestComponent = () => {
   const testGetCurrentAdmin = async () => {
     setLoading(true);
     try {
-      const admin = await getCurrentAdmin();
+      const admin = getCurrentAdmin(); // now correctly defined
       setResult(JSON.stringify(admin, null, 2));
     } catch (error) {
       setResult(`Get admin error: ${error.message}`);
