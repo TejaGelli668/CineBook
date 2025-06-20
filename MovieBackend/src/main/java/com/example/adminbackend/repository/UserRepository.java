@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -15,6 +16,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmail(String email);
 
     boolean existsByEmail(String email);
+
+    /**
+     * Map "username" back to the email column, so Spring Data
+     * doesn't try to derive a username property.
+     */
+    @Query("SELECT u FROM User u WHERE u.email = :username")
+    Optional<User> findByUsername(@Param("username") String username);
 
     long countByIsActiveTrue();
 
@@ -25,8 +33,15 @@ public interface UserRepository extends JpaRepository<User, Long> {
     long countUsersRegisteredThisMonth();
 
     @Query("SELECT u FROM User u WHERE u.createdAt >= :startDate")
-    java.util.List<User> findUsersCreatedAfter(@Param("startDate") LocalDateTime startDate);
+    List<User> findUsersCreatedAfter(@Param("startDate") LocalDateTime startDate);
 
     @Query("SELECT u FROM User u WHERE u.lastLogin >= :startDate")
-    java.util.List<User> findUsersActiveAfter(@Param("startDate") LocalDateTime startDate);
+    List<User> findUsersActiveAfter(@Param("startDate") LocalDateTime startDate);
+
+    /**
+     * A convenience method so you can call either by username or email.
+     */
+    default Optional<User> findByUsernameOrEmail(String username) {
+        return findByEmail(username);
+    }
 }

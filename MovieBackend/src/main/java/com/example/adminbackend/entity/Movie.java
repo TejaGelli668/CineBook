@@ -1,6 +1,8 @@
 // src/main/java/com/example/adminbackend/entity/Movie.java
 package com.example.adminbackend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -20,6 +22,7 @@ public class Movie {
     private String language;
     private LocalDate releaseDate;
     private BigDecimal price;     // ticket price
+
     @Column(length = 2000)
     private String description;
     private String director;
@@ -40,6 +43,13 @@ public class Movie {
     private String certificate;   // U, UA, A, S
     private String status;        // Active, Inactive, Coming Soon
 
+    @OneToMany(mappedBy = "movie", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnore
+    private List<Show> shows;
+
+    public Movie() {}
+
+    // Id
     public Long getId() {
         return id;
     }
@@ -47,6 +57,7 @@ public class Movie {
         this.id = id;
     }
 
+    // Title
     public String getTitle() {
         return title;
     }
@@ -54,6 +65,7 @@ public class Movie {
         this.title = title;
     }
 
+    // Genre
     public String getGenre() {
         return genre;
     }
@@ -61,6 +73,7 @@ public class Movie {
         this.genre = genre;
     }
 
+    // Duration
     public String getDuration() {
         return duration;
     }
@@ -68,6 +81,7 @@ public class Movie {
         this.duration = duration;
     }
 
+    // Rating
     public Double getRating() {
         return rating;
     }
@@ -75,6 +89,7 @@ public class Movie {
         this.rating = rating;
     }
 
+    // Language
     public String getLanguage() {
         return language;
     }
@@ -82,6 +97,7 @@ public class Movie {
         this.language = language;
     }
 
+    // Release Date
     public LocalDate getReleaseDate() {
         return releaseDate;
     }
@@ -89,6 +105,7 @@ public class Movie {
         this.releaseDate = releaseDate;
     }
 
+    // Price
     public BigDecimal getPrice() {
         return price;
     }
@@ -96,6 +113,7 @@ public class Movie {
         this.price = price;
     }
 
+    // Description
     public String getDescription() {
         return description;
     }
@@ -103,6 +121,7 @@ public class Movie {
         this.description = description;
     }
 
+    // Director
     public String getDirector() {
         return director;
     }
@@ -110,6 +129,7 @@ public class Movie {
         this.director = director;
     }
 
+    // Cast
     public List<String> getCast() {
         return cast;
     }
@@ -117,6 +137,7 @@ public class Movie {
         this.cast = cast;
     }
 
+    // Trailer
     public String getTrailer() {
         return trailer;
     }
@@ -124,6 +145,7 @@ public class Movie {
         this.trailer = trailer;
     }
 
+    // Poster URL
     public String getPosterUrl() {
         return posterUrl;
     }
@@ -131,6 +153,7 @@ public class Movie {
         this.posterUrl = posterUrl;
     }
 
+    // Format
     public List<String> getFormat() {
         return format;
     }
@@ -138,6 +161,7 @@ public class Movie {
         this.format = format;
     }
 
+    // Certificate
     public String getCertificate() {
         return certificate;
     }
@@ -145,10 +169,19 @@ public class Movie {
         this.certificate = certificate;
     }
 
+    // Status
     public String getStatus() {
         return status;
     }
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    // Shows
+    public List<Show> getShows() {
+        return shows;
+    }
+    public void setShows(List<Show> shows) {
+        this.shows = shows;
     }
 }

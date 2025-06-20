@@ -2,6 +2,8 @@ package com.example.adminbackend.config;
 
 import com.example.adminbackend.security.JwtAuthenticationEntryPoint;
 import com.example.adminbackend.security.JwtAuthenticationFilter;
+import com.fasterxml.jackson.datatype.hibernate6.Hibernate6Module;
+import com.fasterxml.jackson.databind.Module;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -44,7 +46,12 @@ public class SecurityConfig {
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
-
+    @Bean
+    public Module hibernateModule(){
+        Hibernate6Module module = new Hibernate6Module();
+        module.enable(Hibernate6Module.Feature.FORCE_LAZY_LOADING);
+        return module;
+    }
     @Bean
     public DaoAuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
@@ -112,13 +119,22 @@ public class SecurityConfig {
                                 "/api/test/**"
                         ).permitAll()
 
-                        // 7a) authenticated GET /api/user/me
+                        // 7) WebSocket endpoints
+                        .requestMatchers("/ws/**").permitAll()
+
+                        // 8) Public show endpoints
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/shows/movie/**",
+                                "/api/shows/theater/**"
+                        ).permitAll()
+
+                        // 9a) authenticated GET /api/user/me
                         .requestMatchers(HttpMethod.GET,
                                 "/user/me",
                                 "/api/user/me"
                         ).authenticated()
 
-                        // 7b) authenticated PUT profile routes
+                        // 9b) authenticated PUT profile routes
                         .requestMatchers(HttpMethod.PUT,
                                 "/user/profile",
                                 "/user/change-password",
@@ -128,7 +144,12 @@ public class SecurityConfig {
                                 "/api/user/upload-profile-picture"
                         ).authenticated()
 
-                        // 8) admin-only endpoints
+                        // 10) Seat booking endpoints - require authentication
+                        .requestMatchers(
+                                "/api/seats/**"
+                        ).authenticated()
+
+                        // 11) admin-only endpoints
                         .requestMatchers(HttpMethod.GET,
                                 "/auth/me",
                                 "/auth/validate",
@@ -141,7 +162,7 @@ public class SecurityConfig {
                                 "/api/auth/logout"
                         ).hasAnyRole("ADMIN", "SUPER_ADMIN")
 
-                        // 9) admin-only user management
+                        // 12) admin-only user management
                         .requestMatchers(HttpMethod.GET,
                                 "/user/all",
                                 "/user/stats",
@@ -154,7 +175,12 @@ public class SecurityConfig {
                                 "/api/user/{id}"
                         ).hasAnyRole("ADMIN", "SUPER_ADMIN")
 
-                        // 10) everything else requires authentication
+                        // 13) Admin-only show management
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/shows"
+                        ).hasAnyRole("ADMIN", "SUPER_ADMIN")
+
+                        // 14) everything else requires authentication
                         .anyRequest().authenticated()
                 )
 
@@ -169,7 +195,9 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cfg = new CorsConfiguration();
-        cfg.setAllowedOriginPatterns(List.of("*"));
+        cfg.setAllowedOriginPatterns(List.of(
+                "http://localhost:3000"
+        ));
         cfg.setAllowedMethods(Arrays.asList(
                 "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"
         ));

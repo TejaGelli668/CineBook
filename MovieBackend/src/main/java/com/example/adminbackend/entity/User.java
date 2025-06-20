@@ -7,6 +7,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Table(name = "users")
@@ -59,6 +60,10 @@ public class User {
 
     @Column(name = "last_login")
     private LocalDateTime lastLogin;
+
+    // New relationship for bookings
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<Booking> bookings;
 
     // Enum for user roles
     public enum Role {
@@ -182,6 +187,14 @@ public class User {
         this.lastLogin = lastLogin;
     }
 
+    public List<Booking> getBookings() {
+        return bookings;
+    }
+
+    public void setBookings(List<Booking> bookings) {
+        this.bookings = bookings;
+    }
+
     // Helper methods
     public String getFullName() {
         return firstName + " " + lastName;
@@ -189,6 +202,11 @@ public class User {
 
     public boolean isActive() {
         return Boolean.TRUE.equals(isActive);
+    }
+
+    // Method to support Spring Security's username-based authentication
+    public String getUsername() {
+        return email; // Using email as username
     }
 
     @Override
