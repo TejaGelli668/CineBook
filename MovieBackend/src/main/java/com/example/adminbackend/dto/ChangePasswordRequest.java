@@ -9,23 +9,18 @@ public class ChangePasswordRequest {
     private String currentPassword;
 
     @NotBlank(message = "New password is required")
-    @Size(min = 6, max = 100, message = "New password must be between 6 and 100 characters")
+    @Size(min = 6, message = "Password must be at least 6 characters")
     private String newPassword;
 
-    @NotBlank(message = "Confirm password is required")
-    private String confirmPassword;
-
-    // Default constructor
+    // Constructors
     public ChangePasswordRequest() {}
 
-    // Constructor with parameters
-    public ChangePasswordRequest(String currentPassword, String newPassword, String confirmPassword) {
+    public ChangePasswordRequest(String currentPassword, String newPassword) {
         this.currentPassword = currentPassword;
         this.newPassword = newPassword;
-        this.confirmPassword = confirmPassword;
     }
 
-    // Getters and setters
+    // Getters and Setters
     public String getCurrentPassword() {
         return currentPassword;
     }
@@ -42,20 +37,11 @@ public class ChangePasswordRequest {
         this.newPassword = newPassword;
     }
 
-    public String getConfirmPassword() {
-        return confirmPassword;
-    }
-
-    public void setConfirmPassword(String confirmPassword) {
-        this.confirmPassword = confirmPassword;
-    }
-
     @Override
     public String toString() {
         return "ChangePasswordRequest{" +
-                "currentPassword='[PROTECTED]'" +
-                ", newPassword='[PROTECTED]'" +
-                ", confirmPassword='[PROTECTED]'" +
+                "currentPassword='[HIDDEN]'" +
+                ", newPassword='[HIDDEN]'" +
                 '}';
     }
 }

@@ -6,11 +6,14 @@ import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -25,369 +28,301 @@ public class UserController {
     private UserService userService;
 
     /**
-     * User registration endpoint
+     * User Registration
      */
     @PostMapping("/register")
-    public ResponseEntity<?> registerUser(@Valid @RequestBody UserRegistrationRequest request) {
+    public ResponseEntity<ApiResponse<UserResponse>> registerUser(@Valid @RequestBody UserRegistrationRequest request) {
         try {
             logger.info("User registration attempt for email: {}", request.getEmail());
-
             UserResponse userResponse = userService.registerUser(request);
 
-            return ResponseEntity.ok(new ApiResponse<>(
-                    true,
-                    "User registered successfully",
-                    userResponse
-            ));
+            ApiResponse<UserResponse> response = new ApiResponse<>(true, "User registered successfully", userResponse);
+            logger.info("User registration successful for email: {}", request.getEmail());
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
 
         } catch (Exception e) {
-            logger.error("User registration failed for email: {} - Error: {}", request.getEmail(), e.getMessage());
-
-            return ResponseEntity.badRequest()
-                    .body(new ApiResponse<>(
-                            false,
-                            e.getMessage(),
-                            null
-                    ));
+            logger.error("User registration failed: {}", e.getMessage());
+            ApiResponse<UserResponse> response = new ApiResponse<>(false, e.getMessage(), null);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
     }
 
     /**
-     * User login endpoint - UPDATED to use UserLoginRequest
+     * User Login
      */
     @PostMapping("/login")
-    public ResponseEntity<?> loginUser(@Valid @RequestBody UserLoginRequest loginRequest) {
+    public ResponseEntity<ApiResponse<Map<String, Object>>> loginUser(@Valid @RequestBody UserLoginRequest loginRequest) {
         try {
             logger.info("User login attempt for email: {}", loginRequest.getEmail());
-
             Map<String, Object> loginResponse = userService.loginUser(loginRequest);
 
-            return ResponseEntity.ok(new ApiResponse<>(
-                    true,
-                    "Login successful",
-                    loginResponse
-            ));
+            ApiResponse<Map<String, Object>> response = new ApiResponse<>(true, "Login successful", loginResponse);
+            logger.info("User login successful for email: {}", loginRequest.getEmail());
+            return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            logger.error("User login failed for email: {} - Error: {}", loginRequest.getEmail(), e.getMessage());
-
-            return ResponseEntity.badRequest()
-                    .body(new ApiResponse<>(
-                            false,
-                            e.getMessage(),
-                            null
-                    ));
+            logger.error("User login failed: {}", e.getMessage());
+            ApiResponse<Map<String, Object>> response = new ApiResponse<>(false, e.getMessage(), null);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
         }
     }
 
     /**
-     * Get current authenticated user details
+     * Manual Login (for testing)
      */
-    @GetMapping("/me")
-    @PreAuthorize("hasRole('USER') or hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
-    public ResponseEntity<?> getCurrentUser() {
+    @PostMapping("/manual-login")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> manualLoginUser(@Valid @RequestBody UserLoginRequest loginRequest) {
         try {
-            UserResponse userResponse = userService.getCurrentUser();
+            logger.info("Manual login attempt for email: {}", loginRequest.getEmail());
+            Map<String, Object> loginResponse = userService.manualLoginUser(loginRequest);
 
-            return ResponseEntity.ok(new ApiResponse<>(
-                    true,
-                    "User details retrieved successfully",
-                    userResponse
-            ));
+            ApiResponse<Map<String, Object>> response = new ApiResponse<>(true, "Manual login successful", loginResponse);
+            logger.info("Manual login successful for email: {}", loginRequest.getEmail());
+            return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            logger.error("Failed to get current user: {}", e.getMessage());
-
-            return ResponseEntity.badRequest()
-                    .body(new ApiResponse<>(
-                            false,
-                            e.getMessage(),
-                            null
-                    ));
+            logger.error("Manual login failed: {}", e.getMessage());
+            ApiResponse<Map<String, Object>> response = new ApiResponse<>(false, e.getMessage(), null);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
         }
     }
 
     /**
-     * Update user profile - UPDATED TO WORK WITH EXISTING ProfileUpdateRequest
+     * Get Current User Profile - WITH DEBUGGING
+     */
+    @GetMapping("/profile")
+    public ResponseEntity<ApiResponse<UserResponse>> getCurrentUserProfile() {
+        try {
+            logger.info("=== Getting current user profile ===");
+
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            logger.info("Authentication object: {}", auth != null ? auth.getName() : "null");
+            logger.info("Authentication details: {}", auth != null ? auth.getDetails() : "null");
+            logger.info("Authentication authorities: {}", auth != null ? auth.getAuthorities() : "null");
+
+            UserResponse userResponse = userService.getCurrentUser();
+            logger.info("User profile retrieved successfully: {}", userResponse);
+
+            ApiResponse<UserResponse> response = new ApiResponse<>(true, "Profile retrieved successfully", userResponse);
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            logger.error("Failed to get user profile: {}", e.getMessage(), e);
+            ApiResponse<UserResponse> response = new ApiResponse<>(false, e.getMessage(), null);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+    }
+
+    /**
+     * Update User Profile - WITH DEBUGGING
      */
     @PutMapping("/profile")
-    @PreAuthorize("hasRole('USER') or hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
-    public ResponseEntity<?> updateProfile(@RequestBody Map<String, Object> requestBody) {
+    public ResponseEntity<ApiResponse<UserResponse>> updateUserProfile(@Valid @RequestBody ProfileUpdateRequest request) {
         try {
-            // Get current user ID from security context
+            logger.info("=== Profile update request received ===");
+            logger.info("Request data: {}", request);
+
+            // Get current user ID from authentication
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            String email = authentication.getName();
+            logger.info("Authenticated user email: {}", email);
+
+            // Get user by email to find ID
             UserResponse currentUser = userService.getCurrentUser();
+            Long userId = currentUser.getId();
 
-            // Create ProfileUpdateRequest using existing structure
-            ProfileUpdateRequest profileRequest = new ProfileUpdateRequest();
-            profileRequest.setEmail((String) requestBody.get("email"));
-            profileRequest.setFirstName((String) requestBody.get("firstName"));
-            profileRequest.setLastName((String) requestBody.get("lastName"));
-            profileRequest.setPhoneNumber((String) requestBody.get("phoneNumber"));
+            logger.info("Updating profile for user ID: {}", userId);
 
-            // Handle birthday conversion to existing Birthday object
-            Object birthdayObj = requestBody.get("birthday");
-            if (birthdayObj != null && birthdayObj instanceof Map) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> birthdayMap = (Map<String, Object>) birthdayObj;
-                UserRegistrationRequest.Birthday birthday = new UserRegistrationRequest.Birthday();
+            UserResponse updatedUser = userService.updateUserProfile(userId, request);
 
-                if (birthdayMap.get("year") != null) {
-                    birthday.setYear((Integer) birthdayMap.get("year"));
-                }
-                if (birthdayMap.get("month") != null) {
-                    birthday.setMonth((Integer) birthdayMap.get("month"));
-                }
-                if (birthdayMap.get("day") != null) {
-                    birthday.setDay((Integer) birthdayMap.get("day"));
-                }
-
-                profileRequest.setBirthday(birthday);
-            }
-
-            // Use the updateUserProfile method that works with ProfileUpdateRequest
-            UserResponse updatedUser = userService.updateUserProfile(currentUser.getId(), profileRequest);
-
-            return ResponseEntity.ok(new ApiResponse<>(
-                    true,
-                    "Profile updated successfully",
-                    updatedUser
-            ));
+            ApiResponse<UserResponse> response = new ApiResponse<>(true, "Profile updated successfully", updatedUser);
+            logger.info("User profile updated successfully for ID: {}", userId);
+            return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            logger.error("Profile update failed: {}", e.getMessage());
-
-            return ResponseEntity.badRequest()
-                    .body(new ApiResponse<>(
-                            false,
-                            e.getMessage(),
-                            null
-                    ));
+            logger.error("Profile update failed: {}", e.getMessage(), e);
+            ApiResponse<UserResponse> response = new ApiResponse<>(false, e.getMessage(), null);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
     }
 
     /**
-     * Change user password
+     * Change Password
      */
-    @PutMapping("/change-password")
-    @PreAuthorize("hasRole('USER') or hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
-    public ResponseEntity<?> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+    @PostMapping("/change-password")
+    public ResponseEntity<ApiResponse<Object>> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
         try {
-            logger.info("Password change request for current user");
-
+            logger.info("Password change request received");
             userService.changePassword(request);
 
-            return ResponseEntity.ok(new ApiResponse<>(
-                    true,
-                    "Password changed successfully",
-                    null
-            ));
+            ApiResponse<Object> response = new ApiResponse<>(true, "Password changed successfully", null);
+            logger.info("Password changed successfully");
+            return ResponseEntity.ok(response);
 
         } catch (Exception e) {
             logger.error("Password change failed: {}", e.getMessage());
-
-            return ResponseEntity.badRequest()
-                    .body(new ApiResponse<>(
-                            false,
-                            e.getMessage(),
-                            null
-                    ));
+            ApiResponse<Object> response = new ApiResponse<>(false, e.getMessage(), null);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
     }
 
     /**
-     * Upload profile picture
+     * Upload Profile Picture
      */
-    @PostMapping("/upload-profile-picture")
-    @PreAuthorize("hasRole('USER') or hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
-    public ResponseEntity<?> uploadProfilePicture(@RequestParam("file") MultipartFile file) {
+    @PostMapping("/profile-picture")
+    public ResponseEntity<ApiResponse<Map<String, String>>> uploadProfilePicture(@RequestParam("file") MultipartFile file) {
         try {
-            logger.info("Profile picture upload request");
+            logger.info("Profile picture upload request received");
 
             if (file.isEmpty()) {
-                return ResponseEntity.badRequest()
-                        .body(new ApiResponse<>(
-                                false,
-                                "No file provided",
-                                null
-                        ));
+                throw new RuntimeException("Please select a file to upload");
+            }
+
+            // Check file size (limit to 5MB)
+            if (file.getSize() > 5 * 1024 * 1024) {
+                throw new RuntimeException("File size exceeds maximum limit of 5MB");
             }
 
             // Check file type
             String contentType = file.getContentType();
             if (contentType == null || !contentType.startsWith("image/")) {
-                return ResponseEntity.badRequest()
-                        .body(new ApiResponse<>(
-                                false,
-                                "Only image files are allowed",
-                                null
-                        ));
-            }
-
-            // Check file size (5MB limit)
-            if (file.getSize() > 5 * 1024 * 1024) {
-                return ResponseEntity.badRequest()
-                        .body(new ApiResponse<>(
-                                false,
-                                "File size must be less than 5MB",
-                                null
-                        ));
+                throw new RuntimeException("Only image files are allowed");
             }
 
             String profilePictureUrl = userService.uploadProfilePicture(file);
 
-            Map<String, String> responseData = Map.of("profilePictureUrl", profilePictureUrl);
+            Map<String, String> responseData = new HashMap<>();
+            responseData.put("profilePictureUrl", profilePictureUrl);
 
-            return ResponseEntity.ok(new ApiResponse<>(
-                    true,
-                    "Profile picture uploaded successfully",
-                    responseData
-            ));
+            ApiResponse<Map<String, String>> response = new ApiResponse<>(true, "Profile picture uploaded successfully", responseData);
+            logger.info("Profile picture uploaded successfully");
+            return ResponseEntity.ok(response);
 
         } catch (Exception e) {
             logger.error("Profile picture upload failed: {}", e.getMessage());
-
-            return ResponseEntity.badRequest()
-                    .body(new ApiResponse<>(
-                            false,
-                            e.getMessage(),
-                            null
-                    ));
+            ApiResponse<Map<String, String>> response = new ApiResponse<>(false, e.getMessage(), null);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
     }
 
     /**
-     * Get all users (Admin only)
+     * Get All Users (Admin only)
      */
     @GetMapping("/all")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
-    public ResponseEntity<?> getAllUsers() {
+    public ResponseEntity<ApiResponse<List<UserResponse>>> getAllUsers() {
         try {
+            logger.info("Getting all users");
             List<UserResponse> users = userService.getAllUsers();
 
-            return ResponseEntity.ok(new ApiResponse<>(
-                    true,
-                    "Users retrieved successfully",
-                    users
-            ));
+            ApiResponse<List<UserResponse>> response = new ApiResponse<>(true, "Users retrieved successfully", users);
+            return ResponseEntity.ok(response);
 
         } catch (Exception e) {
             logger.error("Failed to get all users: {}", e.getMessage());
-
-            return ResponseEntity.badRequest()
-                    .body(new ApiResponse<>(
-                            false,
-                            e.getMessage(),
-                            null
-                    ));
+            ApiResponse<List<UserResponse>> response = new ApiResponse<>(false, e.getMessage(), null);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
     }
 
     /**
-     * Get user by ID (Admin only)
+     * Get User by ID
      */
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
-    public ResponseEntity<?> getUserById(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<UserResponse>> getUserById(@PathVariable Long id) {
         try {
-            UserResponse userResponse = userService.getUserById(id);
+            logger.info("Getting user by ID: {}", id);
+            UserResponse user = userService.getUserById(id);
 
-            return ResponseEntity.ok(new ApiResponse<>(
-                    true,
-                    "User details retrieved successfully",
-                    userResponse
-            ));
+            ApiResponse<UserResponse> response = new ApiResponse<>(true, "User retrieved successfully", user);
+            return ResponseEntity.ok(response);
 
         } catch (Exception e) {
             logger.error("Failed to get user by ID {}: {}", id, e.getMessage());
-
-            return ResponseEntity.badRequest()
-                    .body(new ApiResponse<>(
-                            false,
-                            e.getMessage(),
-                            null
-                    ));
+            ApiResponse<UserResponse> response = new ApiResponse<>(false, e.getMessage(), null);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
         }
     }
 
     /**
-     * Deactivate user (Admin only)
+     * Deactivate User (Admin only)
      */
-    @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
-    public ResponseEntity<?> deactivateUser(@PathVariable Long id) {
+    @PutMapping("/{id}/deactivate")
+    public ResponseEntity<ApiResponse<Object>> deactivateUser(@PathVariable Long id) {
         try {
+            logger.info("Deactivating user with ID: {}", id);
             userService.deactivateUser(id);
 
-            return ResponseEntity.ok(new ApiResponse<>(
-                    true,
-                    "User deactivated successfully",
-                    null
-            ));
+            ApiResponse<Object> response = new ApiResponse<>(true, "User deactivated successfully", null);
+            logger.info("User deactivated successfully: {}", id);
+            return ResponseEntity.ok(response);
 
         } catch (Exception e) {
             logger.error("Failed to deactivate user {}: {}", id, e.getMessage());
-
-            return ResponseEntity.badRequest()
-                    .body(new ApiResponse<>(
-                            false,
-                            e.getMessage(),
-                            null
-                    ));
+            ApiResponse<Object> response = new ApiResponse<>(false, e.getMessage(), null);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
     }
 
     /**
-     * Delete/Deactivate current user account
-     */
-    @DeleteMapping("/account")
-    @PreAuthorize("hasRole('USER') or hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
-    public ResponseEntity<?> deleteAccount() {
-        try {
-            UserResponse currentUser = userService.getCurrentUser();
-            userService.deactivateUser(currentUser.getId());
-
-            return ResponseEntity.ok(new ApiResponse<>(
-                    true,
-                    "Account deactivated successfully",
-                    null
-            ));
-
-        } catch (Exception e) {
-            logger.error("Account deletion failed: {}", e.getMessage());
-
-            return ResponseEntity.badRequest()
-                    .body(new ApiResponse<>(
-                            false,
-                            e.getMessage(),
-                            null
-                    ));
-        }
-    }
-
-    /**
-     * Get user statistics (Admin only)
+     * Get User Statistics (Admin only)
      */
     @GetMapping("/stats")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
-    public ResponseEntity<?> getUserStats() {
+    public ResponseEntity<ApiResponse<UserService.UserStats>> getUserStats() {
         try {
+            logger.info("Getting user statistics");
             UserService.UserStats stats = userService.getUserStats();
 
-            return ResponseEntity.ok(new ApiResponse<>(
-                    true,
-                    "User statistics retrieved successfully",
-                    stats
-            ));
+            ApiResponse<UserService.UserStats> response = new ApiResponse<>(true, "User statistics retrieved successfully", stats);
+            return ResponseEntity.ok(response);
 
         } catch (Exception e) {
             logger.error("Failed to get user statistics: {}", e.getMessage());
+            ApiResponse<UserService.UserStats> response = new ApiResponse<>(false, e.getMessage(), null);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+    }
 
-            return ResponseEntity.badRequest()
-                    .body(new ApiResponse<>(
-                            false,
-                            e.getMessage(),
-                            null
-                    ));
+    /**
+     * Validate User Token
+     */
+    @GetMapping("/validate")
+    public ResponseEntity<ApiResponse<Object>> validateToken() {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+            if (authentication == null || !authentication.isAuthenticated()) {
+                throw new RuntimeException("Invalid token");
+            }
+
+            ApiResponse<Object> response = new ApiResponse<>(true, "Token is valid", null);
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            logger.error("Token validation failed: {}", e.getMessage());
+            ApiResponse<Object> response = new ApiResponse<>(false, "Invalid token", null);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+        }
+    }
+
+    /**
+     * User Logout
+     */
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse<Object>> logout() {
+        try {
+            logger.info("User logout request received");
+
+            // Clear security context
+            SecurityContextHolder.clearContext();
+
+            ApiResponse<Object> response = new ApiResponse<>(true, "Logged out successfully", null);
+            logger.info("User logged out successfully");
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            logger.error("Logout failed: {}", e.getMessage());
+            ApiResponse<Object> response = new ApiResponse<>(false, e.getMessage(), null);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
     }
 }

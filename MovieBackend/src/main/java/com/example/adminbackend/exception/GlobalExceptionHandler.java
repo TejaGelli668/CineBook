@@ -3,20 +3,20 @@ package com.example.adminbackend.exception;
 import com.example.adminbackend.dto.ApiResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.WebRequest;
 
 import java.util.HashMap;
 import java.util.Map;
 
-@RestControllerAdvice
+@ControllerAdvice
 public class GlobalExceptionHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
@@ -28,6 +28,8 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Map<String, String>>> handleValidationExceptions(
             MethodArgumentNotValidException ex) {
 
+        logger.error("Validation error: {}", ex.getMessage());
+
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach((error) -> {
             String fieldName = ((FieldError) error).getField();
@@ -35,93 +37,91 @@ public class GlobalExceptionHandler {
             errors.put(fieldName, errorMessage);
         });
 
-        logger.warn("Validation errors: {}", errors);
-
-        return ResponseEntity.badRequest()
-                .body(ApiResponse.error("Validation failed", errors));
+        ApiResponse<Map<String, String>> response = ApiResponse.error("Validation failed", errors);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
     /**
-     * Handle bad credentials
+     * Handle authentication errors
      */
     @ExceptionHandler(BadCredentialsException.class)
-    public ResponseEntity<ApiResponse<Object>> handleBadCredentials(BadCredentialsException ex) {
-        logger.warn("Bad credentials: {}", ex.getMessage());
+    public ResponseEntity<ApiResponse<Object>> handleBadCredentialsException(
+            BadCredentialsException ex, WebRequest request) {
 
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.error("Invalid username or password"));
+        logger.error("Authentication error: {}", ex.getMessage());
+        ApiResponse<Object> response = ApiResponse.error("Invalid credentials");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
 
     /**
-     * Handle user not found
+     * Handle user not found errors
      */
     @ExceptionHandler(UsernameNotFoundException.class)
-    public ResponseEntity<ApiResponse<Object>> handleUserNotFound(UsernameNotFoundException ex) {
-        logger.warn("User not found: {}", ex.getMessage());
+    public ResponseEntity<ApiResponse<Object>> handleUsernameNotFoundException(
+            UsernameNotFoundException ex, WebRequest request) {
 
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.error("User not found"));
+        logger.error("User not found: {}", ex.getMessage());
+        ApiResponse<Object> response = ApiResponse.error("User not found");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
     }
 
     /**
-     * Handle data integrity violations (unique constraints, etc.)
-     */
-    @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity<ApiResponse<Object>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
-        logger.error("Data integrity violation: {}", ex.getMessage());
-
-        String message = "Data integrity violation";
-        if (ex.getMessage().contains("username")) {
-            message = "Username already exists";
-        } else if (ex.getMessage().contains("email")) {
-            message = "Email already exists";
-        }
-
-        return ResponseEntity.badRequest()
-                .body(ApiResponse.error(message));
-    }
-
-    /**
-     * Handle security exceptions
-     */
-    @ExceptionHandler(SecurityException.class)
-    public ResponseEntity<ApiResponse<Object>> handleSecurityException(SecurityException ex) {
-        logger.error("Security exception: {}", ex.getMessage());
-
-        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(ApiResponse.error("Access denied"));
-    }
-
-    /**
-     * Handle illegal argument exceptions
+     * Handle illegal argument errors
      */
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ApiResponse<Object>> handleIllegalArgument(IllegalArgumentException ex) {
-        logger.warn("Illegal argument: {}", ex.getMessage());
+    public ResponseEntity<ApiResponse<Object>> handleIllegalArgumentException(
+            IllegalArgumentException ex, WebRequest request) {
 
-        return ResponseEntity.badRequest()
-                .body(ApiResponse.error(ex.getMessage()));
+        logger.error("Illegal argument: {}", ex.getMessage());
+        ApiResponse<Object> response = ApiResponse.error(ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
     /**
-     * Handle runtime exceptions
+     * Handle runtime errors
      */
     @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<ApiResponse<Object>> handleRuntimeException(RuntimeException ex) {
-        logger.error("Runtime exception: {}", ex.getMessage(), ex);
+    public ResponseEntity<ApiResponse<Object>> handleRuntimeException(
+            RuntimeException ex, WebRequest request) {
 
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("An error occurred: " + ex.getMessage()));
+        logger.error("Runtime error: {}", ex.getMessage(), ex);
+        ApiResponse<Object> response = ApiResponse.error(ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
     /**
-     * Handle generic exceptions
+     * Handle null pointer errors
+     */
+    @ExceptionHandler(NullPointerException.class)
+    public ResponseEntity<ApiResponse<Object>> handleNullPointerException(
+            NullPointerException ex, WebRequest request) {
+
+        logger.error("Null pointer error: {}", ex.getMessage(), ex);
+        ApiResponse<Object> response = ApiResponse.error("An unexpected error occurred");
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+    }
+
+    /**
+     * Handle access denied errors
+     */
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Object>> handleAccessDeniedException(
+            org.springframework.security.access.AccessDeniedException ex, WebRequest request) {
+
+        logger.error("Access denied: {}", ex.getMessage());
+        ApiResponse<Object> response = ApiResponse.error("Access denied");
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+    }
+
+    /**
+     * Handle all other exceptions
      */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<Object>> handleGenericException(Exception ex) {
-        logger.error("Unexpected error: {}", ex.getMessage(), ex);
+    public ResponseEntity<ApiResponse<Object>> handleGlobalException(
+            Exception ex, WebRequest request) {
 
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("An unexpected error occurred"));
+        logger.error("Unexpected error: {}", ex.getMessage(), ex);
+        ApiResponse<Object> response = ApiResponse.error("An unexpected error occurred");
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
 }

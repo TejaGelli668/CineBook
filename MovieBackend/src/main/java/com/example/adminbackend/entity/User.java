@@ -3,19 +3,14 @@ package com.example.adminbackend.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.UserDetails;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Collection;
-import java.util.Collections;
 
 @Entity
 @Table(name = "users")
-public class User implements UserDetails {
+public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -27,7 +22,6 @@ public class User implements UserDetails {
     private String email;
 
     @NotBlank(message = "Password is required")
-    @Size(min = 6, message = "Password must be at least 6 characters")
     @Column(nullable = false)
     private String password;
 
@@ -39,14 +33,14 @@ public class User implements UserDetails {
     @Column(name = "last_name", nullable = false)
     private String lastName;
 
-    @Column(name = "phone_number")
+    @Column(name = "phone_number", length = 20)
     private String phoneNumber;
 
-    @Column(name = "profile_picture")
-    private String profilePicture;
-
     @Column(name = "date_of_birth")
-    private String dateOfBirth;  // String format: "YYYY-MM-DD"
+    private String dateOfBirth;
+
+    @Column(name = "profile_picture", length = 500)
+    private String profilePicture;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -55,74 +49,32 @@ public class User implements UserDetails {
     @Column(name = "is_active")
     private Boolean isActive = true;
 
-    @Column(name = "created_at")
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
     @Column(name = "last_login")
     private LocalDateTime lastLogin;
 
+    // Enum for user roles
+    public enum Role {
+        USER, PREMIUM_USER, ADMIN
+    }
+
     // Constructors
     public User() {}
 
-    public User(String email, String password, String firstName, String lastName, String dateOfBirth) {
+    public User(String email, String password, String firstName, String lastName) {
         this.email = email;
         this.password = password;
         this.firstName = firstName;
         this.lastName = lastName;
-        this.dateOfBirth = dateOfBirth;
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    // Lifecycle methods
-    @PrePersist
-    protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
-    }
-
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
-
-    // UserDetails implementation
-    @Override
-    public Collection<? extends GrantedAuthority> getAuthorities() {
-        return Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role.name()));
-    }
-
-    @Override
-    public String getPassword() {
-        return password;
-    }
-
-    @Override
-    public String getUsername() {
-        return email; // Use email as username for users
-    }
-
-    @Override
-    public boolean isAccountNonExpired() {
-        return true;
-    }
-
-    @Override
-    public boolean isAccountNonLocked() {
-        return true;
-    }
-
-    @Override
-    public boolean isCredentialsNonExpired() {
-        return true;
-    }
-
-    @Override
-    public boolean isEnabled() {
-        return isActive;
+        this.role = Role.USER;
+        this.isActive = true;
     }
 
     // Getters and Setters
@@ -140,6 +92,10 @@ public class User implements UserDetails {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public String getPassword() {
+        return password;
     }
 
     public void setPassword(String password) {
@@ -170,20 +126,20 @@ public class User implements UserDetails {
         this.phoneNumber = phoneNumber;
     }
 
-    public String getProfilePicture() {
-        return profilePicture;
-    }
-
-    public void setProfilePicture(String profilePicture) {
-        this.profilePicture = profilePicture;
-    }
-
     public String getDateOfBirth() {
         return dateOfBirth;
     }
 
     public void setDateOfBirth(String dateOfBirth) {
         this.dateOfBirth = dateOfBirth;
+    }
+
+    public String getProfilePicture() {
+        return profilePicture;
+    }
+
+    public void setProfilePicture(String profilePicture) {
+        this.profilePicture = profilePicture;
     }
 
     public Role getRole() {
@@ -226,26 +182,13 @@ public class User implements UserDetails {
         this.lastLogin = lastLogin;
     }
 
-    // Role enum
-    public enum Role {
-        USER, PREMIUM_USER // You can add more user roles later
-    }
-
     // Helper methods
     public String getFullName() {
         return firstName + " " + lastName;
     }
 
-    public int getAge() {
-        if (dateOfBirth == null || dateOfBirth.trim().isEmpty()) {
-            return 0;
-        }
-        try {
-            LocalDate birthDate = LocalDate.parse(dateOfBirth);
-            return LocalDate.now().getYear() - birthDate.getYear();
-        } catch (Exception e) {
-            return 0; // Return 0 if date parsing fails
-        }
+    public boolean isActive() {
+        return Boolean.TRUE.equals(isActive);
     }
 
     @Override
@@ -260,6 +203,20 @@ public class User implements UserDetails {
                 ", role=" + role +
                 ", isActive=" + isActive +
                 ", createdAt=" + createdAt +
+                ", lastLogin=" + lastLogin +
                 '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof User)) return false;
+        User user = (User) o;
+        return id != null && id.equals(user.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
     }
 }

@@ -2,7 +2,6 @@ package com.example.adminbackend.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 
 public class UserLoginRequest {
 
@@ -11,19 +10,17 @@ public class UserLoginRequest {
     private String email;
 
     @NotBlank(message = "Password is required")
-    @Size(min = 6, max = 100, message = "Password must be between 6 and 100 characters")
     private String password;
 
-    // Default constructor
+    // Constructors
     public UserLoginRequest() {}
 
-    // Constructor with parameters
     public UserLoginRequest(String email, String password) {
         this.email = email;
         this.password = password;
     }
 
-    // Getters and setters
+    // Getters and Setters
     public String getEmail() {
         return email;
     }
@@ -44,7 +41,7 @@ public class UserLoginRequest {
     public String toString() {
         return "UserLoginRequest{" +
                 "email='" + email + '\'' +
-                ", password='[PROTECTED]'" +
+                ", password='[HIDDEN]'" +
                 '}';
     }
 }

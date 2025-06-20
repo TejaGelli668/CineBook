@@ -7,13 +7,11 @@ import com.example.adminbackend.security.JwtUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -21,7 +19,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -39,13 +40,9 @@ public class UserService {
     @Autowired
     private JwtUtils jwtUtils;
 
-    @Autowired
-    private AuthenticationManager authenticationManager;
-
     /**
      * Register a new user
      */
-    @Transactional
     public UserResponse registerUser(UserRegistrationRequest request) {
         try {
             logger.info("Starting user registration for email: {}", request.getEmail());
@@ -59,12 +56,7 @@ public class UserService {
             // Create new user
             User user = new User();
             user.setEmail(request.getEmail());
-
-            // Encode password and log for debugging
-            String encodedPassword = passwordEncoder.encode(request.getPassword());
-            logger.info("Password encoded successfully for user: {}", request.getEmail());
-            user.setPassword(encodedPassword);
-
+            user.setPassword(passwordEncoder.encode(request.getPassword()));
             user.setFirstName(request.getFirstName());
             user.setLastName(request.getLastName());
             user.setPhoneNumber(request.getPhoneNumber());
@@ -97,7 +89,6 @@ public class UserService {
     /**
      * Authenticate user and generate JWT token
      */
-    @Transactional
     public Map<String, Object> loginUser(UserLoginRequest loginRequest) {
         try {
             logger.info("=== Starting login process for email: {} ===", loginRequest.getEmail());
@@ -119,7 +110,7 @@ public class UserService {
                 throw new BadCredentialsException("Account is deactivated");
             }
 
-            // Verify password manually first for debugging
+            // Verify password
             boolean passwordMatches = passwordEncoder.matches(loginRequest.getPassword(), dbUser.getPassword());
             logger.info("Password verification result: {}", passwordMatches);
 
@@ -128,7 +119,7 @@ public class UserService {
                 throw new BadCredentialsException("Invalid email or password");
             }
 
-            // Generate JWT token using the string overloaded method
+            // Generate JWT token
             String jwt = jwtUtils.generateToken(dbUser.getEmail());
             logger.info("JWT token generated successfully");
 
@@ -140,9 +131,6 @@ public class UserService {
             // Create response
             UserResponse userResponse = convertToUserResponse(dbUser);
 
-            logger.info("User logged in successfully: {}", dbUser.getEmail());
-
-            // Return a Map that matches the expected structure
             Map<String, Object> response = new HashMap<>();
             response.put("token", jwt);
             response.put("type", "Bearer");
@@ -154,7 +142,7 @@ public class UserService {
 
         } catch (BadCredentialsException e) {
             logger.warn("Login failed for email: {} - Bad credentials: {}", loginRequest.getEmail(), e.getMessage());
-            throw new BadCredentialsException("Invalid email or password");
+            throw e;
         } catch (Exception e) {
             logger.error("Login failed for email: {} - Unexpected error: {}", loginRequest.getEmail(), e.getMessage(), e);
             throw new RuntimeException("Login failed: " + e.getMessage());
@@ -162,9 +150,8 @@ public class UserService {
     }
 
     /**
-     * Manual login method for testing
+     * Manual login method for testing - ADDED MISSING METHOD
      */
-    @Transactional
     public Map<String, Object> manualLoginUser(UserLoginRequest loginRequest) {
         try {
             logger.info("=== Manual login attempt for email: {} ===", loginRequest.getEmail());
@@ -193,7 +180,7 @@ public class UserService {
 
             logger.info("Password verified successfully");
 
-            // Generate JWT token using the string overloaded method
+            // Generate JWT token
             String jwt = jwtUtils.generateToken(user.getEmail());
             logger.info("JWT token generated");
 
@@ -223,21 +210,33 @@ public class UserService {
      * Get current authenticated user
      */
     public UserResponse getCurrentUser() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new RuntimeException("No authenticated user found");
+            if (authentication == null || !authentication.isAuthenticated()) {
+                logger.error("No authenticated user found");
+                throw new RuntimeException("No authenticated user found");
+            }
+
+            String email = authentication.getName();
+            logger.info("Getting current user profile for email: {}", email);
+
+            Optional<User> userOpt = userRepository.findByEmail(email);
+
+            if (userOpt.isEmpty()) {
+                logger.error("User not found: {}", email);
+                throw new RuntimeException("User not found: " + email);
+            }
+
+            User user = userOpt.get();
+            logger.info("Found user: ID={}, Email={}, FirstName={}, LastName={}, DateOfBirth={}",
+                    user.getId(), user.getEmail(), user.getFirstName(), user.getLastName(), user.getDateOfBirth());
+
+            return convertToUserResponse(user);
+        } catch (Exception e) {
+            logger.error("Error getting current user: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to get current user: " + e.getMessage());
         }
-
-        // For JWT-based authentication, get user by email from token
-        String email = authentication.getName();
-        Optional<User> userOpt = userRepository.findByEmail(email);
-
-        if (userOpt.isEmpty()) {
-            throw new RuntimeException("User not found: " + email);
-        }
-
-        return convertToUserResponse(userOpt.get());
     }
 
     /**
@@ -262,38 +261,8 @@ public class UserService {
     }
 
     /**
-     * Update user profile - ORIGINAL METHOD (keep for backward compatibility)
+     * Update user profile - SIMPLIFIED VERSION
      */
-    @Transactional
-    public UserResponse updateUser(Long id, UserRegistrationRequest request) {
-        Optional<User> userOpt = userRepository.findById(id);
-        if (userOpt.isEmpty()) {
-            throw new RuntimeException("User not found with id: " + id);
-        }
-
-        User user = userOpt.get();
-        user.setFirstName(request.getFirstName());
-        user.setLastName(request.getLastName());
-        user.setEmail(request.getEmail());
-        user.setPhoneNumber(request.getPhoneNumber());
-
-        if (request.getBirthday() != null) {
-            String birthday = String.format("%04d-%02d-%02d",
-                    request.getBirthday().getYear(),
-                    request.getBirthday().getMonth(),
-                    request.getBirthday().getDay()
-            );
-            user.setDateOfBirth(birthday);
-        }
-
-        User updatedUser = userRepository.save(user);
-        return convertToUserResponse(updatedUser);
-    }
-
-    /**
-     * Update user profile - Works with ProfileUpdateRequest
-     */
-    @Transactional
     public UserResponse updateUserProfile(Long id, ProfileUpdateRequest request) {
         try {
             logger.info("Updating user profile for ID: {} with data: {}", id, request);
@@ -304,40 +273,48 @@ public class UserService {
             }
 
             User user = userOpt.get();
+            logger.info("Found user for update: {}", user.getEmail());
 
             // Update basic fields
-            user.setFirstName(request.getFirstName());
-            user.setLastName(request.getLastName());
-            user.setEmail(request.getEmail());
-            user.setPhoneNumber(request.getPhoneNumber());
+            if (request.getFirstName() != null && !request.getFirstName().trim().isEmpty()) {
+                user.setFirstName(request.getFirstName().trim());
+            }
+            if (request.getLastName() != null && !request.getLastName().trim().isEmpty()) {
+                user.setLastName(request.getLastName().trim());
+            }
+            if (request.getEmail() != null && !request.getEmail().trim().isEmpty()) {
+                user.setEmail(request.getEmail().trim());
+            }
+            if (request.getPhoneNumber() != null) {
+                user.setPhoneNumber(request.getPhoneNumber().trim());
+            }
 
-            // Handle birthday conversion from Birthday object to string
-            if (request.getBirthday() != null) {
-                UserRegistrationRequest.Birthday birthday = request.getBirthday();
+            // Handle date of birth - SIMPLIFIED
+            if (request.getDateOfBirth() != null && !request.getDateOfBirth().trim().isEmpty()) {
+                try {
+                    String dateOfBirth = request.getDateOfBirth().trim();
 
-                if (birthday.getYear() > 0 && birthday.getMonth() > 0 && birthday.getDay() > 0) {
-                    String dateOfBirth = String.format("%04d-%02d-%02d",
-                            birthday.getYear(),
-                            birthday.getMonth(),
-                            birthday.getDay()
-                    );
-                    logger.info("Setting date of birth to: {}", dateOfBirth);
+                    // Validate the date format
+                    LocalDate.parse(dateOfBirth, DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+
+                    // Store the date as-is
                     user.setDateOfBirth(dateOfBirth);
-                    logger.info("Date of birth set successfully as string: {}", dateOfBirth);
-                } else {
-                    logger.warn("Invalid birthday data: year={}, month={}, day={}",
-                            birthday.getYear(), birthday.getMonth(), birthday.getDay());
+                    logger.info("Date of birth set to: {}", dateOfBirth);
+
+                } catch (DateTimeParseException e) {
+                    logger.error("Invalid date format: {}", request.getDateOfBirth());
+                    throw new RuntimeException("Invalid date format. Please use YYYY-MM-DD format.");
                 }
             }
 
+            // Save the user
             User updatedUser = userRepository.save(user);
-
             logger.info("User profile updated successfully. Date of birth: {}", updatedUser.getDateOfBirth());
 
             return convertToUserResponse(updatedUser);
 
         } catch (Exception e) {
-            logger.error("Failed to update user profile: {}", e.getMessage());
+            logger.error("Failed to update user profile: {}", e.getMessage(), e);
             throw new RuntimeException("Profile update failed: " + e.getMessage());
         }
     }
@@ -345,7 +322,6 @@ public class UserService {
     /**
      * Change user password
      */
-    @Transactional
     public void changePassword(ChangePasswordRequest request) {
         try {
             // Get current authenticated user
@@ -372,7 +348,7 @@ public class UserService {
             logger.info("Password changed successfully for user: {}", currentUser.getEmail());
 
         } catch (Exception e) {
-            logger.error("Password change failed: {}", e.getMessage());
+            logger.error("Password change failed: {}", e.getMessage(), e);
             throw new RuntimeException("Password change failed: " + e.getMessage());
         }
     }
@@ -380,7 +356,6 @@ public class UserService {
     /**
      * Upload profile picture
      */
-    @Transactional
     public String uploadProfilePicture(MultipartFile file) {
         try {
             // Get current authenticated user
@@ -398,7 +373,6 @@ public class UserService {
             String uploadDir = "uploads/profile-pictures";
             Path uploadPath = Paths.get(uploadDir);
 
-            // Create the full directory path if it doesn't exist
             if (!Files.exists(uploadPath)) {
                 Files.createDirectories(uploadPath);
             }
@@ -435,9 +409,8 @@ public class UserService {
     }
 
     /**
-     * Deactivate user account
+     * Deactivate user account - ADDED MISSING METHOD
      */
-    @Transactional
     public void deactivateUser(Long id) {
         Optional<User> userOpt = userRepository.findById(id);
         if (userOpt.isEmpty()) {
@@ -452,7 +425,7 @@ public class UserService {
     }
 
     /**
-     * Get user statistics for admin dashboard
+     * Get user statistics for admin dashboard - ADDED MISSING METHOD
      */
     public UserStats getUserStats() {
         long totalUsers = userRepository.count();
@@ -467,7 +440,7 @@ public class UserService {
      * Convert User entity to UserResponse DTO
      */
     private UserResponse convertToUserResponse(User user) {
-        return new UserResponse(
+        UserResponse response = new UserResponse(
                 user.getId(),
                 user.getEmail(),
                 user.getFirstName(),
@@ -480,10 +453,13 @@ public class UserService {
                 user.getCreatedAt(),
                 user.getLastLogin()
         );
+
+        logger.debug("Converted user to response: {}", response);
+        return response;
     }
 
     /**
-     * Inner class for user statistics
+     * Inner class for user statistics - ADDED MISSING CLASS
      */
     public static class UserStats {
         private final long totalUsers;

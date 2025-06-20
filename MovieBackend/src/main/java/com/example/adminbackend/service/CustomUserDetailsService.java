@@ -1,63 +1,19 @@
-//package com.example.adminbackend.service;
-//
-//import com.example.adminbackend.entity.Admin;
-//import com.example.adminbackend.repository.AdminRepository;
-//import org.slf4j.Logger;
-//import org.slf4j.LoggerFactory;
-//import org.springframework.beans.factory.annotation.Autowired;
-//import org.springframework.security.core.userdetails.UserDetails;
-//import org.springframework.security.core.userdetails.UserDetailsService;
-//import org.springframework.security.core.userdetails.UsernameNotFoundException;
-//import org.springframework.stereotype.Service;
-//
-//import java.util.Optional;
-//
-//@Service
-//public class CustomUserDetailsService implements UserDetailsService {
-//
-//    private static final Logger logger = LoggerFactory.getLogger(CustomUserDetailsService.class);
-//
-//    @Autowired
-//    private AdminRepository adminRepository;
-//
-//    /**
-//     * Load user by username for Spring Security
-//     */
-//    @Override
-//    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-//        Optional<Admin> adminOpt = adminRepository.findByUsernameOrEmail(username, username);
-//
-//        if (adminOpt.isEmpty()) {
-//            logger.warn("Admin not found with username or email: {}", username);
-//            throw new UsernameNotFoundException("Admin not found with username or email: " + username);
-//        }
-//
-//        Admin admin = adminOpt.get();
-//
-//        if (!admin.getIsActive()) {
-//            logger.warn("Admin account is deactivated: {}", username);
-//            throw new UsernameNotFoundException("Admin account is deactivated");
-//        }
-//
-//        return admin;
-//    }
-//}
-
 package com.example.adminbackend.service;
 
-import com.example.adminbackend.entity.Admin;
 import com.example.adminbackend.entity.User;
-import com.example.adminbackend.repository.AdminRepository;
 import com.example.adminbackend.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Optional;
 
 @Service
@@ -66,111 +22,96 @@ public class CustomUserDetailsService implements UserDetailsService {
     private static final Logger logger = LoggerFactory.getLogger(CustomUserDetailsService.class);
 
     @Autowired
-    private AdminRepository adminRepository;
-
-    @Autowired
     private UserRepository userRepository;
 
-    /**
-     * Load user by username for Spring Security
-     * This method handles both Admin and User authentication
-     */
     @Override
-    @Transactional
-    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        logger.debug("Attempting to load user by username: {}", username);
+    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+        logger.info("Loading user by email: {}", email);
 
-        // First, try to find admin by username or email
-        try {
-            Optional<Admin> adminOpt = adminRepository.findByUsernameOrEmail(username, username);
-
-            if (adminOpt.isPresent()) {
-                Admin admin = adminOpt.get();
-
-                if (!admin.getIsActive()) {
-                    logger.warn("Admin account is deactivated: {}", username);
-                    throw new UsernameNotFoundException("Admin account is deactivated");
-                }
-
-                logger.info("Admin found and authenticated: {}", admin.getUsername());
-                return admin;
-            }
-        } catch (Exception e) {
-            logger.debug("Admin not found or error occurred, trying user lookup: {}", e.getMessage());
+        Optional<User> userOpt = userRepository.findByEmail(email);
+        if (userOpt.isEmpty()) {
+            logger.error("User not found with email: {}", email);
+            throw new UsernameNotFoundException("User not found with email: " + email);
         }
 
-        // If admin not found, try to find user by email
-        try {
-            Optional<User> userOpt = userRepository.findByEmail(username);
+        User user = userOpt.get();
+        logger.info("User found: {}", user.getEmail());
 
-            if (userOpt.isPresent()) {
-                User user = userOpt.get();
+        // Convert our User entity to Spring Security UserDetails
+        return new CustomUserPrincipal(user);
+    }
 
-                if (!user.getIsActive()) {
-                    logger.warn("User account is deactivated: {}", username);
-                    throw new UsernameNotFoundException("User account is deactivated");
-                }
+    /**
+     * Custom UserDetails implementation
+     */
+    public static class CustomUserPrincipal implements UserDetails {
+        private final User user;
 
-                logger.info("User found and authenticated: {}", user.getEmail());
-                return user;
-            }
-        } catch (Exception e) {
-            logger.debug("User not found or error occurred: {}", e.getMessage());
+        public CustomUserPrincipal(User user) {
+            this.user = user;
         }
 
-        // If neither admin nor user found
-        logger.warn("No admin or user found with username/email: {}", username);
-        throw new UsernameNotFoundException("No user found with username or email: " + username);
-    }
-
-    /**
-     * Helper method to find admin by username or email
-     */
-    public Optional<Admin> findAdminByUsernameOrEmail(String identifier) {
-        try {
-            return adminRepository.findByUsernameOrEmail(identifier, identifier);
-        } catch (Exception e) {
-            logger.error("Error finding admin by username or email: {}", e.getMessage());
-            return Optional.empty();
+        @Override
+        public Collection<? extends GrantedAuthority> getAuthorities() {
+            // Convert user role to Spring Security authority
+            String roleName = "ROLE_" + user.getRole().name();
+            return Collections.singletonList(new SimpleGrantedAuthority(roleName));
         }
-    }
 
-    /**
-     * Helper method to find user by email
-     */
-    public Optional<User> findUserByEmail(String email) {
-        try {
-            return userRepository.findByEmail(email);
-        } catch (Exception e) {
-            logger.error("Error finding user by email: {}", e.getMessage());
-            return Optional.empty();
+        @Override
+        public String getPassword() {
+            return user.getPassword();
         }
-    }
 
-    /**
-     * Check if identifier belongs to an admin
-     */
-    public boolean isAdmin(String identifier) {
-        return findAdminByUsernameOrEmail(identifier).isPresent();
-    }
+        @Override
+        public String getUsername() {
+            return user.getEmail();
+        }
 
-    /**
-     * Check if identifier belongs to a user
-     */
-    public boolean isUser(String identifier) {
-        return findUserByEmail(identifier).isPresent();
-    }
+        @Override
+        public boolean isAccountNonExpired() {
+            return true;
+        }
 
-    /**
-     * Get user type for logging/debugging purposes
-     */
-    public String getUserType(String identifier) {
-        if (isAdmin(identifier)) {
-            return "ADMIN";
-        } else if (isUser(identifier)) {
-            return "USER";
-        } else {
-            return "UNKNOWN";
+        @Override
+        public boolean isAccountNonLocked() {
+            return true;
+        }
+
+        @Override
+        public boolean isCredentialsNonExpired() {
+            return true;
+        }
+
+        @Override
+        public boolean isEnabled() {
+            return user.getIsActive();
+        }
+
+        // Method to get the original User entity
+        public User getUser() {
+            return user;
+        }
+
+        // Helper methods
+        public Long getId() {
+            return user.getId();
+        }
+
+        public String getEmail() {
+            return user.getEmail();
+        }
+
+        public String getFirstName() {
+            return user.getFirstName();
+        }
+
+        public String getLastName() {
+            return user.getLastName();
+        }
+
+        public User.Role getRole() {
+            return user.getRole();
         }
     }
 }
