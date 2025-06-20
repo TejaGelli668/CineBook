@@ -1,121 +1,96 @@
-// User API service for Spring Boot backend integration
+// src/utils/userAPI.js
+
 const API_BASE_URL = "http://localhost:8080";
 
-// Helper function for API calls
+// Helper function to get auth headers
+const getAuthHeaders = () => {
+  const token = localStorage.getItem("userToken");
+  return {
+    "Content-Type": "application/json",
+    ...(token && { Authorization: `Bearer ${token}` }),
+  };
+};
+
+// Generic API call function
 const apiCall = async (endpoint, options = {}) => {
   try {
-    const token = localStorage.getItem("userToken");
-
-    // Create headers object
-    const headers = {
-      "Content-Type": "application/json",
-      ...options.headers,
+    const url = `${API_BASE_URL}${endpoint}`;
+    const config = {
+      headers: getAuthHeaders(),
+      ...options,
     };
 
-    // Only add Authorization header if token exists
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
+    console.log(`Making API call to: ${url}`, config);
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      headers,
-      ...options,
-    });
-
+    const response = await fetch(url, config);
     const data = await response.json();
 
+    console.log(`API Response:`, data);
+
     if (!response.ok) {
-      throw new Error(data.message || "API request failed");
+      throw new Error(data.message || `HTTP error! status: ${response.status}`);
     }
 
-    return data;
+    return { success: true, data: data.data || data, message: data.message };
   } catch (error) {
-    console.error("API Error:", error);
-    throw error;
-  }
-};
-
-// Get user profile
-export const getUserProfile = async () => {
-  try {
-    const response = await apiCall("/user/me", {
-      method: "GET",
-    });
-    return {
-      success: response.success,
-      data: response.data,
-      message: response.message,
-    };
-  } catch (error) {
+    console.error(`API Error for ${endpoint}:`, error);
     return { success: false, message: error.message };
   }
 };
 
-// Update user profile
+// -------------------------------------------
+// User Profile Management
+// -------------------------------------------
+
+export const getUserProfile = async () => {
+  return apiCall("/user/profile", { method: "GET" });
+};
+
 export const updateUserProfile = async (profileData) => {
   try {
-    const requestData = {
-      email: profileData.email,
+    console.log("Updating profile with data:", profileData);
+
+    // Create the request payload with direct date string
+    const requestPayload = {
       firstName: profileData.firstName,
       lastName: profileData.lastName,
+      email: profileData.email,
       phoneNumber: profileData.phone,
-      birthday: profileData.dateOfBirth
-        ? {
-            year: new Date(profileData.dateOfBirth).getFullYear(),
-            month: new Date(profileData.dateOfBirth).getMonth() + 1,
-            day: new Date(profileData.dateOfBirth).getDate(),
-          }
-        : null,
+      dateOfBirth: profileData.dateOfBirth, // Send as string directly
     };
 
-    const response = await apiCall("/user/profile", {
+    console.log("Request payload:", requestPayload);
+
+    return apiCall("/user/profile", {
       method: "PUT",
-      body: JSON.stringify(requestData),
+      body: JSON.stringify(requestPayload),
     });
-    return {
-      success: response.success,
-      data: response.data,
-      message: response.message,
-    };
   } catch (error) {
+    console.error("Error in updateUserProfile:", error);
     return { success: false, message: error.message };
   }
 };
 
-// Change password
 export const changePassword = async (passwordData) => {
-  try {
-    const response = await apiCall("/user/change-password", {
-      method: "PUT",
-      body: JSON.stringify(passwordData),
-    });
-    return { success: response.success, message: response.message };
-  } catch (error) {
-    return { success: false, message: error.message };
-  }
+  return apiCall("/user/change-password", {
+    method: "POST",
+    body: JSON.stringify(passwordData),
+  });
 };
 
-// Upload profile picture
 export const uploadProfilePicture = async (file) => {
   try {
     const token = localStorage.getItem("userToken");
-    if (!token) {
-      throw new Error("No authentication token found");
-    }
-
     const formData = new FormData();
     formData.append("file", file);
 
-    const response = await fetch(
-      `${API_BASE_URL}/user/upload-profile-picture`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      }
-    );
+    const response = await fetch(`${API_BASE_URL}/user/profile-picture`, {
+      method: "POST",
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: formData,
+    });
 
     const data = await response.json();
 
@@ -123,79 +98,110 @@ export const uploadProfilePicture = async (file) => {
       throw new Error(data.message || "Upload failed");
     }
 
-    return { success: data.success, data: data.data, message: data.message };
+    return {
+      success: true,
+      data: { profilePictureUrl: data.data || data.profilePictureUrl },
+      message: data.message,
+    };
   } catch (error) {
+    console.error("Profile picture upload error:", error);
     return { success: false, message: error.message };
   }
 };
 
-// Mock functions for payment methods (implement when you add payment features)
+// -------------------------------------------
+// Payment Methods
+// -------------------------------------------
+
 export const getPaymentMethods = async () => {
-  try {
-    const mockPaymentMethods = [
+  // Mock implementation - replace with actual API call when available
+  return {
+    success: true,
+    data: [
       {
         id: 1,
-        type: "credit",
+        cardNumber: "**** **** **** 1234",
         maskedCardNumber: "**** **** **** 1234",
-        expiryDate: "12/26",
-        cardHolder: "Test User",
+        expiryDate: "12/25",
+        cardHolder: "John Doe",
         isDefault: true,
       },
-    ];
-
-    return { success: true, data: mockPaymentMethods };
-  } catch (error) {
-    return { success: false, message: error.message };
-  }
+    ],
+  };
 };
 
 export const addPaymentMethod = async (paymentData) => {
-  try {
-    return {
-      success: true,
-      message: "Payment method integration requires Stripe/Razorpay setup",
-    };
-  } catch (error) {
-    return { success: false, message: error.message };
-  }
+  // Mock implementation - replace with actual API call when available
+  return {
+    success: true,
+    data: { id: Date.now(), ...paymentData },
+    message: "Payment method added successfully",
+  };
 };
 
 export const removePaymentMethod = async (paymentMethodId) => {
-  try {
-    return { success: true, message: "Payment method removed successfully" };
-  } catch (error) {
-    return { success: false, message: error.message };
-  }
+  // Mock implementation - replace with actual API call when available
+  return {
+    success: true,
+    message: "Payment method removed successfully",
+  };
 };
 
-// Mock function for booking history (implement when you have booking entity)
+// -------------------------------------------
+// Booking History
+// -------------------------------------------
+
 export const getBookingHistory = async () => {
-  try {
-    const mockBookings = [
+  // Mock implementation - replace with actual API call when available
+  return {
+    success: true,
+    data: [
       {
         id: 1,
-        movieTitle: "Avengers: Endgame",
+        movieTitle: "Avatar: The Way of Water",
+        movie: "Avatar: The Way of Water",
         theaterName: "PVR Cinemas",
+        theater: "PVR Cinemas",
         bookingDate: "2025-06-15",
-        showTime: "7:00 PM",
-        seatNumbers: "A1, A2",
-        totalAmount: 600,
-        status: "completed",
+        date: "2025-06-15",
+        showTime: "7:30 PM",
+        time: "7:30 PM",
+        seatNumbers: "A1, A2, A3",
+        seats: "A1, A2, A3",
+        totalAmount: 750,
+        amount: 750,
+        status: "confirmed",
       },
       {
         id: 2,
-        movieTitle: "Spider-Man: No Way Home",
-        theaterName: "Cineplex",
+        movieTitle: "John Wick: Chapter 4",
+        movie: "John Wick: Chapter 4",
+        theaterName: "INOX",
+        theater: "INOX",
         bookingDate: "2025-06-10",
-        showTime: "9:30 PM",
-        seatNumbers: "B5",
-        totalAmount: 250,
-        status: "completed",
+        date: "2025-06-10",
+        showTime: "9:00 PM",
+        time: "9:00 PM",
+        seatNumbers: "B5, B6",
+        seats: "B5, B6",
+        totalAmount: 500,
+        amount: 500,
+        status: "confirmed",
       },
-    ];
+    ],
+  };
+};
 
-    return { success: true, data: mockBookings };
-  } catch (error) {
-    return { success: false, message: error.message };
-  }
+// -------------------------------------------
+// Utility Functions
+// -------------------------------------------
+
+export const isUserAuthenticated = () => {
+  const token = localStorage.getItem("userToken");
+  const isLoggedIn = localStorage.getItem("isLoggedIn");
+  return Boolean(token && isLoggedIn === "true");
+};
+
+export const getUserToken = () => {
+  return localStorage.getItem("userToken");
 };
