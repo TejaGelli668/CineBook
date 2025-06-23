@@ -396,7 +396,8 @@ public class SecurityConfig {
                                 "/api/user/upload-profile-picture"
                         ).authenticated()
 
-                        // 13) Seat booking endpoints - require authentication
+                        // 13) Seat booking endpoints - show seats are public, others require authentication
+                        .requestMatchers("/api/seats/show/**").permitAll()
                         .requestMatchers(
                                 "/api/seats/**"
                         ).authenticated()

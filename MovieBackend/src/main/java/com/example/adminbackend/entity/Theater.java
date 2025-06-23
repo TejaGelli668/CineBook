@@ -93,6 +93,7 @@
 // Theater.java
 package com.example.adminbackend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import java.time.LocalDateTime;
@@ -175,6 +176,7 @@ public class Theater {
     @ElementCollection
     @CollectionTable(name = "theater_shows", joinColumns = @JoinColumn(name = "theater_id"))
     @Column(name = "show_time")
+    @JsonIgnore
     private List<String> shows = new ArrayList<>();
 
     // Store pricing as JSON

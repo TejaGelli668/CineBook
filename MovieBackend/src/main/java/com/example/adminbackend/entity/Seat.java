@@ -28,6 +28,25 @@ public class Seat {
 
     public Seat() {}
 
+    // Add transient method for consistent seat type access
+    @Transient
+    public String getSeatType() {
+        return category != null ? category : "REGULAR";
+    }
+
+    // Add transient method to generate seat number if not set
+    @Transient
+    public String getFormattedSeatNumber() {
+        if (seatNumber != null && !seatNumber.isEmpty()) {
+            return seatNumber;
+        }
+        if (rowLetter != null && seatPosition != null) {
+            return rowLetter + seatPosition;
+        }
+        return "Unknown";
+    }
+
+    // Getters and setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 

@@ -41,6 +41,20 @@ public class UserService {
     private JwtUtils jwtUtils;
 
     /**
+     * Find user entity by email/username - for internal use
+     */
+    public User findUserEntityByEmail(String email) {
+        return userRepository.findByEmail(email).orElse(null);
+    }
+
+    /**
+     * Simple method to find user by username (email) - returns User entity
+     */
+    public User findByUsername(String username) {
+        return userRepository.findByEmail(username).orElse(null);
+    }
+
+    /**
      * Register a new user
      */
     public UserResponse registerUser(UserRegistrationRequest request) {
