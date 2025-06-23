@@ -25,18 +25,6 @@ const AdminSidebar = ({ activeTab, setActiveTab, currentView, onNavigate }) => {
       icon: Building2,
       tab: "theaters",
     },
-    {
-      id: "users",
-      label: "Users",
-      icon: Users,
-      tab: "users",
-    },
-    {
-      id: "analytics",
-      label: "Analytics",
-      icon: BarChart3,
-      tab: "analytics",
-    },
   ];
 
   const handleLogout = () => {
