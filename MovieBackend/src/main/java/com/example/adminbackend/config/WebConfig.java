@@ -29,8 +29,8 @@ public class WebConfig implements WebMvcConfigurer {
                 .addResourceLocations("file:uploads/")
                 .setCachePeriod(3600); // Cache for 1 hour
 
-        // Alternative: if uploads folder is in classpath
-        registry.addResourceHandler("/uploads/**")
-                .addResourceLocations("classpath:/static/uploads/");
+//        // Alternative: if uploads folder is in classpath
+//        registry.addResourceHandler("/uploads/**")
+//                .addResourceLocations("classpath:/static/uploads/");
     }
 }

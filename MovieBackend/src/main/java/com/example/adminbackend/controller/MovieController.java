@@ -448,6 +448,11 @@ public class MovieController {
 
             String posterUrl = uploadResponse.getBody().getData().get("posterUrl");
 
+            // Ensure the URL starts with /uploads/
+            if (!posterUrl.startsWith("/uploads/")) {
+                posterUrl = "/uploads/" + posterUrl;
+            }
+
             // Update the movie with new poster URL
             Movie movie = service.findById(id)
                     .orElseThrow(() -> new RuntimeException("Movie not found with id " + id));
