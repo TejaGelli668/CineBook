@@ -12,6 +12,10 @@
 // import AuthTestComponent from "./components/AuthTestComponent";
 // import UserDashboard from "./components/user/UserDashboard";
 
+// // NEW: Theater Management Components
+// import TheaterManagement from "./components/admin/TheaterManagement";
+// import AddTheaterPage from "./components/admin/AddTheaterPage";
+
 // // Utility Imports
 // import {
 //   isAdminAuthenticated,
@@ -22,11 +26,17 @@
 //   getCurrentUser,
 // } from "./utils/auth";
 
+// // NEW: Theater API Import
+// import { createTheater, updateTheater } from "./utils/theaterAPI";
+
 // const App = () => {
 //   // Page Navigation State
 //   const [currentPage, setCurrentPage] = useState("home");
 //   const [selectedMovie, setSelectedMovie] = useState(null);
 //   const [bookingData, setBookingData] = useState(null);
+
+//   // NEW: Theater Management State
+//   const [editingTheater, setEditingTheater] = useState(null);
 
 //   // Authentication State
 //   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -44,7 +54,6 @@
 //       } else if (isAuthenticated()) {
 //         setIsUserLoggedIn(true);
 //         setCurrentUser(getCurrentUser());
-//         // FIXED: Set default page for logged-in users to HOME, not dashboard
 //         setCurrentPage("home");
 //       }
 //     };
@@ -79,7 +88,6 @@
 //     setBookingData(null);
 //   };
 
-//   // FIXED: Navigation handlers for dashboard
 //   const handleDashboardClick = () => {
 //     console.log("Dashboard clicked - navigating to userDashboard");
 //     setCurrentPage("userDashboard");
@@ -88,6 +96,68 @@
 //   const handleBackToMovies = () => {
 //     console.log("Back to movies clicked - navigating to home");
 //     setCurrentPage("home");
+//   };
+
+//   // NEW: Theater Management Handlers
+//   const handleNavigateToTheaterManagement = () => {
+//     console.log("Navigating to Theater Management");
+//     setCurrentPage("theater-management");
+//     setEditingTheater(null);
+//   };
+
+//   const handleNavigateToAddTheater = () => {
+//     console.log("Navigating to Add Theater");
+//     setCurrentPage("add-theater");
+//     setEditingTheater(null);
+//   };
+
+//   const handleNavigateToEditTheater = (theater) => {
+//     console.log("Navigating to Edit Theater:", theater);
+//     setCurrentPage("add-theater");
+//     setEditingTheater(theater);
+//   };
+
+//   const handleBackToTheaterManagement = () => {
+//     console.log("Going back to Theater Management");
+//     setCurrentPage("theater-management");
+//     setEditingTheater(null);
+//   };
+
+//   const handleSaveTheater = async (theaterData) => {
+//     try {
+//       console.log("Saving theater:", theaterData);
+
+//       // Map frontend data to backend format
+//       const backendData = {
+//         name: theaterData.name,
+//         location: theaterData.location,
+//         address: theaterData.address,
+//         city: theaterData.city,
+//         state: theaterData.state,
+//         pincode: theaterData.pincode,
+//         phoneNumber: theaterData.phone, // Note: phoneNumber for backend
+//         email: theaterData.email,
+//         numberOfScreens: parseInt(theaterData.screens), // Note: numberOfScreens for backend
+//         totalSeats: parseInt(theaterData.totalSeats),
+//         status: theaterData.status.toUpperCase(), // Backend expects ACTIVE/INACTIVE
+//         facilities: theaterData.facilities || [],
+//         shows: theaterData.shows || [],
+//         pricing: theaterData.pricing || {},
+//       };
+
+//       if (editingTheater) {
+//         await updateTheater(editingTheater.id, backendData);
+//         alert("Theater updated successfully!");
+//       } else {
+//         await createTheater(backendData);
+//         alert("Theater created successfully!");
+//       }
+
+//       handleBackToTheaterManagement();
+//     } catch (error) {
+//       console.error("Error saving theater:", error);
+//       alert("Failed to save theater: " + error.message);
+//     }
 //   };
 
 //   // Authentication Handlers
@@ -117,7 +187,6 @@
 //       setIsUserLoggedIn(true);
 //       setCurrentUser(getCurrentUser());
 //       setShowLoginModal(false);
-//       // FIXED: Redirect to HOME page after login, not dashboard
 //       setCurrentPage("home");
 //       alert("User login successful!");
 //     } catch (error) {
@@ -156,10 +225,35 @@
 //     }
 //   };
 
-//   // If admin is logged in, show admin dashboard
+//   // If admin is logged in, show admin dashboard or theater management
 //   if (isAdminLoggedIn) {
+//     // NEW: Handle theater management pages
+//     if (currentPage === "theater-management") {
+//       return (
+//         <TheaterManagement
+//           onNavigateToAddTheater={handleNavigateToAddTheater}
+//           onNavigateToEditTheater={handleNavigateToEditTheater}
+//         />
+//       );
+//     }
+
+//     if (currentPage === "add-theater") {
+//       return (
+//         <AddTheaterPage
+//           theater={editingTheater}
+//           onBack={handleBackToTheaterManagement}
+//           onSave={handleSaveTheater}
+//         />
+//       );
+//     }
+
+//     // Default admin dashboard
 //     return (
-//       <AdminDashboard onLogout={handleAdminLogout} currentUser={currentUser} />
+//       <AdminDashboard
+//         onLogout={handleAdminLogout}
+//         currentUser={currentUser}
+//         onNavigateToTheaterManagement={handleNavigateToTheaterManagement}
+//       />
 //     );
 //   }
 
@@ -174,16 +268,16 @@
 //           isUserLoggedIn={isUserLoggedIn}
 //           currentUser={currentUser}
 //           onUserLogout={handleUserLogout}
-//           onDashboardClick={handleDashboardClick} // FIXED: Proper function
+//           onDashboardClick={handleDashboardClick}
 //         />
 //       )}
 
-//       {/* User Dashboard - FIXED: Only show when user is logged in */}
+//       {/* User Dashboard */}
 //       {currentPage === "userDashboard" && isUserLoggedIn && (
 //         <UserDashboard
 //           currentUser={currentUser}
 //           onLogout={handleUserLogout}
-//           onBackToMovies={handleBackToMovies} // FIXED: Correct prop name
+//           onBackToMovies={handleBackToMovies}
 //         />
 //       )}
 
@@ -274,7 +368,7 @@ import LoginModal from "./components/auth/LoginModal";
 import AuthTestComponent from "./components/AuthTestComponent";
 import UserDashboard from "./components/user/UserDashboard";
 
-// NEW: Theater Management Components
+// Theater Management Components
 import TheaterManagement from "./components/admin/TheaterManagement";
 import AddTheaterPage from "./components/admin/AddTheaterPage";
 
@@ -288,25 +382,19 @@ import {
   getCurrentUser,
 } from "./utils/auth";
 
-// NEW: Theater API Import
+// Theater API
 import { createTheater, updateTheater } from "./utils/theaterAPI";
 
 const App = () => {
-  // Page Navigation State
   const [currentPage, setCurrentPage] = useState("home");
   const [selectedMovie, setSelectedMovie] = useState(null);
   const [bookingData, setBookingData] = useState(null);
-
-  // NEW: Theater Management State
   const [editingTheater, setEditingTheater] = useState(null);
-
-  // Authentication State
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
   const [isUserLoggedIn, setIsUserLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
 
-  // Initialize authentication state on app load
   useEffect(() => {
     const checkAuthStatus = () => {
       if (isAdminAuthenticated()) {
@@ -319,11 +407,9 @@ const App = () => {
         setCurrentPage("home");
       }
     };
-
     checkAuthStatus();
   }, []);
 
-  // User Flow Handlers
   const handleMovieSelect = (movie) => {
     setSelectedMovie(movie);
     setCurrentPage("booking");
@@ -351,45 +437,35 @@ const App = () => {
   };
 
   const handleDashboardClick = () => {
-    console.log("Dashboard clicked - navigating to userDashboard");
     setCurrentPage("userDashboard");
   };
 
   const handleBackToMovies = () => {
-    console.log("Back to movies clicked - navigating to home");
     setCurrentPage("home");
   };
 
-  // NEW: Theater Management Handlers
   const handleNavigateToTheaterManagement = () => {
-    console.log("Navigating to Theater Management");
     setCurrentPage("theater-management");
     setEditingTheater(null);
   };
 
   const handleNavigateToAddTheater = () => {
-    console.log("Navigating to Add Theater");
     setCurrentPage("add-theater");
     setEditingTheater(null);
   };
 
   const handleNavigateToEditTheater = (theater) => {
-    console.log("Navigating to Edit Theater:", theater);
     setCurrentPage("add-theater");
     setEditingTheater(theater);
   };
 
   const handleBackToTheaterManagement = () => {
-    console.log("Going back to Theater Management");
     setCurrentPage("theater-management");
     setEditingTheater(null);
   };
 
   const handleSaveTheater = async (theaterData) => {
     try {
-      console.log("Saving theater:", theaterData);
-
-      // Map frontend data to backend format
       const backendData = {
         name: theaterData.name,
         location: theaterData.location,
@@ -397,11 +473,11 @@ const App = () => {
         city: theaterData.city,
         state: theaterData.state,
         pincode: theaterData.pincode,
-        phoneNumber: theaterData.phone, // Note: phoneNumber for backend
+        phoneNumber: theaterData.phone,
         email: theaterData.email,
-        numberOfScreens: parseInt(theaterData.screens), // Note: numberOfScreens for backend
+        numberOfScreens: parseInt(theaterData.screens),
         totalSeats: parseInt(theaterData.totalSeats),
-        status: theaterData.status.toUpperCase(), // Backend expects ACTIVE/INACTIVE
+        status: theaterData.status.toUpperCase(),
         facilities: theaterData.facilities || [],
         shows: theaterData.shows || [],
         pricing: theaterData.pricing || {},
@@ -422,7 +498,6 @@ const App = () => {
     }
   };
 
-  // Authentication Handlers
   const handleLoginClick = () => {
     setShowLoginModal(true);
   };
@@ -487,9 +562,8 @@ const App = () => {
     }
   };
 
-  // If admin is logged in, show admin dashboard or theater management
+  // Admin Pages
   if (isAdminLoggedIn) {
-    // NEW: Handle theater management pages
     if (currentPage === "theater-management") {
       return (
         <TheaterManagement
@@ -509,7 +583,6 @@ const App = () => {
       );
     }
 
-    // Default admin dashboard
     return (
       <AdminDashboard
         onLogout={handleAdminLogout}
@@ -519,10 +592,9 @@ const App = () => {
     );
   }
 
-  // Main app render - works for both logged in and non-logged in users
+  // User Pages
   return (
     <div className="App">
-      {/* Home Page */}
       {currentPage === "home" && (
         <HomePage
           onMovieSelect={handleMovieSelect}
@@ -534,7 +606,6 @@ const App = () => {
         />
       )}
 
-      {/* User Dashboard */}
       {currentPage === "userDashboard" && isUserLoggedIn && (
         <UserDashboard
           currentUser={currentUser}
@@ -543,7 +614,6 @@ const App = () => {
         />
       )}
 
-      {/* Booking Flow Pages */}
       {currentPage === "booking" && selectedMovie && (
         <BookingPage
           movie={selectedMovie}
@@ -561,6 +631,9 @@ const App = () => {
           onCheckout={handleCheckout}
           isUserLoggedIn={isUserLoggedIn}
           currentUser={currentUser}
+          onLogin={() => {
+            setShowLoginModal(true); // 🔁 show login modal if user not logged in
+          }}
         />
       )}
 
@@ -582,10 +655,8 @@ const App = () => {
         />
       )}
 
-      {/* Test Component */}
       {currentPage === "test" && <AuthTestComponent />}
 
-      {/* Test Auth Button */}
       <button
         onClick={() => setCurrentPage("test")}
         style={{
@@ -604,7 +675,6 @@ const App = () => {
         Test Auth
       </button>
 
-      {/* Login Modal */}
       <LoginModal
         isOpen={showLoginModal}
         onClose={handleCloseLoginModal}
