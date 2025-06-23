@@ -1,4 +1,5 @@
 // import React, { useState, useEffect } from "react";
+// import { uploadMoviePoster } from "../../utils/movieAPI";
 // import {
 //   X,
 //   UploadCloud,
@@ -9,6 +10,7 @@
 //   AlertCircle,
 //   MapPin,
 //   DollarSign,
+//   Calendar,
 // } from "lucide-react";
 
 // const PREDEFINED_SHOWTIMES = [
@@ -68,6 +70,13 @@
 //   const [selectedTheaterId, setSelectedTheaterId] = useState("");
 //   const [showtimePrices, setShowtimePrices] = useState({});
 
+//   // State for Show Dates
+//   const [showDates, setShowDates] = useState([]);
+//   const [dateInput, setDateInput] = useState("");
+
+//   // Check if user is admin
+//   const [isAdmin, setIsAdmin] = useState(false);
+
 //   // API functions
 //   const API_BASE_URL = "http://localhost:8080";
 
@@ -119,7 +128,7 @@
 //     }
 //   };
 
-//   // Get shows for a specific movie (you'll need to implement this backend endpoint)
+//   // Get shows for a specific movie
 //   const getMovieShows = async (movieId) => {
 //     try {
 //       const resp = await apiCall(`/api/movies/${movieId}/shows`, {
@@ -131,6 +140,95 @@
 //       console.error("Failed to fetch movie shows:", error);
 //       return [];
 //     }
+//   };
+
+//   // Check admin status
+//   const checkAdminStatus = () => {
+//     const adminToken = localStorage.getItem("adminToken");
+//     const userToken = localStorage.getItem("userToken");
+
+//     // Check if user has admin token or if user role is admin
+//     if (adminToken) {
+//       setIsAdmin(true);
+//     } else if (userToken) {
+//       try {
+//         // Decode token to check role (you might need to adjust this based on your token structure)
+//         const payload = JSON.parse(atob(userToken.split(".")[1]));
+//         setIsAdmin(payload.role === "ADMIN" || payload.role === "SUPER_ADMIN");
+//       } catch (error) {
+//         setIsAdmin(false);
+//       }
+//     } else {
+//       setIsAdmin(false);
+//     }
+//   };
+
+//   // Date handlers
+//   const handleAddDate = () => {
+//     console.log("Current dateInput:", dateInput);
+//     console.log("Current showDates:", showDates);
+
+//     if (dateInput && dateInput.trim() !== "") {
+//       // Convert to YYYY-MM-DD format if needed
+//       let formattedDate = dateInput;
+
+//       // If the input is in MM/DD/YYYY format, convert it
+//       if (dateInput.includes("/")) {
+//         const parts = dateInput.split("/");
+//         if (parts.length === 3) {
+//           const [month, day, year] = parts;
+//           formattedDate = `${year}-${month.padStart(2, "0")}-${day.padStart(
+//             2,
+//             "0"
+//           )}`;
+//         }
+//       }
+
+//       console.log("Formatted date:", formattedDate);
+
+//       if (!showDates.includes(formattedDate)) {
+//         // Ensure the date is not in the past - fix timezone issue
+//         const selectedDate = new Date(formattedDate + "T00:00:00"); // Add time to avoid timezone issues
+//         const today = new Date();
+//         today.setHours(0, 0, 0, 0);
+
+//         console.log("Selected date:", selectedDate);
+//         console.log("Today:", today);
+
+//         // Compare dates properly without timezone issues
+//         const selectedDateString = selectedDate.toDateString();
+//         const todayString = today.toDateString();
+//         const isToday = selectedDateString === todayString;
+//         const isFuture = selectedDate > today;
+
+//         console.log("Selected date string:", selectedDateString);
+//         console.log("Today string:", todayString);
+//         console.log("Is today:", isToday);
+//         console.log("Is future:", isFuture);
+
+//         if (isToday || isFuture) {
+//           setShowDates((prev) => {
+//             const newDates = [...prev, formattedDate].sort();
+//             console.log("New show dates:", newDates);
+//             return newDates;
+//           });
+//           setDateInput("");
+//           console.log("Date added successfully");
+//         } else {
+//           setError("Cannot add dates in the past");
+//           setTimeout(() => setError(""), 3000);
+//           console.log("Date is in the past");
+//         }
+//       } else {
+//         console.log("Date already exists in the list");
+//       }
+//     } else {
+//       console.log("No date input provided");
+//     }
+//   };
+
+//   const handleRemoveDate = (dateToRemove) => {
+//     setShowDates((prev) => prev.filter((date) => date !== dateToRemove));
 //   };
 
 //   // Function to fetch shows for a movie and populate theaters
@@ -145,10 +243,15 @@
 //         // Group shows by theater
 //         const theaterMap = new Map();
 //         const initialPrices = {};
+//         const showDatesSet = new Set();
 
 //         shows.forEach((show) => {
 //           const theaterId = show.theater.id;
 //           const showTime = new Date(show.showTime);
+
+//           // Extract date and add to show dates
+//           const showDateStr = showTime.toISOString().split("T")[0];
+//           showDatesSet.add(showDateStr);
 
 //           // Convert to 12-hour format for UI
 //           const timeString = showTime.toLocaleTimeString("en-US", {
@@ -164,7 +267,7 @@
 //             });
 //           }
 
-//           // Check if this time already exists (since we create shows for 7 days)
+//           // Check if this time already exists
 //           const theater = theaterMap.get(theaterId);
 //           const existingShowtime = theater.showtimes.find(
 //             (st) => st.time === timeString
@@ -194,6 +297,9 @@
 
 //         // Set showtime prices
 //         setShowtimePrices(initialPrices);
+
+//         // Set show dates
+//         setShowDates(Array.from(showDatesSet).sort());
 //       }
 //     } catch (error) {
 //       console.error("Failed to fetch movie shows:", error);
@@ -201,6 +307,9 @@
 //   };
 
 //   useEffect(() => {
+//     // Check admin status
+//     checkAdminStatus();
+
 //     // Fetch theaters from API on component mount
 //     const fetchTheaters = async () => {
 //       try {
@@ -254,6 +363,15 @@
 
 //       // Now fetch the shows for this movie to populate theaters
 //       fetchMovieShows(movie.id);
+//     } else {
+//       // For new movies, set default dates (next 7 days)
+//       const defaultDates = [];
+//       for (let i = 0; i < 7; i++) {
+//         const date = new Date();
+//         date.setDate(date.getDate() + i);
+//         defaultDates.push(date.toISOString().split("T")[0]);
+//       }
+//       setShowDates(defaultDates);
 //     }
 //   }, [movie]);
 
@@ -267,13 +385,29 @@
 //     }));
 //   };
 
-//   const handlePosterChange = (e) => {
+//   const handlePosterChange = async (e) => {
 //     const file = e.target.files[0];
 //     if (file) {
 //       setPosterFile(file);
 //       const reader = new FileReader();
 //       reader.onloadend = () => setPosterPreview(reader.result);
 //       reader.readAsDataURL(file);
+
+//       // If editing an existing movie, upload immediately
+//       if (movie?.id) {
+//         try {
+//           setLoading(true);
+//           const posterUrl = await uploadMoviePoster(file);
+//           setFormData((prev) => ({ ...prev, posterUrl }));
+//           setPosterPreview(`http://localhost:8080${posterUrl}`);
+//           console.log("Poster uploaded successfully:", posterUrl);
+//         } catch (error) {
+//           console.error("Failed to upload poster:", error);
+//           setError("Failed to upload poster: " + error.message);
+//         } finally {
+//           setLoading(false);
+//         }
+//       }
 //     }
 //   };
 
@@ -402,6 +536,8 @@
 //       console.log("=== STARTING MOVIE SUBMISSION ===");
 //       console.log("Form Data:", JSON.stringify(formData, null, 2));
 //       console.log("Theaters to process:", formData.theaters?.length || 0);
+//       console.log("Show dates:", showDates);
+//       console.log("Is Admin:", isAdmin);
 
 //       formData.theaters?.forEach((theater, idx) => {
 //         console.log(`Theater ${idx + 1}:`, {
@@ -419,6 +555,13 @@
 //       const savedMovie = await onSave(formData, posterFile);
 //       console.log("Movie save response:", JSON.stringify(savedMovie, null, 2));
 
+//       // Only create shows if user is admin
+//       if (!isAdmin) {
+//         console.log("User is not admin - skipping show creation");
+//         onClose();
+//         return;
+//       }
+
 //       // Validate movie ID
 //       const movieId = savedMovie?.id || movie?.id;
 //       console.log("Movie ID for shows:", movieId);
@@ -428,7 +571,11 @@
 //       }
 
 //       // Create shows for each theater/showtime combination
-//       if (formData.theaters && formData.theaters.length > 0) {
+//       if (
+//         formData.theaters &&
+//         formData.theaters.length > 0 &&
+//         showDates.length > 0
+//       ) {
 //         console.log("=== CREATING SHOWS ===");
 
 //         const showCreationPromises = [];
@@ -467,21 +614,51 @@
 //               return result;
 //             };
 
-//             // Create shows for today + next 7 days
-//             for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
-//               const today = new Date();
-//               const showDate = new Date(today);
-//               showDate.setDate(today.getDate() + dayOffset);
+//             // Use selected dates or default to next 7 days
+//             const datesToProcess =
+//               showDates.length > 0
+//                 ? showDates
+//                 : (() => {
+//                     const dates = [];
+//                     for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+//                       const today = new Date();
+//                       const showDate = new Date(today);
+//                       showDate.setDate(today.getDate() + dayOffset);
+//                       dates.push(showDate.toISOString().split("T")[0]);
+//                     }
+//                     return dates;
+//                   })();
 
+//             // Create shows for each selected date
+//             for (const dateString of datesToProcess) {
 //               const time24h = convertTo24Hour(showtime.time);
 //               const [hours, minutes] = time24h.split(":");
 
-//               // Create the show date with proper time
-//               const showDateTime = new Date(showDate);
-//               showDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+//               // Create the show date with proper time WITHOUT timezone issues
+//               // Parse the date string components to avoid timezone interpretation
+//               const [year, month, day] = dateString.split("-");
+//               const showDateTime = new Date(
+//                 parseInt(year),
+//                 parseInt(month) - 1,
+//                 parseInt(day),
+//                 parseInt(hours),
+//                 parseInt(minutes),
+//                 0,
+//                 0
+//               );
 
-//               // Format as ISO string for backend
-//               const isoString = showDateTime.toISOString();
+//               // Format as local time string WITHOUT UTC conversion
+//               const formatLocalDateTime = (date) => {
+//                 const year = date.getFullYear();
+//                 const month = String(date.getMonth() + 1).padStart(2, "0");
+//                 const day = String(date.getDate()).padStart(2, "0");
+//                 const hours = String(date.getHours()).padStart(2, "0");
+//                 const minutes = String(date.getMinutes()).padStart(2, "0");
+//                 const seconds = String(date.getSeconds()).padStart(2, "0");
+//                 return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.000`;
+//               };
+
+//               const isoString = formatLocalDateTime(showDateTime);
 
 //               const showData = {
 //                 movie: { id: parseInt(movieId) },
@@ -494,7 +671,7 @@
 //               };
 
 //               console.log(
-//                 `Show data for ${theater.name} on ${showDate.toDateString()}:`,
+//                 `Show data for ${theater.name} on ${dateString}:`,
 //                 showData
 //               );
 //               totalShowsToCreate++;
@@ -503,9 +680,7 @@
 //               showCreationPromises.push(
 //                 createShow(showData).catch((error) => {
 //                   console.error(
-//                     `Failed to create show for ${theater.name} at ${
-//                       showtime.time
-//                     } on ${showDate.toDateString()}:`,
+//                     `Failed to create show for ${theater.name} at ${showtime.time} on ${dateString}:`,
 //                     error
 //                   );
 //                   return { error, showData };
@@ -557,7 +732,7 @@
 //           );
 //         }
 //       } else {
-//         console.log("No theaters specified - skipping show creation");
+//         console.log("No theaters or dates specified - skipping show creation");
 //       }
 
 //       console.log("=== SUBMISSION COMPLETE ===");
@@ -599,6 +774,17 @@
 //               <AlertCircle className="w-5 h-5 mr-3 flex-shrink-0" />
 //               <span>
 //                 <strong>Error:</strong> {error}
+//               </span>
+//             </div>
+//           )}
+
+//           {!isAdmin && (
+//             <div className="mb-6 p-4 bg-blue-900/50 border border-blue-500/50 text-blue-300 rounded-lg flex items-center">
+//               <AlertCircle className="w-5 h-5 mr-3 flex-shrink-0" />
+//               <span>
+//                 <strong>Note:</strong> Only admins can add theaters and create
+//                 shows. You can add movie details, but theater scheduling is
+//                 restricted to administrators.
 //               </span>
 //             </div>
 //           )}
@@ -775,14 +961,37 @@
 //                 <label className="block text-sm font-medium text-slate-300 mb-2">
 //                   Trailer URL
 //                 </label>
-//                 <input
-//                   type="url"
-//                   name="trailer"
-//                   value={formData.trailer}
-//                   onChange={handleInputChange}
-//                   placeholder="https://youtube.com/..."
-//                   className="w-full p-4 bg-slate-700/50 border border-slate-600 rounded-xl text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-//                 />
+//                 <div className="flex space-x-2">
+//                   <input
+//                     type="url"
+//                     name="trailer"
+//                     value={formData.trailer}
+//                     onChange={handleInputChange}
+//                     placeholder="https://youtube.com/..."
+//                     className="flex-1 p-4 bg-slate-700/50 border border-slate-600 rounded-xl text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+//                   />
+//                   {formData.trailer && (
+//                     <button
+//                       type="button"
+//                       onClick={() => window.open(formData.trailer, "_blank")}
+//                       className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors flex items-center space-x-2"
+//                     >
+//                       <svg
+//                         className="w-4 h-4"
+//                         fill="currentColor"
+//                         viewBox="0 0 20 20"
+//                       >
+//                         <path d="M10 12l-6-4h12l-6 4z" />
+//                       </svg>
+//                       <span>Play</span>
+//                     </button>
+//                   )}
+//                 </div>
+//                 {formData.trailer && (
+//                   <p className="text-slate-400 text-xs mt-1">
+//                     Click Play to test the trailer link
+//                   </p>
+//                 )}
 //               </div>
 //               <div>
 //                 <label className="block text-sm font-medium text-slate-300 mb-2">
@@ -885,152 +1094,233 @@
 //             </div>
 //           </div>
 
-//           <div className="my-8 border-t border-slate-700"></div>
+//           {/* Admin-only sections */}
+//           {isAdmin && (
+//             <>
+//               <div className="my-8 border-t border-slate-700"></div>
 
-//           {/* Theaters & Showtimes Section */}
-//           <div>
-//             <h3 className="text-xl font-semibold text-slate-200 mb-6 flex items-center">
-//               <MapPin size={24} className="mr-3 text-purple-400" />
-//               Theaters & Showtimes
-//             </h3>
+//               {/* Show Dates Selection */}
+//               <div>
+//                 <h3 className="text-xl font-semibold text-slate-200 mb-6 flex items-center">
+//                   <Calendar size={24} className="mr-3 text-purple-400" />
+//                   Show Dates
+//                 </h3>
 
-//             <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700 p-6 mb-6">
-//               <label className="block text-sm font-medium text-slate-300 mb-3">
-//                 Add Theater to Schedule
-//               </label>
-//               {theaterLoading ? (
-//                 <div className="flex items-center text-slate-400 py-4">
-//                   <Loader2 className="mr-3 h-5 w-5 animate-spin" />
-//                   Loading theaters...
-//                 </div>
-//               ) : theaterError ? (
-//                 <div className="flex items-center text-red-400 py-4">
-//                   <AlertCircle className="mr-3 h-5 w-5" />
-//                   {theaterError}
-//                 </div>
-//               ) : (
-//                 <div className="flex space-x-3">
-//                   <select
-//                     value={selectedTheaterId}
-//                     onChange={(e) => setSelectedTheaterId(e.target.value)}
-//                     className="flex-1 p-4 bg-slate-700/50 border border-slate-600 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-//                     disabled={unselectedTheaters.length === 0}
-//                   >
-//                     <option value="">
-//                       {unselectedTheaters.length === 0
-//                         ? "All theaters added"
-//                         : "-- Select a Theater --"}
-//                     </option>
-//                     {unselectedTheaters.map((t) => (
-//                       <option key={t.id} value={t.id}>
-//                         {t.name} ({t.city})
-//                       </option>
-//                     ))}
-//                   </select>
-//                   <button
-//                     type="button"
-//                     onClick={handleAddTheater}
-//                     className="px-6 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-//                     disabled={!selectedTheaterId}
-//                   >
-//                     <Plus size={20} />
-//                   </button>
-//                 </div>
-//               )}
-//             </div>
+//                 <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700 p-6 mb-6">
+//                   <label className="block text-sm font-medium text-slate-300 mb-3">
+//                     Add Show Dates
+//                   </label>
+//                   <div className="flex space-x-3 mb-4">
+//                     <input
+//                       type="date"
+//                       value={dateInput}
+//                       onChange={(e) => {
+//                         console.log("Date input changed:", e.target.value);
+//                         setDateInput(e.target.value);
+//                       }}
+//                       min={new Date().toISOString().split("T")[0]} // Prevent past dates
+//                       className="flex-1 p-4 bg-slate-700/50 border border-slate-600 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+//                     />
+//                     <button
+//                       type="button"
+//                       onClick={() => {
+//                         console.log("Add date button clicked");
+//                         handleAddDate();
+//                       }}
+//                       className="px-6 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+//                       disabled={!dateInput || dateInput.trim() === ""}
+//                     >
+//                       <Plus size={20} />
+//                     </button>
+//                   </div>
 
-//             <div className="space-y-6">
-//               {formData.theaters.length > 0 ? (
-//                 formData.theaters.map((theater) => (
-//                   <div
-//                     key={theater.id}
-//                     className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700 p-6 transition-all"
-//                   >
-//                     <div className="flex justify-between items-center mb-6">
-//                       <div>
-//                         <h4 className="text-lg font-semibold text-slate-200">
-//                           {theater.name}
-//                         </h4>
-//                         <p className="text-sm text-slate-400 flex items-center mt-1">
-//                           <MapPin className="w-4 h-4 mr-1" />
-//                           {theater.city}
-//                         </p>
-//                       </div>
+//                   <div className="flex flex-wrap gap-2 min-h-[40px]">
+//                     {showDates.length > 0 ? (
+//                       showDates.map((date) => (
+//                         <span
+//                           key={date}
+//                           className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-600/20 text-blue-300 border border-blue-500/30"
+//                         >
+//                           {(() => {
+//                             // Fix timezone display issue by creating date properly
+//                             const [year, month, day] = date.split("-");
+//                             const displayDate = new Date(
+//                               parseInt(year),
+//                               parseInt(month) - 1,
+//                               parseInt(day)
+//                             );
+//                             return displayDate.toLocaleDateString("en-US", {
+//                               weekday: "short",
+//                               month: "short",
+//                               day: "numeric",
+//                             });
+//                           })()}
+//                           <button
+//                             type="button"
+//                             onClick={() => handleRemoveDate(date)}
+//                             className="flex-shrink-0 ml-2 p-0.5 text-blue-400 hover:bg-blue-500/20 hover:text-blue-200 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+//                           >
+//                             <X size={14} />
+//                           </button>
+//                         </span>
+//                       ))
+//                     ) : (
+//                       <span className="text-slate-500 text-sm">
+//                         No dates selected (will default to next 7 days)
+//                       </span>
+//                     )}
+//                   </div>
+//                 </div>
+//               </div>
+
+//               <div className="my-8 border-t border-slate-700"></div>
+
+//               {/* Theaters & Showtimes Section */}
+//               <div>
+//                 <h3 className="text-xl font-semibold text-slate-200 mb-6 flex items-center">
+//                   <MapPin size={24} className="mr-3 text-purple-400" />
+//                   Theaters & Showtimes
+//                 </h3>
+
+//                 <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700 p-6 mb-6">
+//                   <label className="block text-sm font-medium text-slate-300 mb-3">
+//                     Add Theater to Schedule
+//                   </label>
+//                   {theaterLoading ? (
+//                     <div className="flex items-center text-slate-400 py-4">
+//                       <Loader2 className="mr-3 h-5 w-5 animate-spin" />
+//                       Loading theaters...
+//                     </div>
+//                   ) : theaterError ? (
+//                     <div className="flex items-center text-red-400 py-4">
+//                       <AlertCircle className="mr-3 h-5 w-5" />
+//                       {theaterError}
+//                     </div>
+//                   ) : (
+//                     <div className="flex space-x-3">
+//                       <select
+//                         value={selectedTheaterId}
+//                         onChange={(e) => setSelectedTheaterId(e.target.value)}
+//                         className="flex-1 p-4 bg-slate-700/50 border border-slate-600 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+//                         disabled={unselectedTheaters.length === 0}
+//                       >
+//                         <option value="">
+//                           {unselectedTheaters.length === 0
+//                             ? "All theaters added"
+//                             : "-- Select a Theater --"}
+//                         </option>
+//                         {unselectedTheaters.map((t) => (
+//                           <option key={t.id} value={t.id}>
+//                             {t.name} ({t.city})
+//                           </option>
+//                         ))}
+//                       </select>
 //                       <button
 //                         type="button"
-//                         onClick={() => handleRemoveTheater(theater.id)}
-//                         className="text-red-400 hover:text-red-300 p-2 rounded-full hover:bg-red-500/10 transition-colors"
+//                         onClick={handleAddTheater}
+//                         className="px-6 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+//                         disabled={!selectedTheaterId}
 //                       >
-//                         <Trash2 size={18} />
+//                         <Plus size={20} />
 //                       </button>
 //                     </div>
-
-//                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-//                       {PREDEFINED_SHOWTIMES.map((time) => {
-//                         const isSelected = theater.showtimes?.some(
-//                           (st) => st.time === time
-//                         );
-//                         const priceKey = `${theater.id}-${time}`;
-//                         return (
-//                           <div key={time} className="space-y-3">
-//                             <button
-//                               type="button"
-//                               onClick={() =>
-//                                 handleToggleShowtime(theater.id, time)
-//                               }
-//                               className={`w-full text-sm font-semibold p-3 rounded-xl transition-all flex items-center justify-center ${
-//                                 isSelected
-//                                   ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg"
-//                                   : "bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 border border-slate-600"
-//                               }`}
-//                             >
-//                               <Clock size={14} className="mr-2" /> {time}
-//                             </button>
-//                             {isSelected && (
-//                               <div className="relative">
-//                                 <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-//                                   <DollarSign size={16} />
-//                                 </span>
-//                                 <input
-//                                   type="number"
-//                                   placeholder="Price"
-//                                   min="0"
-//                                   value={
-//                                     showtimePrices[priceKey] ||
-//                                     formData.price ||
-//                                     ""
-//                                   }
-//                                   onChange={(e) =>
-//                                     handlePriceInputChange(
-//                                       theater.id,
-//                                       time,
-//                                       e.target.value
-//                                     )
-//                                   }
-//                                   className="w-full pl-10 pr-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-200 placeholder-slate-400 text-center focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-//                                 />
-//                               </div>
-//                             )}
-//                           </div>
-//                         );
-//                       })}
-//                     </div>
-//                   </div>
-//                 ))
-//               ) : (
-//                 <div className="text-center py-12 border-2 border-dashed border-slate-700 rounded-2xl text-slate-500">
-//                   <MapPin className="w-16 h-16 mx-auto mb-4 text-slate-600" />
-//                   <p className="text-lg font-medium mb-2">
-//                     No theaters scheduled for this movie
-//                   </p>
-//                   <p className="text-sm">
-//                     Use the dropdown above to add theaters and schedule
-//                     showtimes
-//                   </p>
+//                   )}
 //                 </div>
-//               )}
-//             </div>
-//           </div>
+
+//                 <div className="space-y-6">
+//                   {formData.theaters.length > 0 ? (
+//                     formData.theaters.map((theater) => (
+//                       <div
+//                         key={theater.id}
+//                         className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700 p-6 transition-all"
+//                       >
+//                         <div className="flex justify-between items-center mb-6">
+//                           <div>
+//                             <h4 className="text-lg font-semibold text-slate-200">
+//                               {theater.name}
+//                             </h4>
+//                             <p className="text-sm text-slate-400 flex items-center mt-1">
+//                               <MapPin className="w-4 h-4 mr-1" />
+//                               {theater.city}
+//                             </p>
+//                           </div>
+//                           <button
+//                             type="button"
+//                             onClick={() => handleRemoveTheater(theater.id)}
+//                             className="text-red-400 hover:text-red-300 p-2 rounded-full hover:bg-red-500/10 transition-colors"
+//                           >
+//                             <Trash2 size={18} />
+//                           </button>
+//                         </div>
+
+//                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+//                           {PREDEFINED_SHOWTIMES.map((time) => {
+//                             const isSelected = theater.showtimes?.some(
+//                               (st) => st.time === time
+//                             );
+//                             const priceKey = `${theater.id}-${time}`;
+//                             return (
+//                               <div key={time} className="space-y-3">
+//                                 <button
+//                                   type="button"
+//                                   onClick={() =>
+//                                     handleToggleShowtime(theater.id, time)
+//                                   }
+//                                   className={`w-full text-sm font-semibold p-3 rounded-xl transition-all flex items-center justify-center ${
+//                                     isSelected
+//                                       ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg"
+//                                       : "bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 border border-slate-600"
+//                                   }`}
+//                                 >
+//                                   <Clock size={14} className="mr-2" /> {time}
+//                                 </button>
+//                                 {isSelected && (
+//                                   <div className="relative">
+//                                     <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+//                                       <DollarSign size={16} />
+//                                     </span>
+//                                     <input
+//                                       type="number"
+//                                       placeholder="Price"
+//                                       min="0"
+//                                       value={
+//                                         showtimePrices[priceKey] ||
+//                                         formData.price ||
+//                                         ""
+//                                       }
+//                                       onChange={(e) =>
+//                                         handlePriceInputChange(
+//                                           theater.id,
+//                                           time,
+//                                           e.target.value
+//                                         )
+//                                       }
+//                                       className="w-full pl-10 pr-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-200 placeholder-slate-400 text-center focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+//                                     />
+//                                   </div>
+//                                 )}
+//                               </div>
+//                             );
+//                           })}
+//                         </div>
+//                       </div>
+//                     ))
+//                   ) : (
+//                     <div className="text-center py-12 border-2 border-dashed border-slate-700 rounded-2xl text-slate-500">
+//                       <MapPin className="w-16 h-16 mx-auto mb-4 text-slate-600" />
+//                       <p className="text-lg font-medium mb-2">
+//                         No theaters scheduled for this movie
+//                       </p>
+//                       <p className="text-sm">
+//                         Use the dropdown above to add theaters and schedule
+//                         showtimes
+//                       </p>
+//                     </div>
+//                   )}
+//                 </div>
+//               </div>
+//             </>
+//           )}
 
 //           {/* Form Actions Footer */}
 //           <div className="mt-12 pt-6 border-t border-slate-700 flex justify-end space-x-4">
@@ -1070,6 +1360,7 @@ import {
   AlertCircle,
   MapPin,
   DollarSign,
+  Calendar,
 } from "lucide-react";
 
 const PREDEFINED_SHOWTIMES = [
@@ -1129,6 +1420,17 @@ const MovieForm = ({ movie, onClose, onSave }) => {
   const [selectedTheaterId, setSelectedTheaterId] = useState("");
   const [showtimePrices, setShowtimePrices] = useState({});
 
+  // State for Show Dates
+  const [showDates, setShowDates] = useState([]);
+  const [dateInput, setDateInput] = useState("");
+
+  // State for Custom Showtimes
+  const [customTimeInput, setCustomTimeInput] = useState("");
+  const [customPriceInput, setCustomPriceInput] = useState("");
+
+  // Check if user is admin
+  const [isAdmin, setIsAdmin] = useState(false);
+
   // API functions
   const API_BASE_URL = "http://localhost:8080";
 
@@ -1180,7 +1482,7 @@ const MovieForm = ({ movie, onClose, onSave }) => {
     }
   };
 
-  // Get shows for a specific movie (you'll need to implement this backend endpoint)
+  // Get shows for a specific movie
   const getMovieShows = async (movieId) => {
     try {
       const resp = await apiCall(`/api/movies/${movieId}/shows`, {
@@ -1192,6 +1494,95 @@ const MovieForm = ({ movie, onClose, onSave }) => {
       console.error("Failed to fetch movie shows:", error);
       return [];
     }
+  };
+
+  // Check admin status
+  const checkAdminStatus = () => {
+    const adminToken = localStorage.getItem("adminToken");
+    const userToken = localStorage.getItem("userToken");
+
+    // Check if user has admin token or if user role is admin
+    if (adminToken) {
+      setIsAdmin(true);
+    } else if (userToken) {
+      try {
+        // Decode token to check role (you might need to adjust this based on your token structure)
+        const payload = JSON.parse(atob(userToken.split(".")[1]));
+        setIsAdmin(payload.role === "ADMIN" || payload.role === "SUPER_ADMIN");
+      } catch (error) {
+        setIsAdmin(false);
+      }
+    } else {
+      setIsAdmin(false);
+    }
+  };
+
+  // Date handlers
+  const handleAddDate = () => {
+    console.log("Current dateInput:", dateInput);
+    console.log("Current showDates:", showDates);
+
+    if (dateInput && dateInput.trim() !== "") {
+      // Convert to YYYY-MM-DD format if needed
+      let formattedDate = dateInput;
+
+      // If the input is in MM/DD/YYYY format, convert it
+      if (dateInput.includes("/")) {
+        const parts = dateInput.split("/");
+        if (parts.length === 3) {
+          const [month, day, year] = parts;
+          formattedDate = `${year}-${month.padStart(2, "0")}-${day.padStart(
+            2,
+            "0"
+          )}`;
+        }
+      }
+
+      console.log("Formatted date:", formattedDate);
+
+      if (!showDates.includes(formattedDate)) {
+        // Ensure the date is not in the past - fix timezone issue
+        const selectedDate = new Date(formattedDate + "T00:00:00"); // Add time to avoid timezone issues
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        console.log("Selected date:", selectedDate);
+        console.log("Today:", today);
+
+        // Compare dates properly without timezone issues
+        const selectedDateString = selectedDate.toDateString();
+        const todayString = today.toDateString();
+        const isToday = selectedDateString === todayString;
+        const isFuture = selectedDate > today;
+
+        console.log("Selected date string:", selectedDateString);
+        console.log("Today string:", todayString);
+        console.log("Is today:", isToday);
+        console.log("Is future:", isFuture);
+
+        if (isToday || isFuture) {
+          setShowDates((prev) => {
+            const newDates = [...prev, formattedDate].sort();
+            console.log("New show dates:", newDates);
+            return newDates;
+          });
+          setDateInput("");
+          console.log("Date added successfully");
+        } else {
+          setError("Cannot add dates in the past");
+          setTimeout(() => setError(""), 3000);
+          console.log("Date is in the past");
+        }
+      } else {
+        console.log("Date already exists in the list");
+      }
+    } else {
+      console.log("No date input provided");
+    }
+  };
+
+  const handleRemoveDate = (dateToRemove) => {
+    setShowDates((prev) => prev.filter((date) => date !== dateToRemove));
   };
 
   // Function to fetch shows for a movie and populate theaters
@@ -1206,10 +1597,15 @@ const MovieForm = ({ movie, onClose, onSave }) => {
         // Group shows by theater
         const theaterMap = new Map();
         const initialPrices = {};
+        const showDatesSet = new Set();
 
         shows.forEach((show) => {
           const theaterId = show.theater.id;
           const showTime = new Date(show.showTime);
+
+          // Extract date and add to show dates
+          const showDateStr = showTime.toISOString().split("T")[0];
+          showDatesSet.add(showDateStr);
 
           // Convert to 12-hour format for UI
           const timeString = showTime.toLocaleTimeString("en-US", {
@@ -1225,7 +1621,7 @@ const MovieForm = ({ movie, onClose, onSave }) => {
             });
           }
 
-          // Check if this time already exists (since we create shows for 7 days)
+          // Check if this time already exists
           const theater = theaterMap.get(theaterId);
           const existingShowtime = theater.showtimes.find(
             (st) => st.time === timeString
@@ -1255,6 +1651,9 @@ const MovieForm = ({ movie, onClose, onSave }) => {
 
         // Set showtime prices
         setShowtimePrices(initialPrices);
+
+        // Set show dates
+        setShowDates(Array.from(showDatesSet).sort());
       }
     } catch (error) {
       console.error("Failed to fetch movie shows:", error);
@@ -1262,6 +1661,9 @@ const MovieForm = ({ movie, onClose, onSave }) => {
   };
 
   useEffect(() => {
+    // Check admin status
+    checkAdminStatus();
+
     // Fetch theaters from API on component mount
     const fetchTheaters = async () => {
       try {
@@ -1315,6 +1717,15 @@ const MovieForm = ({ movie, onClose, onSave }) => {
 
       // Now fetch the shows for this movie to populate theaters
       fetchMovieShows(movie.id);
+    } else {
+      // For new movies, set default dates (next 7 days)
+      const defaultDates = [];
+      for (let i = 0; i < 7; i++) {
+        const date = new Date();
+        date.setDate(date.getDate() + i);
+        defaultDates.push(date.toISOString().split("T")[0]);
+      }
+      setShowDates(defaultDates);
     }
   }, [movie]);
 
@@ -1470,6 +1881,81 @@ const MovieForm = ({ movie, onClose, onSave }) => {
     setFormData((prev) => ({ ...prev, theaters: updatedTheaters }));
   };
 
+  // Custom showtime handlers
+  const handleAddCustomShowtime = (theaterId) => {
+    if (!customTimeInput || !customPriceInput) {
+      setError("Please enter both time and price for custom showtime");
+      setTimeout(() => setError(""), 3000);
+      return;
+    }
+
+    // Validate time format (HH:MM)
+    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    if (!timeRegex.test(customTimeInput)) {
+      setError("Please enter time in HH:MM format (24-hour)");
+      setTimeout(() => setError(""), 3000);
+      return;
+    }
+
+    // Convert 24-hour format to 12-hour format for consistency
+    const convertTo12Hour = (time24) => {
+      const [hours, minutes] = time24.split(":");
+      const hour24 = parseInt(hours, 10);
+      const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
+      const period = hour24 >= 12 ? "PM" : "AM";
+      return `${hour12}:${minutes} ${period}`;
+    };
+
+    const time12h = convertTo12Hour(customTimeInput);
+    const price = parseFloat(customPriceInput);
+
+    const theaterIndex = formData.theaters.findIndex((t) => t.id === theaterId);
+    if (theaterIndex === -1) return;
+
+    // Check if this time already exists
+    const existingShowtime = formData.theaters[theaterIndex].showtimes.find(
+      (st) => st.time === time12h
+    );
+
+    if (existingShowtime) {
+      setError("This showtime already exists for this theater");
+      setTimeout(() => setError(""), 3000);
+      return;
+    }
+
+    // Add the custom showtime
+    const updatedTheaters = [...formData.theaters];
+    updatedTheaters[theaterIndex].showtimes.push({ time: time12h, price });
+
+    // Also update the showtime prices state
+    const priceKey = `${theaterId}-${time12h}`;
+    setShowtimePrices((prev) => ({ ...prev, [priceKey]: price }));
+
+    setFormData((prev) => ({ ...prev, theaters: updatedTheaters }));
+
+    // Clear inputs
+    setCustomTimeInput("");
+    setCustomPriceInput("");
+  };
+
+  const handleRemoveShowtime = (theaterId, time) => {
+    const theaterIndex = formData.theaters.findIndex((t) => t.id === theaterId);
+    if (theaterIndex === -1) return;
+
+    const updatedTheaters = [...formData.theaters];
+    updatedTheaters[theaterIndex].showtimes = updatedTheaters[
+      theaterIndex
+    ].showtimes.filter((st) => st.time !== time);
+
+    setFormData((prev) => ({ ...prev, theaters: updatedTheaters }));
+
+    // Clean up showtime price
+    const priceKey = `${theaterId}-${time}`;
+    const updatedPrices = { ...showtimePrices };
+    delete updatedPrices[priceKey];
+    setShowtimePrices(updatedPrices);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -1479,6 +1965,8 @@ const MovieForm = ({ movie, onClose, onSave }) => {
       console.log("=== STARTING MOVIE SUBMISSION ===");
       console.log("Form Data:", JSON.stringify(formData, null, 2));
       console.log("Theaters to process:", formData.theaters?.length || 0);
+      console.log("Show dates:", showDates);
+      console.log("Is Admin:", isAdmin);
 
       formData.theaters?.forEach((theater, idx) => {
         console.log(`Theater ${idx + 1}:`, {
@@ -1496,6 +1984,13 @@ const MovieForm = ({ movie, onClose, onSave }) => {
       const savedMovie = await onSave(formData, posterFile);
       console.log("Movie save response:", JSON.stringify(savedMovie, null, 2));
 
+      // Only create shows if user is admin
+      if (!isAdmin) {
+        console.log("User is not admin - skipping show creation");
+        onClose();
+        return;
+      }
+
       // Validate movie ID
       const movieId = savedMovie?.id || movie?.id;
       console.log("Movie ID for shows:", movieId);
@@ -1505,7 +2000,11 @@ const MovieForm = ({ movie, onClose, onSave }) => {
       }
 
       // Create shows for each theater/showtime combination
-      if (formData.theaters && formData.theaters.length > 0) {
+      if (
+        formData.theaters &&
+        formData.theaters.length > 0 &&
+        showDates.length > 0
+      ) {
         console.log("=== CREATING SHOWS ===");
 
         const showCreationPromises = [];
@@ -1544,21 +2043,51 @@ const MovieForm = ({ movie, onClose, onSave }) => {
               return result;
             };
 
-            // Create shows for today + next 7 days
-            for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
-              const today = new Date();
-              const showDate = new Date(today);
-              showDate.setDate(today.getDate() + dayOffset);
+            // Use selected dates or default to next 7 days
+            const datesToProcess =
+              showDates.length > 0
+                ? showDates
+                : (() => {
+                    const dates = [];
+                    for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+                      const today = new Date();
+                      const showDate = new Date(today);
+                      showDate.setDate(today.getDate() + dayOffset);
+                      dates.push(showDate.toISOString().split("T")[0]);
+                    }
+                    return dates;
+                  })();
 
+            // Create shows for each selected date
+            for (const dateString of datesToProcess) {
               const time24h = convertTo24Hour(showtime.time);
               const [hours, minutes] = time24h.split(":");
 
-              // Create the show date with proper time
-              const showDateTime = new Date(showDate);
-              showDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+              // Create the show date with proper time WITHOUT timezone issues
+              // Parse the date string components to avoid timezone interpretation
+              const [year, month, day] = dateString.split("-");
+              const showDateTime = new Date(
+                parseInt(year),
+                parseInt(month) - 1,
+                parseInt(day),
+                parseInt(hours),
+                parseInt(minutes),
+                0,
+                0
+              );
 
-              // Format as ISO string for backend
-              const isoString = showDateTime.toISOString();
+              // Format as local time string WITHOUT UTC conversion
+              const formatLocalDateTime = (date) => {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, "0");
+                const day = String(date.getDate()).padStart(2, "0");
+                const hours = String(date.getHours()).padStart(2, "0");
+                const minutes = String(date.getMinutes()).padStart(2, "0");
+                const seconds = String(date.getSeconds()).padStart(2, "0");
+                return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.000`;
+              };
+
+              const isoString = formatLocalDateTime(showDateTime);
 
               const showData = {
                 movie: { id: parseInt(movieId) },
@@ -1571,7 +2100,7 @@ const MovieForm = ({ movie, onClose, onSave }) => {
               };
 
               console.log(
-                `Show data for ${theater.name} on ${showDate.toDateString()}:`,
+                `Show data for ${theater.name} on ${dateString}:`,
                 showData
               );
               totalShowsToCreate++;
@@ -1580,9 +2109,7 @@ const MovieForm = ({ movie, onClose, onSave }) => {
               showCreationPromises.push(
                 createShow(showData).catch((error) => {
                   console.error(
-                    `Failed to create show for ${theater.name} at ${
-                      showtime.time
-                    } on ${showDate.toDateString()}:`,
+                    `Failed to create show for ${theater.name} at ${showtime.time} on ${dateString}:`,
                     error
                   );
                   return { error, showData };
@@ -1634,7 +2161,7 @@ const MovieForm = ({ movie, onClose, onSave }) => {
           );
         }
       } else {
-        console.log("No theaters specified - skipping show creation");
+        console.log("No theaters or dates specified - skipping show creation");
       }
 
       console.log("=== SUBMISSION COMPLETE ===");
@@ -1676,6 +2203,17 @@ const MovieForm = ({ movie, onClose, onSave }) => {
               <AlertCircle className="w-5 h-5 mr-3 flex-shrink-0" />
               <span>
                 <strong>Error:</strong> {error}
+              </span>
+            </div>
+          )}
+
+          {!isAdmin && (
+            <div className="mb-6 p-4 bg-blue-900/50 border border-blue-500/50 text-blue-300 rounded-lg flex items-center">
+              <AlertCircle className="w-5 h-5 mr-3 flex-shrink-0" />
+              <span>
+                <strong>Note:</strong> Only admins can add theaters and create
+                shows. You can add movie details, but theater scheduling is
+                restricted to administrators.
               </span>
             </div>
           )}
@@ -1985,152 +2523,318 @@ const MovieForm = ({ movie, onClose, onSave }) => {
             </div>
           </div>
 
-          <div className="my-8 border-t border-slate-700"></div>
+          {/* Admin-only sections */}
+          {isAdmin && (
+            <>
+              <div className="my-8 border-t border-slate-700"></div>
 
-          {/* Theaters & Showtimes Section */}
-          <div>
-            <h3 className="text-xl font-semibold text-slate-200 mb-6 flex items-center">
-              <MapPin size={24} className="mr-3 text-purple-400" />
-              Theaters & Showtimes
-            </h3>
+              {/* Show Dates Selection */}
+              <div>
+                <h3 className="text-xl font-semibold text-slate-200 mb-6 flex items-center">
+                  <Calendar size={24} className="mr-3 text-purple-400" />
+                  Show Dates
+                </h3>
 
-            <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700 p-6 mb-6">
-              <label className="block text-sm font-medium text-slate-300 mb-3">
-                Add Theater to Schedule
-              </label>
-              {theaterLoading ? (
-                <div className="flex items-center text-slate-400 py-4">
-                  <Loader2 className="mr-3 h-5 w-5 animate-spin" />
-                  Loading theaters...
-                </div>
-              ) : theaterError ? (
-                <div className="flex items-center text-red-400 py-4">
-                  <AlertCircle className="mr-3 h-5 w-5" />
-                  {theaterError}
-                </div>
-              ) : (
-                <div className="flex space-x-3">
-                  <select
-                    value={selectedTheaterId}
-                    onChange={(e) => setSelectedTheaterId(e.target.value)}
-                    className="flex-1 p-4 bg-slate-700/50 border border-slate-600 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                    disabled={unselectedTheaters.length === 0}
-                  >
-                    <option value="">
-                      {unselectedTheaters.length === 0
-                        ? "All theaters added"
-                        : "-- Select a Theater --"}
-                    </option>
-                    {unselectedTheaters.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name} ({t.city})
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={handleAddTheater}
-                    className="px-6 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={!selectedTheaterId}
-                  >
-                    <Plus size={20} />
-                  </button>
-                </div>
-              )}
-            </div>
+                <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700 p-6 mb-6">
+                  <label className="block text-sm font-medium text-slate-300 mb-3">
+                    Add Show Dates
+                  </label>
+                  <div className="flex space-x-3 mb-4">
+                    <input
+                      type="date"
+                      value={dateInput}
+                      onChange={(e) => {
+                        console.log("Date input changed:", e.target.value);
+                        setDateInput(e.target.value);
+                      }}
+                      min={new Date().toISOString().split("T")[0]} // Prevent past dates
+                      className="flex-1 p-4 bg-slate-700/50 border border-slate-600 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        console.log("Add date button clicked");
+                        handleAddDate();
+                      }}
+                      className="px-6 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={!dateInput || dateInput.trim() === ""}
+                    >
+                      <Plus size={20} />
+                    </button>
+                  </div>
 
-            <div className="space-y-6">
-              {formData.theaters.length > 0 ? (
-                formData.theaters.map((theater) => (
-                  <div
-                    key={theater.id}
-                    className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700 p-6 transition-all"
-                  >
-                    <div className="flex justify-between items-center mb-6">
-                      <div>
-                        <h4 className="text-lg font-semibold text-slate-200">
-                          {theater.name}
-                        </h4>
-                        <p className="text-sm text-slate-400 flex items-center mt-1">
-                          <MapPin className="w-4 h-4 mr-1" />
-                          {theater.city}
-                        </p>
-                      </div>
+                  <div className="flex flex-wrap gap-2 min-h-[40px]">
+                    {showDates.length > 0 ? (
+                      showDates.map((date) => (
+                        <span
+                          key={date}
+                          className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-600/20 text-blue-300 border border-blue-500/30"
+                        >
+                          {(() => {
+                            // Fix timezone display issue by creating date properly
+                            const [year, month, day] = date.split("-");
+                            const displayDate = new Date(
+                              parseInt(year),
+                              parseInt(month) - 1,
+                              parseInt(day)
+                            );
+                            return displayDate.toLocaleDateString("en-US", {
+                              weekday: "short",
+                              month: "short",
+                              day: "numeric",
+                            });
+                          })()}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveDate(date)}
+                            className="flex-shrink-0 ml-2 p-0.5 text-blue-400 hover:bg-blue-500/20 hover:text-blue-200 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                          >
+                            <X size={14} />
+                          </button>
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-slate-500 text-sm">
+                        No dates selected (will default to next 7 days)
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="my-8 border-t border-slate-700"></div>
+
+              {/* Theaters & Showtimes Section */}
+              <div>
+                <h3 className="text-xl font-semibold text-slate-200 mb-6 flex items-center">
+                  <MapPin size={24} className="mr-3 text-purple-400" />
+                  Theaters & Showtimes
+                </h3>
+
+                <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700 p-6 mb-6">
+                  <label className="block text-sm font-medium text-slate-300 mb-3">
+                    Add Theater to Schedule
+                  </label>
+                  {theaterLoading ? (
+                    <div className="flex items-center text-slate-400 py-4">
+                      <Loader2 className="mr-3 h-5 w-5 animate-spin" />
+                      Loading theaters...
+                    </div>
+                  ) : theaterError ? (
+                    <div className="flex items-center text-red-400 py-4">
+                      <AlertCircle className="mr-3 h-5 w-5" />
+                      {theaterError}
+                    </div>
+                  ) : (
+                    <div className="flex space-x-3">
+                      <select
+                        value={selectedTheaterId}
+                        onChange={(e) => setSelectedTheaterId(e.target.value)}
+                        className="flex-1 p-4 bg-slate-700/50 border border-slate-600 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                        disabled={unselectedTheaters.length === 0}
+                      >
+                        <option value="">
+                          {unselectedTheaters.length === 0
+                            ? "All theaters added"
+                            : "-- Select a Theater --"}
+                        </option>
+                        {unselectedTheaters.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name} ({t.city})
+                          </option>
+                        ))}
+                      </select>
                       <button
                         type="button"
-                        onClick={() => handleRemoveTheater(theater.id)}
-                        className="text-red-400 hover:text-red-300 p-2 rounded-full hover:bg-red-500/10 transition-colors"
+                        onClick={handleAddTheater}
+                        className="px-6 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={!selectedTheaterId}
                       >
-                        <Trash2 size={18} />
+                        <Plus size={20} />
                       </button>
                     </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-                      {PREDEFINED_SHOWTIMES.map((time) => {
-                        const isSelected = theater.showtimes?.some(
-                          (st) => st.time === time
-                        );
-                        const priceKey = `${theater.id}-${time}`;
-                        return (
-                          <div key={time} className="space-y-3">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleToggleShowtime(theater.id, time)
-                              }
-                              className={`w-full text-sm font-semibold p-3 rounded-xl transition-all flex items-center justify-center ${
-                                isSelected
-                                  ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg"
-                                  : "bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 border border-slate-600"
-                              }`}
-                            >
-                              <Clock size={14} className="mr-2" /> {time}
-                            </button>
-                            {isSelected && (
-                              <div className="relative">
-                                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-                                  <DollarSign size={16} />
-                                </span>
-                                <input
-                                  type="number"
-                                  placeholder="Price"
-                                  min="0"
-                                  value={
-                                    showtimePrices[priceKey] ||
-                                    formData.price ||
-                                    ""
-                                  }
-                                  onChange={(e) =>
-                                    handlePriceInputChange(
-                                      theater.id,
-                                      time,
-                                      e.target.value
-                                    )
-                                  }
-                                  className="w-full pl-10 pr-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-200 placeholder-slate-400 text-center focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                                />
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-12 border-2 border-dashed border-slate-700 rounded-2xl text-slate-500">
-                  <MapPin className="w-16 h-16 mx-auto mb-4 text-slate-600" />
-                  <p className="text-lg font-medium mb-2">
-                    No theaters scheduled for this movie
-                  </p>
-                  <p className="text-sm">
-                    Use the dropdown above to add theaters and schedule
-                    showtimes
-                  </p>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
+
+                <div className="space-y-6">
+                  {formData.theaters.length > 0 ? (
+                    formData.theaters.map((theater) => (
+                      <div
+                        key={theater.id}
+                        className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700 p-6 transition-all"
+                      >
+                        <div className="flex justify-between items-center mb-6">
+                          <div>
+                            <h4 className="text-lg font-semibold text-slate-200">
+                              {theater.name}
+                            </h4>
+                            <p className="text-sm text-slate-400 flex items-center mt-1">
+                              <MapPin className="w-4 h-4 mr-1" />
+                              {theater.city}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveTheater(theater.id)}
+                            className="text-red-400 hover:text-red-300 p-2 rounded-full hover:bg-red-500/10 transition-colors"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+                          {PREDEFINED_SHOWTIMES.map((time) => {
+                            const isSelected = theater.showtimes?.some(
+                              (st) => st.time === time
+                            );
+                            const priceKey = `${theater.id}-${time}`;
+                            return (
+                              <div key={time} className="space-y-3">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleToggleShowtime(theater.id, time)
+                                  }
+                                  className={`w-full text-sm font-semibold p-3 rounded-xl transition-all flex items-center justify-center ${
+                                    isSelected
+                                      ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg"
+                                      : "bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 border border-slate-600"
+                                  }`}
+                                >
+                                  <Clock size={14} className="mr-2" /> {time}
+                                </button>
+                                {isSelected && (
+                                  <div className="relative">
+                                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                                      <DollarSign size={16} />
+                                    </span>
+                                    <input
+                                      type="number"
+                                      placeholder="Price"
+                                      min="0"
+                                      value={
+                                        showtimePrices[priceKey] ||
+                                        formData.price ||
+                                        ""
+                                      }
+                                      onChange={(e) =>
+                                        handlePriceInputChange(
+                                          theater.id,
+                                          time,
+                                          e.target.value
+                                        )
+                                      }
+                                      className="w-full pl-10 pr-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-200 placeholder-slate-400 text-center focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Custom Showtime Section */}
+                        <div className="mt-6 pt-6 border-t border-slate-600">
+                          <h5 className="text-lg font-medium text-slate-200 mb-4">
+                            Add Custom Showtime
+                          </h5>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-slate-300 mb-2">
+                                Time (24-hour format)
+                              </label>
+                              <input
+                                type="time"
+                                value={customTimeInput}
+                                onChange={(e) =>
+                                  setCustomTimeInput(e.target.value)
+                                }
+                                className="w-full p-3 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                                placeholder="HH:MM"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-300 mb-2">
+                                Price (₹)
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={customPriceInput}
+                                onChange={(e) =>
+                                  setCustomPriceInput(e.target.value)
+                                }
+                                className="w-full p-3 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                                placeholder="Enter price"
+                              />
+                            </div>
+                            <div className="flex items-end">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleAddCustomShowtime(theater.id)
+                                }
+                                className="w-full px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:opacity-90 transition-opacity font-medium"
+                              >
+                                Add Custom Time
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Display Current Showtimes */}
+                        {theater.showtimes && theater.showtimes.length > 0 && (
+                          <div className="mt-6 pt-6 border-t border-slate-600">
+                            <h5 className="text-lg font-medium text-slate-200 mb-4">
+                              Current Showtimes
+                            </h5>
+                            <div className="flex flex-wrap gap-3">
+                              {theater.showtimes.map((showtime, index) => (
+                                <div
+                                  key={index}
+                                  className="inline-flex items-center px-4 py-2 rounded-lg bg-blue-600/20 text-blue-300 border border-blue-500/30"
+                                >
+                                  <Clock size={16} className="mr-2" />
+                                  <span className="font-medium">
+                                    {showtime.time}
+                                  </span>
+                                  <span className="mx-2 text-blue-400">•</span>
+                                  <span>₹{showtime.price}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleRemoveShowtime(
+                                        theater.id,
+                                        showtime.time
+                                      )
+                                    }
+                                    className="ml-3 p-1 text-blue-400 hover:text-red-400 hover:bg-red-500/20 rounded-full transition-colors"
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-12 border-2 border-dashed border-slate-700 rounded-2xl text-slate-500">
+                      <MapPin className="w-16 h-16 mx-auto mb-4 text-slate-600" />
+                      <p className="text-lg font-medium mb-2">
+                        No theaters scheduled for this movie
+                      </p>
+                      <p className="text-sm">
+                        Use the dropdown above to add theaters and schedule
+                        showtimes
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
 
           {/* Form Actions Footer */}
           <div className="mt-12 pt-6 border-t border-slate-700 flex justify-end space-x-4">
