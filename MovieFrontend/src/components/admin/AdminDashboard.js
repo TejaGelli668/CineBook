@@ -3,7 +3,7 @@
 // import AdminHeader from "./AdminHeader";
 // import DashboardStats from "./DashboardStats";
 // import MovieManagement from "./MovieManagement";
-// import TheaterManagement from "./TheaterManagement";
+// import TheaterManagement from "./TheaterManagement"; // This should be your API-connected version
 // import AddTheaterPage from "./AddTheaterPage";
 // import MovieForm from "./MovieForm";
 
@@ -15,6 +15,9 @@
 //   formatMovieData,
 // } from "../../utils/movieAPI";
 
+// // NEW: Import theater API functions
+// import { createTheater, updateTheater } from "../../utils/theaterAPI";
+
 // const AdminDashboard = () => {
 //   const [activeTab, setActiveTab] = useState("dashboard");
 //   const [searchTerm, setSearchTerm] = useState("");
@@ -23,28 +26,8 @@
 //   const [editingMovie, setEditingMovie] = useState(null);
 
 //   const [movies, setMovies] = useState([]);
-//   const [theaters, setTheaters] = useState([
-//     {
-//       id: "1",
-//       name: "PVR Cinemas",
-//       location: "Phoenix Mall, Mumbai",
-//       screens: 8,
-//       totalSeats: 1200,
-//       status: "Active",
-//       facilities: ["M-Ticket", "Food & Beverage", "Parking", "IMAX"],
-//       shows: ["10:00 AM", "1:30 PM", "6:00 PM", "9:30 PM"],
-//     },
-//     {
-//       id: "2",
-//       name: "INOX Multiplex",
-//       location: "City Center, Delhi",
-//       screens: 6,
-//       totalSeats: 900,
-//       status: "Active",
-//       facilities: ["DOLBY ATMOS", "Recliner Seats", "Parking", "Food Court"],
-//       shows: ["11:00 AM", "2:30 PM", "7:00 PM", "10:00 PM"],
-//     },
-//   ]);
+
+//   // REMOVED: Mock theater data - now using API
 
 //   // ─── Load real movies on mount ────────────────────────────────────────────────
 //   useEffect(() => {
@@ -113,43 +96,86 @@
 //     setEditingMovie(null);
 //   };
 
-//   // ─── Theater handlers (unchanged) ────────────────────────────────────────────
-//   const handleAddTheater = () => {
+//   // ─── NEW: Real Theater handlers with API integration ────────────────────────────────────────
+//   const handleNavigateToAddTheater = () => {
+//     console.log("Navigating to Add Theater");
 //     setActiveTab("addTheater");
 //     setEditingItem(null);
 //   };
 
-//   const handleEditTheater = (theater) => {
+//   const handleNavigateToEditTheater = (theater) => {
+//     console.log("Navigating to Edit Theater:", theater);
 //     setEditingItem(theater);
 //     setActiveTab("editTheater");
 //   };
 
-//   const handleDeleteTheater = (theaterId) => {
-//     if (window.confirm("Are you sure you want to delete this theater?")) {
-//       setTheaters((t) => t.filter((x) => x.id !== theaterId));
-//       alert("Theater deleted successfully!");
-//     }
-//   };
-
-//   const handleViewTheaterDetails = (theater) => {
-//     alert(`Viewing details for ${theater.name}`);
-//   };
-
-//   const handleSaveTheater = (theaterData) => {
-//     if (editingItem) {
-//       setTheaters((t) =>
-//         t.map((x) =>
-//           x.id === editingItem.id ? { ...theaterData, id: x.id } : x
-//         )
-//       );
-//       alert("Theater updated successfully!");
-//     } else {
-//       setTheaters((t) => [...t, theaterData]);
-//       alert("Theater added successfully!");
-//     }
+//   const handleBackToTheaters = () => {
+//     console.log("Going back to theaters");
 //     setActiveTab("theaters");
 //     setEditingItem(null);
 //   };
+
+//   // Update your handleSaveTheater function with correct field mapping:
+
+//   const handleSaveTheater = async (theaterData) => {
+//     try {
+//       console.log("🎬 Raw theater data from form:", theaterData);
+
+//       // FIXED: Correct field mapping to match your database fields
+//       const backendData = {
+//         name: theaterData.name?.trim(),
+//         location: theaterData.location?.trim(),
+//         address: theaterData.address?.trim(),
+//         city: theaterData.city?.trim(),
+//         state: theaterData.state?.trim(),
+//         pincode: theaterData.pincode?.trim(),
+//         phoneNumber: theaterData.phoneNumber?.trim(), // FIXED: was theaterData.phone
+//         email: theaterData.email?.trim(),
+//         numberOfScreens: parseInt(theaterData.numberOfScreens) || 0, // FIXED: was theaterData.screens
+//         totalSeats: parseInt(theaterData.totalSeats) || 0,
+//         status: theaterData.status, // Already correct format from form
+//         facilities: theaterData.facilities || [],
+//         shows: theaterData.shows || [],
+//         pricing: theaterData.pricing || {},
+//       };
+
+//       console.log("🚀 Sending to backend:", backendData);
+
+//       // Validate required fields before sending
+//       const requiredFields = [
+//         "name",
+//         "location",
+//         "address",
+//         "city",
+//         "state",
+//         "pincode",
+//         "phoneNumber",
+//         "email",
+//       ];
+//       const missingFields = requiredFields.filter(
+//         (field) => !backendData[field]
+//       );
+
+//       if (missingFields.length > 0) {
+//         throw new Error(`Missing required fields: ${missingFields.join(", ")}`);
+//       }
+
+//       if (editingItem) {
+//         await updateTheater(editingItem.id, backendData);
+//         alert("Theater updated successfully!");
+//       } else {
+//         await createTheater(backendData);
+//         alert("Theater created successfully!");
+//       }
+
+//       handleBackToTheaters();
+//     } catch (error) {
+//       console.error("❌ Error saving theater:", error);
+//       alert("Failed to save theater: " + error.message);
+//     }
+//   };
+
+//   // ─── REMOVED: Old theater handlers that used mock data ────────────────────────
 
 //   const handleBack = () => {
 //     if (activeTab.includes("Movie")) {
@@ -165,15 +191,17 @@
 //     switch (activeTab) {
 //       case "addTheater":
 //         return (
-//           <AddTheaterPage onBack={handleBack} onSave={handleSaveTheater} />
+//           <AddTheaterPage
+//             onBack={handleBackToTheaters}
+//             onSave={handleSaveTheater}
+//           />
 //         );
 //       case "editTheater":
 //         return (
 //           <AddTheaterPage
-//             onBack={handleBack}
+//             theater={editingItem}
+//             onBack={handleBackToTheaters}
 //             onSave={handleSaveTheater}
-//             initialData={editingItem}
-//             isEditing
 //           />
 //         );
 //       case "movies":
@@ -198,13 +226,10 @@
 //       case "theaters":
 //         return (
 //           <div className="space-y-6">
+//             {/* UPDATED: Use the real API-connected TheaterManagement */}
 //             <TheaterManagement
-//               theaters={theaters}
-//               searchTerm={searchTerm}
-//               onAddTheater={handleAddTheater}
-//               onEditTheater={handleEditTheater}
-//               onDeleteTheater={handleDeleteTheater}
-//               onViewDetails={handleViewTheaterDetails}
+//               onNavigateToAddTheater={handleNavigateToAddTheater}
+//               onNavigateToEditTheater={handleNavigateToEditTheater}
 //             />
 //           </div>
 //         );
@@ -249,7 +274,7 @@
 //           <div className="space-y-6">
 //             <DashboardStats
 //               movies={movies}
-//               theaters={theaters}
+//               theaters={[]} // Remove mock theaters from stats
 //               onNavigateToMovies={() => handleTabChange("movies")}
 //               onNavigateToTheaters={() => handleTabChange("theaters")}
 //             />
@@ -295,6 +320,7 @@ import MovieManagement from "./MovieManagement";
 import TheaterManagement from "./TheaterManagement"; // This should be your API-connected version
 import AddTheaterPage from "./AddTheaterPage";
 import MovieForm from "./MovieForm";
+import AdminFixShows from "./AdminFixShows";
 
 import {
   getMovies,
@@ -307,7 +333,12 @@ import {
 // NEW: Import theater API functions
 import { createTheater, updateTheater } from "../../utils/theaterAPI";
 
-const AdminDashboard = () => {
+const AdminDashboard = ({
+  onLogout,
+  currentUser,
+  onNavigateToTheaterManagement,
+  onNavigateToFixShows, // Add this prop from App.js
+}) => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [searchTerm, setSearchTerm] = useState("");
   const [editingItem, setEditingItem] = useState(null);
@@ -315,8 +346,6 @@ const AdminDashboard = () => {
   const [editingMovie, setEditingMovie] = useState(null);
 
   const [movies, setMovies] = useState([]);
-
-  // REMOVED: Mock theater data - now using API
 
   // ─── Load real movies on mount ────────────────────────────────────────────────
   useEffect(() => {
@@ -404,8 +433,17 @@ const AdminDashboard = () => {
     setEditingItem(null);
   };
 
-  // Update your handleSaveTheater function with correct field mapping:
+  // ─── NEW: Fix Shows navigation ──────────────────────────────────────────────
+  const handleNavigateToFixShows = () => {
+    console.log("Navigating to Fix Shows");
+    setActiveTab("fixShows");
+  };
 
+  const handleBackToDashboard = () => {
+    setActiveTab("dashboard");
+  };
+
+  // Update your handleSaveTheater function with correct field mapping:
   const handleSaveTheater = async (theaterData) => {
     try {
       console.log("🎬 Raw theater data from form:", theaterData);
@@ -464,13 +502,13 @@ const AdminDashboard = () => {
     }
   };
 
-  // ─── REMOVED: Old theater handlers that used mock data ────────────────────────
-
   const handleBack = () => {
     if (activeTab.includes("Movie")) {
       setActiveTab("movies");
     } else if (activeTab.includes("Theater")) {
       setActiveTab("theaters");
+    } else if (activeTab === "fixShows") {
+      setActiveTab("dashboard");
     }
     setEditingItem(null);
   };
@@ -492,6 +530,25 @@ const AdminDashboard = () => {
             onBack={handleBackToTheaters}
             onSave={handleSaveTheater}
           />
+        );
+      case "fixShows":
+        return (
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded-lg shadow">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-800">
+                  Fix Shows & Seats
+                </h2>
+                <button
+                  onClick={handleBackToDashboard}
+                  className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+                >
+                  ← Back to Dashboard
+                </button>
+              </div>
+              <AdminFixShows />
+            </div>
+          </div>
         );
       case "movies":
         return (
@@ -567,13 +624,60 @@ const AdminDashboard = () => {
               onNavigateToMovies={() => handleTabChange("movies")}
               onNavigateToTheaters={() => handleTabChange("theaters")}
             />
+
+            {/* Add Fix Shows Quick Access Button */}
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-lg font-semibold mb-4 text-gray-800">
+                Quick Actions
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <button
+                  onClick={handleNavigateToFixShows}
+                  className="flex items-center justify-center px-6 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white rounded-lg transition-all transform hover:scale-105 shadow-lg"
+                >
+                  <span className="text-2xl mr-3">🔧</span>
+                  <div className="text-left">
+                    <div className="font-semibold">Fix Shows</div>
+                    <div className="text-sm opacity-90">
+                      Generate missing seats
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => handleTabChange("movies")}
+                  className="flex items-center justify-center px-6 py-4 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white rounded-lg transition-all transform hover:scale-105 shadow-lg"
+                >
+                  <span className="text-2xl mr-3">🎬</span>
+                  <div className="text-left">
+                    <div className="font-semibold">Manage Movies</div>
+                    <div className="text-sm opacity-90">Add, edit movies</div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => handleTabChange("theaters")}
+                  className="flex items-center justify-center px-6 py-4 bg-gradient-to-r from-green-500 to-teal-500 hover:from-green-600 hover:to-teal-600 text-white rounded-lg transition-all transform hover:scale-105 shadow-lg"
+                >
+                  <span className="text-2xl mr-3">🏢</span>
+                  <div className="text-left">
+                    <div className="font-semibold">Manage Theaters</div>
+                    <div className="text-sm opacity-90">Add, edit theaters</div>
+                  </div>
+                </button>
+              </div>
+            </div>
           </div>
         );
     }
   };
 
-  // If on add/edit theater, render it full-screen:
-  if (activeTab === "addTheater" || activeTab === "editTheater") {
+  // If on add/edit theater or fix shows, render it full-screen:
+  if (
+    activeTab === "addTheater" ||
+    activeTab === "editTheater" ||
+    activeTab === "fixShows"
+  ) {
     return renderContent();
   }
 
@@ -585,12 +689,15 @@ const AdminDashboard = () => {
         setActiveTab={setActiveTab}
         currentView={activeTab}
         onNavigate={handleTabChange}
+        onNavigateToFixShows={handleNavigateToFixShows} // Pass to sidebar if needed
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         <AdminHeader
           searchTerm={searchTerm}
           setSearchTerm={setSearchTerm}
           onSearchChange={setSearchTerm}
+          currentUser={currentUser}
+          onLogout={onLogout}
         />
         <div className="flex-1 overflow-auto">
           <div className="p-6">{renderContent()}</div>
