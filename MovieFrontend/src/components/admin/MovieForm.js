@@ -119,6 +119,87 @@ const MovieForm = ({ movie, onClose, onSave }) => {
     }
   };
 
+  // Get shows for a specific movie (you'll need to implement this backend endpoint)
+  const getMovieShows = async (movieId) => {
+    try {
+      const resp = await apiCall(`/api/movies/${movieId}/shows`, {
+        method: "GET",
+        headers: withAuth(),
+      });
+      return resp.data || resp || [];
+    } catch (error) {
+      console.error("Failed to fetch movie shows:", error);
+      return [];
+    }
+  };
+
+  // Function to fetch shows for a movie and populate theaters
+  const fetchMovieShows = async (movieId) => {
+    try {
+      console.log("=== FETCHING SHOWS FOR MOVIE ===", movieId);
+
+      const shows = await getMovieShows(movieId);
+      console.log("Fetched shows:", shows);
+
+      if (shows && shows.length > 0) {
+        // Group shows by theater
+        const theaterMap = new Map();
+        const initialPrices = {};
+
+        shows.forEach((show) => {
+          const theaterId = show.theater.id;
+          const showTime = new Date(show.showTime);
+
+          // Convert to 12-hour format for UI
+          const timeString = showTime.toLocaleTimeString("en-US", {
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+          });
+
+          if (!theaterMap.has(theaterId)) {
+            theaterMap.set(theaterId, {
+              ...show.theater,
+              showtimes: [],
+            });
+          }
+
+          // Check if this time already exists (since we create shows for 7 days)
+          const theater = theaterMap.get(theaterId);
+          const existingShowtime = theater.showtimes.find(
+            (st) => st.time === timeString
+          );
+
+          if (!existingShowtime) {
+            theater.showtimes.push({
+              time: timeString,
+              price: show.ticketPrice,
+            });
+
+            // Also set the price in showtimePrices state
+            const priceKey = `${theaterId}-${timeString}`;
+            initialPrices[priceKey] = show.ticketPrice;
+          }
+        });
+
+        // Convert map to array
+        const theatersWithShows = Array.from(theaterMap.values());
+        console.log("Processed theaters with shows:", theatersWithShows);
+
+        // Update form data with theaters
+        setFormData((prev) => ({
+          ...prev,
+          theaters: theatersWithShows,
+        }));
+
+        // Set showtime prices
+        setShowtimePrices(initialPrices);
+      }
+    } catch (error) {
+      console.error("Failed to fetch movie shows:", error);
+    }
+  };
+
   useEffect(() => {
     // Fetch theaters from API on component mount
     const fetchTheaters = async () => {
@@ -134,19 +215,15 @@ const MovieForm = ({ movie, onClose, onSave }) => {
         setTheaterLoading(false);
       }
     };
+
     fetchTheaters();
 
     if (movie) {
-      // FIXED: Better initialization for editing movies
-      console.log("Initializing movie for editing:", movie);
+      console.log("=== INITIALIZING MOVIE FOR EDITING ===");
+      console.log("Movie data received:", JSON.stringify(movie, null, 2));
 
-      // Convert existing theater data to UI format
-      const uiTheaters = (movie.theaters || []).map((theater) => ({
-        ...theater,
-        showtimes: theater.showtimes || [],
-      }));
-
-      setFormData({
+      // Initialize basic movie data
+      const initialFormData = {
         title: movie.title || "",
         genre: movie.genre || "",
         duration: movie.duration || "",
@@ -164,23 +241,19 @@ const MovieForm = ({ movie, onClose, onSave }) => {
         format: movie.format || [],
         certificate: movie.certificate || "U",
         status: movie.status || "Active",
-        theaters: uiTheaters,
-      });
+        theaters: [], // We'll populate this separately
+      };
 
+      // Set poster preview
       setPosterPreview(
         movie.posterUrl ? `http://localhost:8080${movie.posterUrl}` : ""
       );
 
-      // FIXED: Pre-fill the showtime prices from the movie's theater data
-      const initialPrices = {};
-      uiTheaters.forEach((theater) => {
-        theater.showtimes?.forEach((showtime) => {
-          const key = `${theater.id}-${showtime.time}`;
-          initialPrices[key] = showtime.price;
-        });
-      });
-      console.log("Setting initial prices:", initialPrices);
-      setShowtimePrices(initialPrices);
+      // Set initial form data without theaters first
+      setFormData(initialFormData);
+
+      // Now fetch the shows for this movie to populate theaters
+      fetchMovieShows(movie.id);
     }
   }, [movie]);
 
@@ -326,82 +399,173 @@ const MovieForm = ({ movie, onClose, onSave }) => {
     setError("");
 
     try {
-      console.log("Submitting Movie Data:", formData);
+      console.log("=== STARTING MOVIE SUBMISSION ===");
+      console.log("Form Data:", JSON.stringify(formData, null, 2));
+      console.log("Theaters to process:", formData.theaters?.length || 0);
+
+      formData.theaters?.forEach((theater, idx) => {
+        console.log(`Theater ${idx + 1}:`, {
+          id: theater.id,
+          name: theater.name,
+          showtimes: theater.showtimes?.length || 0,
+        });
+        theater.showtimes?.forEach((st, stIdx) => {
+          console.log(`  Showtime ${stIdx + 1}:`, st);
+        });
+      });
 
       // Save the movie first
-      const savedMovie = await onSave(formData);
-      console.log("Movie saved:", savedMovie);
+      console.log("=== SAVING MOVIE ===");
+      const savedMovie = await onSave(formData, posterFile);
+      console.log("Movie save response:", JSON.stringify(savedMovie, null, 2));
+
+      // Validate movie ID
+      const movieId = savedMovie?.id || movie?.id;
+      console.log("Movie ID for shows:", movieId);
+
+      if (!movieId) {
+        throw new Error("No movie ID available - cannot create shows");
+      }
 
       // Create shows for each theater/showtime combination
       if (formData.theaters && formData.theaters.length > 0) {
-        const movieId = savedMovie?.id || movie?.id;
-        if (movieId) {
-          console.log("Creating shows for movie ID:", movieId);
+        console.log("=== CREATING SHOWS ===");
 
-          for (const theater of formData.theaters) {
-            for (const showtime of theater.showtimes || []) {
-              try {
-                // Convert 12-hour format to 24-hour for backend
-                const convertTo24Hour = (time12h) => {
-                  const [time, modifier] = time12h.split(" ");
-                  let [hours, minutes] = time.split(":");
-                  if (hours === "12") {
-                    hours = "00";
-                  }
-                  if (modifier === "PM") {
-                    hours = parseInt(hours, 10) + 12;
-                  }
-                  return `${hours}:${minutes}`;
-                };
+        const showCreationPromises = [];
+        let totalShowsToCreate = 0;
 
-                // Create show time for today + next 7 days
-                for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
-                  // FIXED: Use simple date construction without timezone adjustments
-                  const today = new Date();
-                  const showDate = new Date(
-                    today.getFullYear(),
-                    today.getMonth(),
-                    today.getDate() + dayOffset
-                  );
+        for (const theater of formData.theaters) {
+          console.log(
+            `Processing theater: ${theater.name} (ID: ${theater.id})`
+          );
 
-                  const time24h = convertTo24Hour(showtime.time);
-                  const [hours, minutes] = time24h.split(":");
-                  showDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+          if (!theater.showtimes || theater.showtimes.length === 0) {
+            console.warn(`No showtimes for theater ${theater.name}`);
+            continue;
+          }
 
-                  // FIXED: Create ISO string without timezone manipulation
-                  const year = showDate.getFullYear();
-                  const month = String(showDate.getMonth() + 1).padStart(
-                    2,
-                    "0"
-                  );
-                  const day = String(showDate.getDate()).padStart(2, "0");
-                  const hour = String(showDate.getHours()).padStart(2, "0");
-                  const minute = String(showDate.getMinutes()).padStart(2, "0");
+          for (const showtime of theater.showtimes) {
+            console.log(
+              `Processing showtime: ${showtime.time} at price ${showtime.price}`
+            );
 
-                  const isoString = `${year}-${month}-${day}T${hour}:${minute}:00`;
+            // Convert 12-hour format to 24-hour for backend
+            const convertTo24Hour = (time12h) => {
+              console.log(`Converting time: ${time12h}`);
+              const [time, modifier] = time12h.split(" ");
+              let [hours, minutes] = time.split(":");
+              hours = parseInt(hours, 10);
 
-                  const showData = {
-                    movie: { id: movieId },
-                    theater: { id: theater.id },
-                    showTime: isoString,
-                    ticketPrice: showtime.price || formData.price || 250,
-                  };
-
-                  console.log("Creating show:", showData);
-                  await createShow(showData);
-                }
-              } catch (showError) {
-                console.error("Error creating show:", showError);
-                // Continue with other shows even if one fails
+              if (hours === 12) {
+                hours = modifier === "AM" ? 0 : 12;
+              } else if (modifier === "PM") {
+                hours += 12;
               }
+
+              const result = `${hours.toString().padStart(2, "0")}:${minutes}`;
+              console.log(`Converted ${time12h} to ${result}`);
+              return result;
+            };
+
+            // Create shows for today + next 7 days
+            for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+              const today = new Date();
+              const showDate = new Date(today);
+              showDate.setDate(today.getDate() + dayOffset);
+
+              const time24h = convertTo24Hour(showtime.time);
+              const [hours, minutes] = time24h.split(":");
+
+              // Create the show date with proper time
+              const showDateTime = new Date(showDate);
+              showDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+
+              // Format as ISO string for backend
+              const isoString = showDateTime.toISOString();
+
+              const showData = {
+                movie: { id: parseInt(movieId) },
+                theater: { id: parseInt(theater.id) },
+                showTime: isoString,
+                ticketPrice:
+                  parseFloat(showtime.price) ||
+                  parseFloat(formData.price) ||
+                  250,
+              };
+
+              console.log(
+                `Show data for ${theater.name} on ${showDate.toDateString()}:`,
+                showData
+              );
+              totalShowsToCreate++;
+
+              // Add to promises array
+              showCreationPromises.push(
+                createShow(showData).catch((error) => {
+                  console.error(
+                    `Failed to create show for ${theater.name} at ${
+                      showtime.time
+                    } on ${showDate.toDateString()}:`,
+                    error
+                  );
+                  return { error, showData };
+                })
+              );
             }
           }
         }
+
+        console.log(`Total shows to create: ${totalShowsToCreate}`);
+
+        if (showCreationPromises.length === 0) {
+          console.warn("No shows to create!");
+          setError("No valid showtimes found to create shows");
+          return;
+        }
+
+        // Execute all show creation promises
+        console.log("=== EXECUTING SHOW CREATION ===");
+        const results = await Promise.allSettled(showCreationPromises);
+
+        // Analyze results
+        const successful = results.filter(
+          (r) => r.status === "fulfilled" && !r.value?.error
+        ).length;
+        const failed = results.length - successful;
+
+        console.log(
+          `Show creation results: ${successful} successful, ${failed} failed out of ${results.length} total`
+        );
+
+        // Log failed attempts
+        results.forEach((result, index) => {
+          if (result.status === "rejected") {
+            console.error(`Promise ${index} rejected:`, result.reason);
+          } else if (result.value?.error) {
+            console.error(`Promise ${index} failed:`, result.value.error);
+          }
+        });
+
+        if (successful === 0) {
+          throw new Error(`Failed to create any shows (${failed} failures)`);
+        } else if (failed > 0) {
+          console.warn(
+            `Partial success: ${successful} shows created, ${failed} failed`
+          );
+          setError(
+            `Movie saved successfully, but ${failed} shows failed to create. Check console for details.`
+          );
+        }
+      } else {
+        console.log("No theaters specified - skipping show creation");
       }
 
+      console.log("=== SUBMISSION COMPLETE ===");
       onClose();
     } catch (err) {
-      console.error("Error in handleSubmit:", err);
+      console.error("=== SUBMISSION FAILED ===");
+      console.error("Error details:", err);
+      console.error("Error stack:", err.stack);
       setError(err.message || "Failed to save movie");
     } finally {
       setLoading(false);
