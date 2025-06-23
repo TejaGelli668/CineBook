@@ -69,7 +69,7 @@ const HomePage = ({
                   onChange={(e) => setSelectedLocation(e.target.value)}
                   className="bg-transparent text-white focus:outline-none cursor-pointer"
                 >
-                  {["Mumbai", "Delhi", "Bangalore", "Chennai"].map((loc) => (
+                  {["Hyderabad", "More Cities Coming Soon"].map((loc) => (
                     <option key={loc} value={loc} className="text-black">
                       {loc}
                     </option>
