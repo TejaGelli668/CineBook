@@ -348,7 +348,13 @@ public class SecurityConfig {
                                 "/api/theaters", "/api/theaters/**"
                         ).permitAll()
 
-                        // 10) ADMIN-ONLY THEATER MANAGEMENT
+                        // 10) PUBLIC FOOD ITEMS (for users viewing menu)
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/food-items",
+                                "/api/food-items/**"
+                        ).permitAll()
+
+                        // 11) ADMIN-ONLY THEATER MANAGEMENT
                         .requestMatchers(HttpMethod.POST,
                                 "/theaters",
                                 "/api/theaters"
@@ -364,7 +370,7 @@ public class SecurityConfig {
                                 "/api/theaters/**"
                         ).hasAnyRole("ADMIN", "SUPER_ADMIN")
 
-                        // 11) ADMIN-ONLY MOVIE MANAGEMENT
+                        // 12) ADMIN-ONLY MOVIE MANAGEMENT
                         .requestMatchers(HttpMethod.POST,
                                 "/movies",
                                 "/api/movies"
@@ -380,13 +386,31 @@ public class SecurityConfig {
                                 "/api/movies/**"
                         ).hasAnyRole("ADMIN", "SUPER_ADMIN")
 
-                        // 12a) authenticated GET /api/user/me
+                        // 13) ADMIN-ONLY FOOD ITEM MANAGEMENT
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/admin/food-items",
+                                "/api/admin/food-items/**"
+                        ).hasAnyRole("ADMIN", "SUPER_ADMIN")
+
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/admin/food-items"
+                        ).hasAnyRole("ADMIN", "SUPER_ADMIN")
+
+                        .requestMatchers(HttpMethod.PUT,
+                                "/api/admin/food-items/**"
+                        ).hasAnyRole("ADMIN", "SUPER_ADMIN")
+
+                        .requestMatchers(HttpMethod.DELETE,
+                                "/api/admin/food-items/**"
+                        ).hasAnyRole("ADMIN", "SUPER_ADMIN")
+
+                        // 14a) authenticated GET /api/user/me
                         .requestMatchers(HttpMethod.GET,
                                 "/user/me",
                                 "/api/user/me"
                         ).authenticated()
 
-                        // 12b) authenticated PUT profile routes
+                        // 14b) authenticated PUT profile routes
                         .requestMatchers(HttpMethod.PUT,
                                 "/user/profile",
                                 "/user/change-password",
@@ -396,13 +420,13 @@ public class SecurityConfig {
                                 "/api/user/upload-profile-picture"
                         ).authenticated()
 
-                        // 13) Seat booking endpoints - show seats are public, others require authentication
+                        // 15) Seat booking endpoints - show seats are public, others require authentication
                         .requestMatchers("/api/seats/show/**").permitAll()
                         .requestMatchers(
                                 "/api/seats/**"
                         ).authenticated()
 
-                        // 14) admin-only endpoints
+                        // 16) admin-only endpoints
                         .requestMatchers(HttpMethod.GET,
                                 "/auth/me",
                                 "/auth/validate",
@@ -415,7 +439,7 @@ public class SecurityConfig {
                                 "/api/auth/logout"
                         ).hasAnyRole("ADMIN", "SUPER_ADMIN")
 
-                        // 15) admin-only user management
+                        // 17) admin-only user management
                         .requestMatchers(HttpMethod.GET,
                                 "/user/all",
                                 "/user/stats",
@@ -428,7 +452,7 @@ public class SecurityConfig {
                                 "/api/user/{id}"
                         ).hasAnyRole("ADMIN", "SUPER_ADMIN")
 
-                        // 16) Admin-only show management
+                        // 18) Admin-only show management
                         .requestMatchers(HttpMethod.POST,
                                 "/api/shows"
                         ).hasAnyRole("ADMIN", "SUPER_ADMIN")
@@ -441,7 +465,7 @@ public class SecurityConfig {
                                 "/api/shows/**"
                         ).hasAnyRole("ADMIN", "SUPER_ADMIN")
 
-                        // 17) everything else requires authentication
+                        // 19) everything else requires authentication - MUST BE LAST!
                         .anyRequest().authenticated()
                 )
 

@@ -154,12 +154,9 @@
 //}
 package com.example.adminbackend.service;
 
-import com.example.adminbackend.entity.Booking;
-import com.example.adminbackend.entity.BookingStatus;
-import com.example.adminbackend.entity.ShowSeat;
-import com.example.adminbackend.entity.SeatStatus;
-import com.example.adminbackend.repository.BookingRepository;
-import com.example.adminbackend.repository.ShowSeatRepository;
+import com.example.adminbackend.dto.*;
+import com.example.adminbackend.entity.*;
+import com.example.adminbackend.repository.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -167,11 +164,15 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
+@Transactional
 public class BookingService {
 
     private static final Logger logger = LoggerFactory.getLogger(BookingService.class);
@@ -183,7 +184,217 @@ public class BookingService {
     private ShowSeatRepository showSeatRepository;
 
     @Autowired
+    private BookingFoodItemRepository bookingFoodItemRepository;
+
+    @Autowired
+    private FoodItemRepository foodItemRepository;
+
+    @Autowired
+    private ShowRepository showRepository;
+
+    @Autowired
+    private SeatService seatService;
+
+    @Autowired
     private SimpMessagingTemplate messagingTemplate; // For WebSocket updates
+
+    // CREATE BOOKING WITH FOOD ITEMS
+    public BookingResponse createBookingWithFood(BookingRequest request) {
+        try {
+            logger.info("Creating booking with food items for show: {}", request.getShowId());
+
+            // 1. Validate show and seats
+            Show show = showRepository.findById(request.getShowId())
+                    .orElseThrow(() -> new RuntimeException("Show not found"));
+
+            // 2. Create booking entity
+            Booking booking = new Booking();
+            booking.setShow(show);
+            booking.setSeatNumbers(String.join(",", request.getSeatNumbers()));
+
+            // 3. Calculate ticket total
+            BigDecimal ticketTotal = calculateTicketTotal(show, request.getSeatNumbers());
+            booking.setTicketTotal(ticketTotal);
+
+            // 4. Calculate food total
+            BigDecimal foodTotal = BigDecimal.ZERO;
+            if (request.getFoodItems() != null && !request.getFoodItems().isEmpty()) {
+                foodTotal = calculateFoodTotal(request.getFoodItems());
+            }
+            booking.setFoodTotal(foodTotal);
+
+            // 5. Calculate totals using the entity method
+            booking.calculateTotals();
+            booking.setStatus(BookingStatus.CONFIRMED);
+
+            // 6. Generate booking ID
+            booking.setBookingId("BKG" + System.currentTimeMillis());
+
+            // 7. Save booking
+            booking = bookingRepository.save(booking);
+
+            // 8. Save food items if present
+            if (request.getFoodItems() != null && !request.getFoodItems().isEmpty()) {
+                saveFoodItems(booking, request.getFoodItems());
+            }
+
+            // 9. FIXED: Update seat status using the correct method signature
+            seatService.bookSeats(request);
+
+            // 10. Return response
+            return createBookingResponse(booking);
+
+        } catch (Exception e) {
+            logger.error("Error creating booking: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to create booking: " + e.getMessage());
+        }
+    }
+
+    // CALCULATE TICKET TOTAL
+    private BigDecimal calculateTicketTotal(Show show, List<String> seatNumbers) {
+        // You should implement this based on your show/theater pricing logic
+        // For now, using a default price - replace with your actual pricing logic
+        BigDecimal basePrice = new BigDecimal("250.00"); // Default ticket price
+        return basePrice.multiply(new BigDecimal(seatNumbers.size()));
+    }
+
+    // CALCULATE FOOD TOTAL
+    private BigDecimal calculateFoodTotal(List<BookingRequest.FoodItemRequest> foodItemRequests) {
+        BigDecimal total = BigDecimal.ZERO;
+
+        for (BookingRequest.FoodItemRequest request : foodItemRequests) {
+            FoodItem foodItem = foodItemRepository.findById(request.getFoodItemId())
+                    .orElseThrow(() -> new RuntimeException("Food item not found: " + request.getFoodItemId()));
+
+            BigDecimal itemTotal = BigDecimal.valueOf(foodItem.getPrice()).multiply(new BigDecimal(request.getQuantity()));
+            total = total.add(itemTotal);
+        }
+
+        return total;
+    }
+
+    // SAVE FOOD ITEMS
+    private void saveFoodItems(Booking booking, List<BookingRequest.FoodItemRequest> foodItemRequests) {
+        for (BookingRequest.FoodItemRequest request : foodItemRequests) {
+            FoodItem foodItem = foodItemRepository.findById(request.getFoodItemId())
+                    .orElseThrow(() -> new RuntimeException("Food item not found: " + request.getFoodItemId()));
+
+            BookingFoodItem bookingFoodItem = new BookingFoodItem();
+            bookingFoodItem.setBooking(booking);
+            bookingFoodItem.setFoodItem(foodItem);
+            bookingFoodItem.setQuantity(request.getQuantity());
+            bookingFoodItem.setUnitPrice(BigDecimal.valueOf(foodItem.getPrice()));
+            bookingFoodItem.setTotalPrice(BigDecimal.valueOf(foodItem.getPrice()).multiply(new BigDecimal(request.getQuantity())));
+
+            bookingFoodItemRepository.save(bookingFoodItem);
+        }
+    }
+
+    // CREATE BOOKING RESPONSE
+    private BookingResponse createBookingResponse(Booking booking) {
+        BookingResponse response = new BookingResponse();
+        response.setBookingId(booking.getBookingId());
+        response.setSuccess(true);
+        response.setTotalAmount(booking.getGrandTotalAsDouble());
+        response.setMessage("Booking created successfully");
+
+        // Set enhanced properties
+        response.setId(booking.getId());
+        response.setTicketTotal(booking.getTicketTotalAsDouble());
+        response.setFoodTotal(booking.getFoodTotalAsDouble());
+        response.setConvenienceFee(booking.getConvenienceFeeAsDouble());
+        response.setGrandTotal(booking.getGrandTotalAsDouble());
+        response.setStatus(booking.getStatus().name());
+        response.setCreatedAt(booking.getBookingTime());
+
+        // Set seat numbers
+        response.setSeatNumbers(Arrays.asList(booking.getSeatNumbers().split(",")));
+
+        return response;
+    }
+
+    // GET BOOKING WITH FOOD ITEMS
+    public BookingResponse getBookingWithFoodItems(Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new RuntimeException("Booking not found: " + bookingId));
+
+        List<BookingFoodItem> foodItems = bookingFoodItemRepository.findByBookingId(bookingId);
+
+        return createBookingDetailsResponse(booking, foodItems);
+    }
+
+    // CREATE BOOKING DETAILS RESPONSE
+    private BookingResponse createBookingDetailsResponse(Booking booking, List<BookingFoodItem> foodItems) {
+        BookingResponse response = new BookingResponse();
+        response.setId(booking.getId());
+        response.setBookingId(booking.getBookingId());
+        response.setSuccess(true);
+        response.setMessage("Booking details retrieved successfully");
+        response.setStatus(booking.getStatus().name());
+        response.setCreatedAt(booking.getBookingTime());
+
+        // Set financial details
+        response.setTicketTotal(booking.getTicketTotalAsDouble());
+        response.setFoodTotal(booking.getFoodTotalAsDouble());
+        response.setConvenienceFee(booking.getConvenienceFeeAsDouble());
+        response.setGrandTotal(booking.getGrandTotalAsDouble());
+        response.setTotalAmount(booking.getGrandTotalAsDouble());
+
+        // Set seat numbers
+        if (booking.getSeatNumbers() != null) {
+            response.setSeatNumbers(Arrays.asList(booking.getSeatNumbers().split(",")));
+        }
+
+        // Convert food items
+        List<BookingResponse.BookingFoodItemResponse> foodItemResponses = foodItems.stream()
+                .map(this::convertToFoodItemResponse)
+                .collect(Collectors.toList());
+        response.setFoodItems(foodItemResponses);
+
+        // Set show details
+        if (booking.getShow() != null) {
+            BookingResponse.ShowDetailsResponse showDetails = new BookingResponse.ShowDetailsResponse();
+            showDetails.setId(booking.getShow().getId());
+            showDetails.setMovieTitle(booking.getMovieTitle());
+            showDetails.setTheaterName(booking.getTheaterName());
+            showDetails.setShowTime(booking.getShowTime());
+            showDetails.setShowDate(booking.getShowDate());
+            response.setShow(showDetails);
+        }
+
+        return response;
+    }
+
+    // CONVERT TO FOOD ITEM RESPONSE
+    private BookingResponse.BookingFoodItemResponse convertToFoodItemResponse(BookingFoodItem bookingFoodItem) {
+        BookingResponse.BookingFoodItemResponse response = new BookingResponse.BookingFoodItemResponse();
+        response.setFoodItemId(bookingFoodItem.getFoodItem().getId());
+        response.setName(bookingFoodItem.getFoodItem().getName());
+        response.setCategory(bookingFoodItem.getFoodItem().getCategory().name());
+        response.setImageUrl(bookingFoodItem.getFoodItem().getImageUrl());
+        response.setQuantity(bookingFoodItem.getQuantity());
+        response.setUnitPrice(bookingFoodItem.getUnitPrice().doubleValue());
+        response.setTotalPrice(bookingFoodItem.getTotalPrice().doubleValue());
+        return response;
+    }
+
+    // VALIDATE FOOD ITEMS
+    public void validateFoodItems(List<BookingRequest.FoodItemRequest> foodItemRequests) {
+        for (BookingRequest.FoodItemRequest request : foodItemRequests) {
+            FoodItem foodItem = foodItemRepository.findById(request.getFoodItemId())
+                    .orElseThrow(() -> new RuntimeException("Food item not found: " + request.getFoodItemId()));
+
+            if (!foodItem.getIsAvailable()) {
+                throw new RuntimeException("Food item is not available: " + foodItem.getName());
+            }
+
+            if (request.getQuantity() <= 0) {
+                throw new RuntimeException("Invalid quantity for food item: " + foodItem.getName());
+            }
+        }
+    }
+
+    // EXISTING METHODS (all your existing booking management methods)
 
     // Get all bookings for a specific user with all related data
     public List<Booking> getBookingsByUserId(Long userId) {
@@ -247,7 +458,7 @@ public class BookingService {
                     List<String> seatNumbers = bookedSeats.stream()
                             .map(seat -> seat.getSeat() != null ? seat.getSeat().getSeatNumber() : "Unknown")
                             .filter(seatNumber -> !"Unknown".equals(seatNumber))
-                            .toList();
+                            .collect(Collectors.toList());
 
                     if (!seatNumbers.isEmpty() && booking.getShow() != null) {
                         broadcastSeatUpdate(booking.getShow().getId(), seatNumbers, SeatStatus.AVAILABLE);

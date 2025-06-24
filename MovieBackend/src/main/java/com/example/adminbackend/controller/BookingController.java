@@ -1,5 +1,8 @@
 package com.example.adminbackend.controller;
 
+import com.example.adminbackend.dto.ApiResponse;
+import com.example.adminbackend.dto.BookingRequest;
+import com.example.adminbackend.dto.BookingResponse;
 import com.example.adminbackend.entity.Booking;
 import com.example.adminbackend.entity.BookingStatus;
 import com.example.adminbackend.entity.User;
@@ -27,6 +30,35 @@ public class BookingController {
 
     @Autowired
     private JwtUtils jwtUtils;
+
+    // ENHANCED CREATE BOOKING WITH FOOD ITEMS
+    @PostMapping
+    public ResponseEntity<ApiResponse<BookingResponse>> createBooking(@RequestBody BookingRequest request) {
+        try {
+            // Validate food items if present
+            if (request.getFoodItems() != null && !request.getFoodItems().isEmpty()) {
+                bookingService.validateFoodItems(request.getFoodItems());
+            }
+
+            BookingResponse booking = bookingService.createBookingWithFood(request);
+            return ResponseEntity.ok(new ApiResponse<>(true, "Booking created successfully", booking));
+        } catch (Exception e) {
+            return ResponseEntity.status(500)
+                    .body(new ApiResponse<>(false, "Failed to create booking: " + e.getMessage(), null));
+        }
+    }
+
+    // GET BOOKING WITH FOOD ITEMS
+    @GetMapping("/details/{id}")
+    public ResponseEntity<ApiResponse<BookingResponse>> getBookingDetails(@PathVariable Long id) {
+        try {
+            BookingResponse booking = bookingService.getBookingWithFoodItems(id);
+            return ResponseEntity.ok(new ApiResponse<>(true, "Booking details retrieved successfully", booking));
+        } catch (Exception e) {
+            return ResponseEntity.status(404)
+                    .body(new ApiResponse<>(false, "Booking not found: " + e.getMessage(), null));
+        }
+    }
 
     // Get all bookings for the current user
     @GetMapping("/user")
