@@ -18,6 +18,8 @@
 //   Loader,
 //   Home,
 //   BookOpen,
+//   RefreshCw,
+//   AlertCircle,
 // } from "lucide-react";
 
 // // Import API functions
@@ -30,6 +32,8 @@
 //   addPaymentMethod,
 //   removePaymentMethod,
 //   getBookingHistory,
+//   getBookingDetails,
+//   cancelBooking,
 // } from "../../utils/userAPI";
 
 // const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
@@ -39,6 +43,7 @@
 //   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
 //   const [showNewPassword, setShowNewPassword] = useState(false);
 //   const [loading, setLoading] = useState(false);
+//   const [bookingsLoading, setBookingsLoading] = useState(false);
 //   const [error, setError] = useState("");
 //   const [success, setSuccess] = useState("");
 
@@ -93,6 +98,7 @@
 //   const loadUserData = async () => {
 //     setLoading(true);
 //     try {
+//       // Load user profile
 //       const profileResult = await getUserProfile();
 //       if (profileResult.success && profileResult.data) {
 //         const userData = profileResult.data;
@@ -101,7 +107,7 @@
 //           lastName: userData.lastName || "",
 //           email: userData.email || "",
 //           phone: userData.phoneNumber || "",
-//           dateOfBirth: userData.dateOfBirth || "", // Keep as string
+//           dateOfBirth: userData.dateOfBirth || "",
 //           profilePicture: userData.profilePicture || null,
 //           memberSince: userData.createdAt
 //             ? new Date(userData.createdAt).toLocaleDateString()
@@ -109,17 +115,58 @@
 //           accountStatus: userData.isActive ? "Active Member" : "Inactive",
 //         });
 //       }
+
+//       // Load payment methods
 //       const paymentResult = await getPaymentMethods();
 //       if (paymentResult.success) {
-//         setPaymentMethods(paymentResult.data);
+//         setPaymentMethods(paymentResult.data || []);
 //       }
-//       const bookingResult = await getBookingHistory();
-//       if (bookingResult.success) {
-//         setBookingHistory(bookingResult.data);
-//       }
+
+//       // Load booking history
+//       await loadBookingHistory();
 //     } catch (error) {
 //       console.error("Error loading user data:", error);
 //       setError("Failed to load user data");
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+//   const loadBookingHistory = async () => {
+//     setBookingsLoading(true);
+//     try {
+//       const bookingResult = await getBookingHistory();
+//       if (bookingResult.success) {
+//         setBookingHistory(bookingResult.data || []);
+//       } else {
+//         console.error("Failed to load bookings:", bookingResult.message);
+//         setBookingHistory([]);
+//       }
+//     } catch (error) {
+//       console.error("Error loading booking history:", error);
+//       setBookingHistory([]);
+//     } finally {
+//       setBookingsLoading(false);
+//     }
+//   };
+
+//   const handleCancelBooking = async (bookingId) => {
+//     if (!window.confirm("Are you sure you want to cancel this booking?")) {
+//       return;
+//     }
+
+//     setLoading(true);
+//     try {
+//       const result = await cancelBooking(bookingId);
+//       if (result.success) {
+//         setSuccess("Booking cancelled successfully!");
+//         await loadBookingHistory(); // Reload bookings
+//       } else {
+//         setError(result.message || "Failed to cancel booking");
+//       }
+//     } catch (error) {
+//       console.error("Error cancelling booking:", error);
+//       setError("Failed to cancel booking");
 //     } finally {
 //       setLoading(false);
 //     }
@@ -158,14 +205,12 @@
 //     setLoading(true);
 //     setError("");
 //     try {
-//       console.log("Saving profile with dateOfBirth:", userProfile.dateOfBirth);
-
 //       const result = await updateUserProfile({
 //         firstName: userProfile.firstName,
 //         lastName: userProfile.lastName,
 //         email: userProfile.email,
 //         phone: userProfile.phone,
-//         dateOfBirth: userProfile.dateOfBirth, // Send as string directly
+//         dateOfBirth: userProfile.dateOfBirth,
 //       });
 
 //       if (result.success) {
@@ -178,7 +223,7 @@
 //             lastName: result.data.lastName,
 //             email: result.data.email,
 //             phone: result.data.phoneNumber,
-//             dateOfBirth: result.data.dateOfBirth, // Keep as string
+//             dateOfBirth: result.data.dateOfBirth,
 //           }));
 //         }
 //       } else {
@@ -247,6 +292,14 @@
 //     }
 //   };
 
+//   const formatCurrency = (amount) => {
+//     return new Intl.NumberFormat("en-IN", {
+//       style: "currency",
+//       currency: "INR",
+//       minimumFractionDigits: 0,
+//     }).format(amount || 0);
+//   };
+
 //   // Dashboard Overview Tab
 //   const renderOverview = () => (
 //     <div className="space-y-6">
@@ -299,11 +352,11 @@
 //         <div className="bg-white bg-opacity-10 backdrop-blur-xl rounded-lg border border-white border-opacity-20 p-6 text-center">
 //           <CreditCard size={32} className="text-green-400 mx-auto mb-3" />
 //           <h3 className="text-2xl font-bold text-white">
-//             ₹
-//             {bookingHistory.reduce(
-//               (sum, booking) =>
-//                 sum + (booking.totalAmount || booking.amount || 0),
-//               0
+//             {formatCurrency(
+//               bookingHistory.reduce(
+//                 (sum, booking) => sum + (booking.totalAmount || 0),
+//                 0
+//               )
 //             )}
 //           </h3>
 //           <p className="text-white text-opacity-75">Total Spent</p>
@@ -323,41 +376,82 @@
 //       <div className="bg-white bg-opacity-10 backdrop-blur-xl rounded-lg border border-white border-opacity-20 p-6">
 //         <div className="flex items-center justify-between mb-4">
 //           <h3 className="text-xl font-bold text-white">Recent Bookings</h3>
-//           <button
-//             onClick={() => setActiveTab("bookings")}
-//             className="text-blue-400 hover:text-blue-300 text-sm"
-//           >
-//             View All
-//           </button>
+//           <div className="flex items-center space-x-2">
+//             <button
+//               onClick={loadBookingHistory}
+//               disabled={bookingsLoading}
+//               className="text-blue-400 hover:text-blue-300 text-sm flex items-center space-x-1"
+//             >
+//               <RefreshCw
+//                 size={16}
+//                 className={bookingsLoading ? "animate-spin" : ""}
+//               />
+//               <span>Refresh</span>
+//             </button>
+//             <button
+//               onClick={() => setActiveTab("bookings")}
+//               className="text-blue-400 hover:text-blue-300 text-sm"
+//             >
+//               View All
+//             </button>
+//           </div>
 //         </div>
 //         <div className="space-y-3">
-//           {bookingHistory.slice(0, 3).map((booking) => (
-//             <div
-//               key={booking.id}
-//               className="flex items-center justify-between p-4 bg-white bg-opacity-5 rounded-lg"
-//             >
-//               <div>
-//                 <h4 className="text-white font-semibold">
-//                   {booking.movieTitle || booking.movie}
-//                 </h4>
-//                 <p className="text-white text-opacity-60 text-sm">
-//                   {booking.bookingDate || booking.date} •{" "}
-//                   {booking.showTime || booking.time}
-//                 </p>
-//               </div>
-//               <div className="text-right">
-//                 <p className="text-white font-bold">
-//                   ₹{booking.totalAmount || booking.amount}
-//                 </p>
-//                 <span className="text-green-400 text-sm capitalize">
-//                   {booking.status}
-//                 </span>
-//               </div>
+//           {bookingsLoading ? (
+//             <div className="text-center py-8">
+//               <Loader size={32} className="animate-spin text-white mx-auto" />
+//               <p className="text-white text-opacity-60 mt-2">
+//                 Loading bookings...
+//               </p>
 //             </div>
-//           ))}
-//           {bookingHistory.length === 0 && (
+//           ) : bookingHistory.slice(0, 3).length > 0 ? (
+//             bookingHistory.slice(0, 3).map((booking) => (
+//               <div
+//                 key={booking.id}
+//                 className="flex items-center justify-between p-4 bg-white bg-opacity-5 rounded-lg"
+//               >
+//                 <div>
+//                   <h4 className="text-white font-semibold">
+//                     {booking.movieTitle}
+//                   </h4>
+//                   <p className="text-white text-opacity-60 text-sm">
+//                     {booking.bookingDate} • {booking.showTime}
+//                   </p>
+//                   <p className="text-white text-opacity-50 text-xs">
+//                     {booking.theaterName} • Seats: {booking.seatNumbers}
+//                   </p>
+//                 </div>
+//                 <div className="text-right">
+//                   <p className="text-white font-bold">
+//                     {formatCurrency(booking.totalAmount)}
+//                   </p>
+//                   <span
+//                     className={`text-sm capitalize px-2 py-1 rounded-full ${
+//                       booking.status === "confirmed"
+//                         ? "text-green-400 bg-green-500 bg-opacity-20"
+//                         : booking.status === "cancelled"
+//                         ? "text-red-400 bg-red-500 bg-opacity-20"
+//                         : "text-yellow-400 bg-yellow-500 bg-opacity-20"
+//                     }`}
+//                   >
+//                     {booking.status}
+//                   </span>
+//                 </div>
+//               </div>
+//             ))
+//           ) : (
 //             <div className="text-center py-8 text-white text-opacity-60">
-//               No bookings yet. Start by booking a movie!
+//               <BookOpen
+//                 size={48}
+//                 className="mx-auto mb-4 text-white text-opacity-30"
+//               />
+//               <p>No bookings yet. Start by booking a movie!</p>
+//               <button
+//                 onClick={onBackToMovies}
+//                 className="mt-4 px-6 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700"
+//               >
+//                 Browse Movies
+//               </button>
 //             </div>
 //           )}
 //         </div>
@@ -369,7 +463,18 @@
 //     <div className="space-y-6">
 //       <div className="flex items-center justify-between">
 //         <h3 className="text-2xl font-bold text-white">Booking History</h3>
-//         <div className="flex space-x-4">
+//         <div className="flex items-center space-x-4">
+//           <button
+//             onClick={loadBookingHistory}
+//             disabled={bookingsLoading}
+//             className="flex items-center space-x-2 px-4 py-2 bg-blue-500 bg-opacity-20 text-blue-300 rounded-lg hover:bg-opacity-30 disabled:opacity-50"
+//           >
+//             <RefreshCw
+//               size={16}
+//               className={bookingsLoading ? "animate-spin" : ""}
+//             />
+//             <span>Refresh</span>
+//           </button>
 //           <div className="text-center">
 //             <p className="text-2xl font-bold text-white">
 //               {bookingHistory.length}
@@ -378,70 +483,115 @@
 //           </div>
 //           <div className="text-center">
 //             <p className="text-2xl font-bold text-white">
-//               ₹
-//               {bookingHistory.reduce(
-//                 (sum, booking) =>
-//                   sum + (booking.totalAmount || booking.amount || 0),
-//                 0
+//               {formatCurrency(
+//                 bookingHistory.reduce(
+//                   (sum, booking) => sum + (booking.totalAmount || 0),
+//                   0
+//                 )
 //               )}
 //             </p>
 //             <p className="text-white text-opacity-60 text-sm">Total Spent</p>
 //           </div>
 //         </div>
 //       </div>
+
 //       <div className="space-y-4">
-//         {bookingHistory.map((booking) => (
-//           <div
-//             key={booking.id}
-//             className="bg-white bg-opacity-10 backdrop-blur-xl rounded-lg border border-white border-opacity-20 p-6"
-//           >
-//             <div className="flex items-center justify-between">
-//               <div className="flex-1">
-//                 <h4 className="text-lg font-semibold text-white">
-//                   {booking.movieTitle || booking.movie}
-//                 </h4>
-//                 <div className="flex items-center space-x-4 mt-2 text-white text-opacity-75">
-//                   <div className="flex items-center space-x-1">
-//                     <MapPin size={16} />
-//                     <span>{booking.theaterName || booking.theater}</span>
+//         {bookingsLoading ? (
+//           <div className="text-center py-12">
+//             <Loader size={48} className="animate-spin text-white mx-auto" />
+//             <p className="text-white text-opacity-60 mt-4">
+//               Loading your bookings...
+//             </p>
+//           </div>
+//         ) : bookingHistory.length > 0 ? (
+//           bookingHistory.map((booking) => (
+//             <div
+//               key={booking.id}
+//               className="bg-white bg-opacity-10 backdrop-blur-xl rounded-lg border border-white border-opacity-20 p-6"
+//             >
+//               <div className="flex items-center justify-between">
+//                 <div className="flex-1">
+//                   <h4 className="text-lg font-semibold text-white">
+//                     {booking.movieTitle}
+//                   </h4>
+//                   <div className="flex items-center space-x-4 mt-2 text-white text-opacity-75">
+//                     <div className="flex items-center space-x-1">
+//                       <MapPin size={16} />
+//                       <span>{booking.theaterName}</span>
+//                     </div>
+//                     <div className="flex items-center space-x-1">
+//                       <Calendar size={16} />
+//                       <span>{booking.bookingDate}</span>
+//                     </div>
+//                     <div className="flex items-center space-x-1">
+//                       <Clock size={16} />
+//                       <span>{booking.showTime}</span>
+//                     </div>
 //                   </div>
-//                   <div className="flex items-center space-x-1">
-//                     <Calendar size={16} />
-//                     <span>{booking.bookingDate || booking.date}</span>
-//                   </div>
-//                   <div className="flex items-center space-x-1">
-//                     <Clock size={16} />
-//                     <span>{booking.showTime || booking.time}</span>
-//                   </div>
+//                   <p className="text-white text-opacity-60 mt-1">
+//                     Seats: {booking.seatNumbers}
+//                   </p>
+//                   {booking.theaterLocation && (
+//                     <p className="text-white text-opacity-50 text-sm">
+//                       Location: {booking.theaterLocation}
+//                     </p>
+//                   )}
 //                 </div>
-//                 <p className="text-white text-opacity-60 mt-1">
-//                   Seats: {booking.seatNumbers || booking.seats}
-//                 </p>
-//               </div>
-//               <div className="text-right">
-//                 <p className="text-2xl font-bold text-white">
-//                   ₹{booking.totalAmount || booking.amount}
-//                 </p>
-//                 <span className="inline-block px-3 py-1 bg-green-500 bg-opacity-20 text-green-300 rounded-full text-sm capitalize">
-//                   {booking.status}
-//                 </span>
+//                 <div className="text-right">
+//                   <p className="text-2xl font-bold text-white">
+//                     {formatCurrency(booking.totalAmount)}
+//                   </p>
+//                   <span
+//                     className={`inline-block px-3 py-1 rounded-full text-sm capitalize mb-2 ${
+//                       booking.status === "confirmed"
+//                         ? "text-green-300 bg-green-500 bg-opacity-20"
+//                         : booking.status === "cancelled"
+//                         ? "text-red-300 bg-red-500 bg-opacity-20"
+//                         : "text-yellow-300 bg-yellow-500 bg-opacity-20"
+//                     }`}
+//                   >
+//                     {booking.status}
+//                   </span>
+//                   {booking.status === "confirmed" && (
+//                     <div className="mt-2">
+//                       <button
+//                         onClick={() => handleCancelBooking(booking.id)}
+//                         disabled={loading}
+//                         className="px-3 py-1 bg-red-500 bg-opacity-20 text-red-300 rounded text-sm hover:bg-opacity-30 disabled:opacity-50"
+//                       >
+//                         Cancel
+//                       </button>
+//                     </div>
+//                   )}
+//                 </div>
 //               </div>
 //             </div>
+//           ))
+//         ) : (
+//           <div className="text-center py-12">
+//             <Calendar
+//               size={64}
+//               className="text-white text-opacity-30 mx-auto mb-4"
+//             />
+//             <h3 className="text-xl font-semibold text-white mb-2">
+//               No bookings found
+//             </h3>
+//             <p className="text-white text-opacity-60 mb-6">
+//               You haven't made any movie bookings yet. Start exploring movies!
+//             </p>
+//             <button
+//               onClick={onBackToMovies}
+//               className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700"
+//             >
+//               Browse Movies
+//             </button>
 //           </div>
-//         ))}
+//         )}
 //       </div>
-//       {bookingHistory.length === 0 && (
-//         <div className="text-center py-8">
-//           <Calendar
-//             size={48}
-//             className="text-white text-opacity-30 mx-auto mb-4"
-//           />
-//           <p className="text-white text-opacity-60">No bookings found</p>
-//         </div>
-//       )}
 //     </div>
 //   );
 
+//   // Keep existing renderProfile and renderPayments functions unchanged
 //   const renderProfile = () => (
 //     <div className="space-y-6">
 //       {/* Profile Header */}
@@ -584,7 +734,7 @@
 //               className="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-60 border border-white border-opacity-30 focus:outline-none focus:border-opacity-50 disabled:opacity-50"
 //             />
 //           </div>
-//           {/* Date of Birth - FIXED */}
+//           {/* Date of Birth */}
 //           <div>
 //             <label className="block text-white text-opacity-75 mb-2">
 //               Date of Birth
@@ -593,7 +743,6 @@
 //               type="date"
 //               value={userProfile.dateOfBirth || ""}
 //               onChange={(e) => {
-//                 console.log("Date input changed to:", e.target.value);
 //                 setUserProfile((p) => ({ ...p, dateOfBirth: e.target.value }));
 //               }}
 //               disabled={!isEditing || loading}
@@ -854,8 +1003,9 @@
 //       {(error || success) && (
 //         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
 //           {error && (
-//             <div className="bg-red-500 bg-opacity-20 border border-red-500 border-opacity-50 text-red-200 px-4 py-3 rounded-lg mb-4">
-//               {error}
+//             <div className="bg-red-500 bg-opacity-20 border border-red-500 border-opacity-50 text-red-200 px-4 py-3 rounded-lg mb-4 flex items-center space-x-2">
+//               <AlertCircle size={20} />
+//               <span>{error}</span>
 //             </div>
 //           )}
 //           {success && (
@@ -967,6 +1117,7 @@ import {
   BookOpen,
   RefreshCw,
   AlertCircle,
+  AlertTriangle,
 } from "lucide-react";
 
 // Import API functions
@@ -1024,6 +1175,94 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
       return profilePicture;
     }
     return `http://localhost:8080${profilePicture}`;
+  };
+
+  // Helper function to check if show time has passed
+  const hasShowTimePassed = (bookingDate, showTime) => {
+    try {
+      // Parse the booking date (assuming format like "2025-06-23")
+      const [year, month, day] = bookingDate
+        .split("-")
+        .map((num) => parseInt(num));
+
+      // Parse the show time (assuming format like "6:00 PM" or "18:00")
+      let hours, minutes;
+      if (showTime.includes("AM") || showTime.includes("PM")) {
+        // 12-hour format
+        const [time, period] = showTime.split(" ");
+        const [h, m] = time.split(":").map((num) => parseInt(num));
+        hours = h;
+        minutes = m || 0;
+
+        if (period === "PM" && hours !== 12) {
+          hours += 12;
+        } else if (period === "AM" && hours === 12) {
+          hours = 0;
+        }
+      } else {
+        // 24-hour format
+        [hours, minutes] = showTime.split(":").map((num) => parseInt(num));
+      }
+
+      // Create the show date/time
+      const showDateTime = new Date(year, month - 1, day, hours, minutes);
+      const currentDateTime = new Date();
+
+      console.log("Show DateTime:", showDateTime);
+      console.log("Current DateTime:", currentDateTime);
+      console.log("Has passed:", currentDateTime > showDateTime);
+
+      return currentDateTime > showDateTime;
+    } catch (error) {
+      console.error("Error parsing date/time:", error);
+      // If there's an error parsing, assume it hasn't passed to be safe
+      return false;
+    }
+  };
+
+  // Helper function to get cancellation deadline (e.g., 2 hours before show)
+  const getCancellationDeadline = (bookingDate, showTime) => {
+    try {
+      const [year, month, day] = bookingDate
+        .split("-")
+        .map((num) => parseInt(num));
+
+      let hours, minutes;
+      if (showTime.includes("AM") || showTime.includes("PM")) {
+        const [time, period] = showTime.split(" ");
+        const [h, m] = time.split(":").map((num) => parseInt(num));
+        hours = h;
+        minutes = m || 0;
+
+        if (period === "PM" && hours !== 12) {
+          hours += 12;
+        } else if (period === "AM" && hours === 12) {
+          hours = 0;
+        }
+      } else {
+        [hours, minutes] = showTime.split(":").map((num) => parseInt(num));
+      }
+
+      const showDateTime = new Date(year, month - 1, day, hours, minutes);
+      // Set cancellation deadline to 2 hours before show time
+      const cancellationDeadline = new Date(
+        showDateTime.getTime() - 2 * 60 * 60 * 1000
+      );
+
+      return cancellationDeadline;
+    } catch (error) {
+      console.error("Error calculating cancellation deadline:", error);
+      return null;
+    }
+  };
+
+  // Check if booking can be cancelled
+  const canCancelBooking = (bookingDate, showTime) => {
+    const deadline = getCancellationDeadline(bookingDate, showTime);
+    if (!deadline) return true; // If we can't calculate deadline, allow cancellation
+
+    const now = new Date();
+    return now < deadline;
   };
 
   // Load user data on component mount
@@ -1097,9 +1336,47 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
     }
   };
 
-  const handleCancelBooking = async (bookingId) => {
-    if (!window.confirm("Are you sure you want to cancel this booking?")) {
+  const handleCancelBooking = async (bookingId, bookingDate, showTime) => {
+    // Check if show time has passed
+    if (hasShowTimePassed(bookingDate, showTime)) {
+      if (
+        window.confirm(
+          "The show time has already passed. You cannot cancel this booking and will not receive a refund.\n\n" +
+            "Would you like to contact customer support for assistance?"
+        )
+      ) {
+        // You can redirect to customer support or show contact info
+        setError(
+          "Show time has passed. Cancellation is not allowed. Please contact customer support for assistance."
+        );
+      }
       return;
+    }
+
+    // Check if within cancellation deadline
+    if (!canCancelBooking(bookingDate, showTime)) {
+      const deadline = getCancellationDeadline(bookingDate, showTime);
+      const deadlineStr = deadline ? deadline.toLocaleString() : "unknown";
+
+      if (
+        !window.confirm(
+          `Cancellation deadline has passed (was ${deadlineStr}).\n\n` +
+            "You can still cancel, but you will receive only a partial refund (50%).\n\n" +
+            "Do you want to proceed with the cancellation?"
+        )
+      ) {
+        return;
+      }
+    } else {
+      // Normal cancellation confirmation
+      if (
+        !window.confirm(
+          "Are you sure you want to cancel this booking?\n\n" +
+            "You will receive a full refund."
+        )
+      ) {
+        return;
+      }
     }
 
     setLoading(true);
@@ -1352,40 +1629,58 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
               </p>
             </div>
           ) : bookingHistory.slice(0, 3).length > 0 ? (
-            bookingHistory.slice(0, 3).map((booking) => (
-              <div
-                key={booking.id}
-                className="flex items-center justify-between p-4 bg-white bg-opacity-5 rounded-lg"
-              >
-                <div>
-                  <h4 className="text-white font-semibold">
-                    {booking.movieTitle}
-                  </h4>
-                  <p className="text-white text-opacity-60 text-sm">
-                    {booking.bookingDate} • {booking.showTime}
-                  </p>
-                  <p className="text-white text-opacity-50 text-xs">
-                    {booking.theaterName} • Seats: {booking.seatNumbers}
-                  </p>
+            bookingHistory.slice(0, 3).map((booking) => {
+              const isPastShow = hasShowTimePassed(
+                booking.bookingDate,
+                booking.showTime
+              );
+              const canCancel = canCancelBooking(
+                booking.bookingDate,
+                booking.showTime
+              );
+
+              return (
+                <div
+                  key={booking.id}
+                  className="flex items-center justify-between p-4 bg-white bg-opacity-5 rounded-lg"
+                >
+                  <div>
+                    <h4 className="text-white font-semibold">
+                      {booking.movieTitle}
+                    </h4>
+                    <p className="text-white text-opacity-60 text-sm">
+                      {booking.bookingDate} • {booking.showTime}
+                    </p>
+                    <p className="text-white text-opacity-50 text-xs">
+                      {booking.theaterName} • Seats: {booking.seatNumbers}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-white font-bold">
+                      {formatCurrency(booking.totalAmount)}
+                    </p>
+                    <span
+                      className={`text-sm capitalize px-2 py-1 rounded-full ${
+                        booking.status === "confirmed"
+                          ? "text-green-400 bg-green-500 bg-opacity-20"
+                          : booking.status === "cancelled"
+                          ? "text-red-400 bg-red-500 bg-opacity-20"
+                          : "text-yellow-400 bg-yellow-500 bg-opacity-20"
+                      }`}
+                    >
+                      {booking.status}
+                    </span>
+                    {isPastShow && booking.status === "confirmed" && (
+                      <div className="mt-1">
+                        <span className="text-xs text-orange-400">
+                          Show completed
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-white font-bold">
-                    {formatCurrency(booking.totalAmount)}
-                  </p>
-                  <span
-                    className={`text-sm capitalize px-2 py-1 rounded-full ${
-                      booking.status === "confirmed"
-                        ? "text-green-400 bg-green-500 bg-opacity-20"
-                        : booking.status === "cancelled"
-                        ? "text-red-400 bg-red-500 bg-opacity-20"
-                        : "text-yellow-400 bg-yellow-500 bg-opacity-20"
-                    }`}
-                  >
-                    {booking.status}
-                  </span>
-                </div>
-              </div>
-            ))
+              );
+            })
           ) : (
             <div className="text-center py-8 text-white text-opacity-60">
               <BookOpen
@@ -1451,69 +1746,121 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
             </p>
           </div>
         ) : bookingHistory.length > 0 ? (
-          bookingHistory.map((booking) => (
-            <div
-              key={booking.id}
-              className="bg-white bg-opacity-10 backdrop-blur-xl rounded-lg border border-white border-opacity-20 p-6"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <h4 className="text-lg font-semibold text-white">
-                    {booking.movieTitle}
-                  </h4>
-                  <div className="flex items-center space-x-4 mt-2 text-white text-opacity-75">
-                    <div className="flex items-center space-x-1">
-                      <MapPin size={16} />
-                      <span>{booking.theaterName}</span>
+          bookingHistory.map((booking) => {
+            const isPastShow = hasShowTimePassed(
+              booking.bookingDate,
+              booking.showTime
+            );
+            const canCancel = canCancelBooking(
+              booking.bookingDate,
+              booking.showTime
+            );
+            const cancellationDeadline = getCancellationDeadline(
+              booking.bookingDate,
+              booking.showTime
+            );
+
+            return (
+              <div
+                key={booking.id}
+                className="bg-white bg-opacity-10 backdrop-blur-xl rounded-lg border border-white border-opacity-20 p-6"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <h4 className="text-lg font-semibold text-white">
+                      {booking.movieTitle}
+                    </h4>
+                    <div className="flex items-center space-x-4 mt-2 text-white text-opacity-75">
+                      <div className="flex items-center space-x-1">
+                        <MapPin size={16} />
+                        <span>{booking.theaterName}</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <Calendar size={16} />
+                        <span>{booking.bookingDate}</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <Clock size={16} />
+                        <span>{booking.showTime}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-1">
-                      <Calendar size={16} />
-                      <span>{booking.bookingDate}</span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <Clock size={16} />
-                      <span>{booking.showTime}</span>
-                    </div>
-                  </div>
-                  <p className="text-white text-opacity-60 mt-1">
-                    Seats: {booking.seatNumbers}
-                  </p>
-                  {booking.theaterLocation && (
-                    <p className="text-white text-opacity-50 text-sm">
-                      Location: {booking.theaterLocation}
+                    <p className="text-white text-opacity-60 mt-1">
+                      Seats: {booking.seatNumbers}
                     </p>
-                  )}
-                </div>
-                <div className="text-right">
-                  <p className="text-2xl font-bold text-white">
-                    {formatCurrency(booking.totalAmount)}
-                  </p>
-                  <span
-                    className={`inline-block px-3 py-1 rounded-full text-sm capitalize mb-2 ${
-                      booking.status === "confirmed"
-                        ? "text-green-300 bg-green-500 bg-opacity-20"
-                        : booking.status === "cancelled"
-                        ? "text-red-300 bg-red-500 bg-opacity-20"
-                        : "text-yellow-300 bg-yellow-500 bg-opacity-20"
-                    }`}
-                  >
-                    {booking.status}
-                  </span>
-                  {booking.status === "confirmed" && (
-                    <div className="mt-2">
-                      <button
-                        onClick={() => handleCancelBooking(booking.id)}
-                        disabled={loading}
-                        className="px-3 py-1 bg-red-500 bg-opacity-20 text-red-300 rounded text-sm hover:bg-opacity-30 disabled:opacity-50"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  )}
+                    {booking.theaterLocation && (
+                      <p className="text-white text-opacity-50 text-sm">
+                        Location: {booking.theaterLocation}
+                      </p>
+                    )}
+                    {booking.status === "confirmed" &&
+                      !isPastShow &&
+                      !canCancel &&
+                      cancellationDeadline && (
+                        <div className="mt-2 flex items-center space-x-2 text-orange-400 text-sm">
+                          <AlertTriangle size={16} />
+                          <span>
+                            Cancellation deadline was{" "}
+                            {cancellationDeadline.toLocaleString()}
+                          </span>
+                        </div>
+                      )}
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-white">
+                      {formatCurrency(booking.totalAmount)}
+                    </p>
+                    <span
+                      className={`inline-block px-3 py-1 rounded-full text-sm capitalize mb-2 ${
+                        booking.status === "confirmed"
+                          ? "text-green-300 bg-green-500 bg-opacity-20"
+                          : booking.status === "cancelled"
+                          ? "text-red-300 bg-red-500 bg-opacity-20"
+                          : "text-yellow-300 bg-yellow-500 bg-opacity-20"
+                      }`}
+                    >
+                      {booking.status}
+                    </span>
+                    {booking.status === "confirmed" && (
+                      <div className="mt-2">
+                        {isPastShow ? (
+                          <button
+                            disabled
+                            className="px-3 py-1 bg-gray-500 bg-opacity-20 text-gray-400 rounded text-sm cursor-not-allowed"
+                            title="Cannot cancel - show time has passed"
+                          >
+                            Show Completed
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() =>
+                              handleCancelBooking(
+                                booking.id,
+                                booking.bookingDate,
+                                booking.showTime
+                              )
+                            }
+                            disabled={loading}
+                            className={`px-3 py-1 rounded text-sm transition-colors disabled:opacity-50 ${
+                              canCancel
+                                ? "bg-red-500 bg-opacity-20 text-red-300 hover:bg-opacity-30"
+                                : "bg-orange-500 bg-opacity-20 text-orange-300 hover:bg-opacity-30"
+                            }`}
+                            title={
+                              canCancel
+                                ? "Cancel booking"
+                                : "Cancel with partial refund"
+                            }
+                          >
+                            {canCancel ? "Cancel" : "Cancel (50% refund)"}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
+            );
+          })
         ) : (
           <div className="text-center py-12">
             <Calendar
