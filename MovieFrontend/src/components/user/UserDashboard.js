@@ -20,6 +20,7 @@
 //   BookOpen,
 //   RefreshCw,
 //   AlertCircle,
+//   AlertTriangle,
 // } from "lucide-react";
 
 // // Import API functions
@@ -77,6 +78,94 @@
 //       return profilePicture;
 //     }
 //     return `http://localhost:8080${profilePicture}`;
+//   };
+
+//   // Helper function to check if show time has passed
+//   const hasShowTimePassed = (bookingDate, showTime) => {
+//     try {
+//       // Parse the booking date (assuming format like "2025-06-23")
+//       const [year, month, day] = bookingDate
+//         .split("-")
+//         .map((num) => parseInt(num));
+
+//       // Parse the show time (assuming format like "6:00 PM" or "18:00")
+//       let hours, minutes;
+//       if (showTime.includes("AM") || showTime.includes("PM")) {
+//         // 12-hour format
+//         const [time, period] = showTime.split(" ");
+//         const [h, m] = time.split(":").map((num) => parseInt(num));
+//         hours = h;
+//         minutes = m || 0;
+
+//         if (period === "PM" && hours !== 12) {
+//           hours += 12;
+//         } else if (period === "AM" && hours === 12) {
+//           hours = 0;
+//         }
+//       } else {
+//         // 24-hour format
+//         [hours, minutes] = showTime.split(":").map((num) => parseInt(num));
+//       }
+
+//       // Create the show date/time
+//       const showDateTime = new Date(year, month - 1, day, hours, minutes);
+//       const currentDateTime = new Date();
+
+//       console.log("Show DateTime:", showDateTime);
+//       console.log("Current DateTime:", currentDateTime);
+//       console.log("Has passed:", currentDateTime > showDateTime);
+
+//       return currentDateTime > showDateTime;
+//     } catch (error) {
+//       console.error("Error parsing date/time:", error);
+//       // If there's an error parsing, assume it hasn't passed to be safe
+//       return false;
+//     }
+//   };
+
+//   // Helper function to get cancellation deadline (e.g., 2 hours before show)
+//   const getCancellationDeadline = (bookingDate, showTime) => {
+//     try {
+//       const [year, month, day] = bookingDate
+//         .split("-")
+//         .map((num) => parseInt(num));
+
+//       let hours, minutes;
+//       if (showTime.includes("AM") || showTime.includes("PM")) {
+//         const [time, period] = showTime.split(" ");
+//         const [h, m] = time.split(":").map((num) => parseInt(num));
+//         hours = h;
+//         minutes = m || 0;
+
+//         if (period === "PM" && hours !== 12) {
+//           hours += 12;
+//         } else if (period === "AM" && hours === 12) {
+//           hours = 0;
+//         }
+//       } else {
+//         [hours, minutes] = showTime.split(":").map((num) => parseInt(num));
+//       }
+
+//       const showDateTime = new Date(year, month - 1, day, hours, minutes);
+//       // Set cancellation deadline to 2 hours before show time
+//       const cancellationDeadline = new Date(
+//         showDateTime.getTime() - 2 * 60 * 60 * 1000
+//       );
+
+//       return cancellationDeadline;
+//     } catch (error) {
+//       console.error("Error calculating cancellation deadline:", error);
+//       return null;
+//     }
+//   };
+
+//   // Check if booking can be cancelled
+//   const canCancelBooking = (bookingDate, showTime) => {
+//     const deadline = getCancellationDeadline(bookingDate, showTime);
+//     if (!deadline) return true; // If we can't calculate deadline, allow cancellation
+
+//     const now = new Date();
+//     return now < deadline;
 //   };
 
 //   // Load user data on component mount
@@ -150,9 +239,47 @@
 //     }
 //   };
 
-//   const handleCancelBooking = async (bookingId) => {
-//     if (!window.confirm("Are you sure you want to cancel this booking?")) {
+//   const handleCancelBooking = async (bookingId, bookingDate, showTime) => {
+//     // Check if show time has passed
+//     if (hasShowTimePassed(bookingDate, showTime)) {
+//       if (
+//         window.confirm(
+//           "The show time has already passed. You cannot cancel this booking and will not receive a refund.\n\n" +
+//             "Would you like to contact customer support for assistance?"
+//         )
+//       ) {
+//         // You can redirect to customer support or show contact info
+//         setError(
+//           "Show time has passed. Cancellation is not allowed. Please contact customer support for assistance."
+//         );
+//       }
 //       return;
+//     }
+
+//     // Check if within cancellation deadline
+//     if (!canCancelBooking(bookingDate, showTime)) {
+//       const deadline = getCancellationDeadline(bookingDate, showTime);
+//       const deadlineStr = deadline ? deadline.toLocaleString() : "unknown";
+
+//       if (
+//         !window.confirm(
+//           `Cancellation deadline has passed (was ${deadlineStr}).\n\n` +
+//             "You can still cancel, but you will receive only a partial refund (50%).\n\n" +
+//             "Do you want to proceed with the cancellation?"
+//         )
+//       ) {
+//         return;
+//       }
+//     } else {
+//       // Normal cancellation confirmation
+//       if (
+//         !window.confirm(
+//           "Are you sure you want to cancel this booking?\n\n" +
+//             "You will receive a full refund."
+//         )
+//       ) {
+//         return;
+//       }
 //     }
 
 //     setLoading(true);
@@ -405,40 +532,58 @@
 //               </p>
 //             </div>
 //           ) : bookingHistory.slice(0, 3).length > 0 ? (
-//             bookingHistory.slice(0, 3).map((booking) => (
-//               <div
-//                 key={booking.id}
-//                 className="flex items-center justify-between p-4 bg-white bg-opacity-5 rounded-lg"
-//               >
-//                 <div>
-//                   <h4 className="text-white font-semibold">
-//                     {booking.movieTitle}
-//                   </h4>
-//                   <p className="text-white text-opacity-60 text-sm">
-//                     {booking.bookingDate} • {booking.showTime}
-//                   </p>
-//                   <p className="text-white text-opacity-50 text-xs">
-//                     {booking.theaterName} • Seats: {booking.seatNumbers}
-//                   </p>
+//             bookingHistory.slice(0, 3).map((booking) => {
+//               const isPastShow = hasShowTimePassed(
+//                 booking.bookingDate,
+//                 booking.showTime
+//               );
+//               const canCancel = canCancelBooking(
+//                 booking.bookingDate,
+//                 booking.showTime
+//               );
+
+//               return (
+//                 <div
+//                   key={booking.id}
+//                   className="flex items-center justify-between p-4 bg-white bg-opacity-5 rounded-lg"
+//                 >
+//                   <div>
+//                     <h4 className="text-white font-semibold">
+//                       {booking.movieTitle}
+//                     </h4>
+//                     <p className="text-white text-opacity-60 text-sm">
+//                       {booking.bookingDate} • {booking.showTime}
+//                     </p>
+//                     <p className="text-white text-opacity-50 text-xs">
+//                       {booking.theaterName} • Seats: {booking.seatNumbers}
+//                     </p>
+//                   </div>
+//                   <div className="text-right">
+//                     <p className="text-white font-bold">
+//                       {formatCurrency(booking.totalAmount)}
+//                     </p>
+//                     <span
+//                       className={`text-sm capitalize px-2 py-1 rounded-full ${
+//                         booking.status === "confirmed"
+//                           ? "text-green-400 bg-green-500 bg-opacity-20"
+//                           : booking.status === "cancelled"
+//                           ? "text-red-400 bg-red-500 bg-opacity-20"
+//                           : "text-yellow-400 bg-yellow-500 bg-opacity-20"
+//                       }`}
+//                     >
+//                       {booking.status}
+//                     </span>
+//                     {isPastShow && booking.status === "confirmed" && (
+//                       <div className="mt-1">
+//                         <span className="text-xs text-orange-400">
+//                           Show completed
+//                         </span>
+//                       </div>
+//                     )}
+//                   </div>
 //                 </div>
-//                 <div className="text-right">
-//                   <p className="text-white font-bold">
-//                     {formatCurrency(booking.totalAmount)}
-//                   </p>
-//                   <span
-//                     className={`text-sm capitalize px-2 py-1 rounded-full ${
-//                       booking.status === "confirmed"
-//                         ? "text-green-400 bg-green-500 bg-opacity-20"
-//                         : booking.status === "cancelled"
-//                         ? "text-red-400 bg-red-500 bg-opacity-20"
-//                         : "text-yellow-400 bg-yellow-500 bg-opacity-20"
-//                     }`}
-//                   >
-//                     {booking.status}
-//                   </span>
-//                 </div>
-//               </div>
-//             ))
+//               );
+//             })
 //           ) : (
 //             <div className="text-center py-8 text-white text-opacity-60">
 //               <BookOpen
@@ -504,69 +649,121 @@
 //             </p>
 //           </div>
 //         ) : bookingHistory.length > 0 ? (
-//           bookingHistory.map((booking) => (
-//             <div
-//               key={booking.id}
-//               className="bg-white bg-opacity-10 backdrop-blur-xl rounded-lg border border-white border-opacity-20 p-6"
-//             >
-//               <div className="flex items-center justify-between">
-//                 <div className="flex-1">
-//                   <h4 className="text-lg font-semibold text-white">
-//                     {booking.movieTitle}
-//                   </h4>
-//                   <div className="flex items-center space-x-4 mt-2 text-white text-opacity-75">
-//                     <div className="flex items-center space-x-1">
-//                       <MapPin size={16} />
-//                       <span>{booking.theaterName}</span>
+//           bookingHistory.map((booking) => {
+//             const isPastShow = hasShowTimePassed(
+//               booking.bookingDate,
+//               booking.showTime
+//             );
+//             const canCancel = canCancelBooking(
+//               booking.bookingDate,
+//               booking.showTime
+//             );
+//             const cancellationDeadline = getCancellationDeadline(
+//               booking.bookingDate,
+//               booking.showTime
+//             );
+
+//             return (
+//               <div
+//                 key={booking.id}
+//                 className="bg-white bg-opacity-10 backdrop-blur-xl rounded-lg border border-white border-opacity-20 p-6"
+//               >
+//                 <div className="flex items-center justify-between">
+//                   <div className="flex-1">
+//                     <h4 className="text-lg font-semibold text-white">
+//                       {booking.movieTitle}
+//                     </h4>
+//                     <div className="flex items-center space-x-4 mt-2 text-white text-opacity-75">
+//                       <div className="flex items-center space-x-1">
+//                         <MapPin size={16} />
+//                         <span>{booking.theaterName}</span>
+//                       </div>
+//                       <div className="flex items-center space-x-1">
+//                         <Calendar size={16} />
+//                         <span>{booking.bookingDate}</span>
+//                       </div>
+//                       <div className="flex items-center space-x-1">
+//                         <Clock size={16} />
+//                         <span>{booking.showTime}</span>
+//                       </div>
 //                     </div>
-//                     <div className="flex items-center space-x-1">
-//                       <Calendar size={16} />
-//                       <span>{booking.bookingDate}</span>
-//                     </div>
-//                     <div className="flex items-center space-x-1">
-//                       <Clock size={16} />
-//                       <span>{booking.showTime}</span>
-//                     </div>
-//                   </div>
-//                   <p className="text-white text-opacity-60 mt-1">
-//                     Seats: {booking.seatNumbers}
-//                   </p>
-//                   {booking.theaterLocation && (
-//                     <p className="text-white text-opacity-50 text-sm">
-//                       Location: {booking.theaterLocation}
+//                     <p className="text-white text-opacity-60 mt-1">
+//                       Seats: {booking.seatNumbers}
 //                     </p>
-//                   )}
-//                 </div>
-//                 <div className="text-right">
-//                   <p className="text-2xl font-bold text-white">
-//                     {formatCurrency(booking.totalAmount)}
-//                   </p>
-//                   <span
-//                     className={`inline-block px-3 py-1 rounded-full text-sm capitalize mb-2 ${
-//                       booking.status === "confirmed"
-//                         ? "text-green-300 bg-green-500 bg-opacity-20"
-//                         : booking.status === "cancelled"
-//                         ? "text-red-300 bg-red-500 bg-opacity-20"
-//                         : "text-yellow-300 bg-yellow-500 bg-opacity-20"
-//                     }`}
-//                   >
-//                     {booking.status}
-//                   </span>
-//                   {booking.status === "confirmed" && (
-//                     <div className="mt-2">
-//                       <button
-//                         onClick={() => handleCancelBooking(booking.id)}
-//                         disabled={loading}
-//                         className="px-3 py-1 bg-red-500 bg-opacity-20 text-red-300 rounded text-sm hover:bg-opacity-30 disabled:opacity-50"
-//                       >
-//                         Cancel
-//                       </button>
-//                     </div>
-//                   )}
+//                     {booking.theaterLocation && (
+//                       <p className="text-white text-opacity-50 text-sm">
+//                         Location: {booking.theaterLocation}
+//                       </p>
+//                     )}
+//                     {booking.status === "confirmed" &&
+//                       !isPastShow &&
+//                       !canCancel &&
+//                       cancellationDeadline && (
+//                         <div className="mt-2 flex items-center space-x-2 text-orange-400 text-sm">
+//                           <AlertTriangle size={16} />
+//                           <span>
+//                             Cancellation deadline was{" "}
+//                             {cancellationDeadline.toLocaleString()}
+//                           </span>
+//                         </div>
+//                       )}
+//                   </div>
+//                   <div className="text-right">
+//                     <p className="text-2xl font-bold text-white">
+//                       {formatCurrency(booking.totalAmount)}
+//                     </p>
+//                     <span
+//                       className={`inline-block px-3 py-1 rounded-full text-sm capitalize mb-2 ${
+//                         booking.status === "confirmed"
+//                           ? "text-green-300 bg-green-500 bg-opacity-20"
+//                           : booking.status === "cancelled"
+//                           ? "text-red-300 bg-red-500 bg-opacity-20"
+//                           : "text-yellow-300 bg-yellow-500 bg-opacity-20"
+//                       }`}
+//                     >
+//                       {booking.status}
+//                     </span>
+//                     {booking.status === "confirmed" && (
+//                       <div className="mt-2">
+//                         {isPastShow ? (
+//                           <button
+//                             disabled
+//                             className="px-3 py-1 bg-gray-500 bg-opacity-20 text-gray-400 rounded text-sm cursor-not-allowed"
+//                             title="Cannot cancel - show time has passed"
+//                           >
+//                             Show Completed
+//                           </button>
+//                         ) : (
+//                           <button
+//                             onClick={() =>
+//                               handleCancelBooking(
+//                                 booking.id,
+//                                 booking.bookingDate,
+//                                 booking.showTime
+//                               )
+//                             }
+//                             disabled={loading}
+//                             className={`px-3 py-1 rounded text-sm transition-colors disabled:opacity-50 ${
+//                               canCancel
+//                                 ? "bg-red-500 bg-opacity-20 text-red-300 hover:bg-opacity-30"
+//                                 : "bg-orange-500 bg-opacity-20 text-orange-300 hover:bg-opacity-30"
+//                             }`}
+//                             title={
+//                               canCancel
+//                                 ? "Cancel booking"
+//                                 : "Cancel with partial refund"
+//                             }
+//                           >
+//                             {canCancel ? "Cancel" : "Cancel (50% refund)"}
+//                           </button>
+//                         )}
+//                       </div>
+//                     )}
+//                   </div>
 //                 </div>
 //               </div>
-//             </div>
-//           ))
+//             );
+//           })
 //         ) : (
 //           <div className="text-center py-12">
 //             <Calendar
@@ -1180,10 +1377,25 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
   // Helper function to check if show time has passed
   const hasShowTimePassed = (bookingDate, showTime) => {
     try {
-      // Parse the booking date (assuming format like "2025-06-23")
-      const [year, month, day] = bookingDate
-        .split("-")
-        .map((num) => parseInt(num));
+      // Parse the booking date - handle MM/DD/YYYY format like "6/24/2025"
+      let year, month, day;
+
+      if (bookingDate.includes("/")) {
+        // Handle MM/DD/YYYY or M/D/YYYY format
+        const [m, d, y] = bookingDate.split("/").map((num) => parseInt(num));
+        month = m;
+        day = d;
+        year = y;
+      } else if (bookingDate.includes("-")) {
+        // Handle YYYY-MM-DD format (fallback)
+        const [y, m, d] = bookingDate.split("-").map((num) => parseInt(num));
+        year = y;
+        month = m;
+        day = d;
+      } else {
+        console.error("Unsupported date format:", bookingDate);
+        return false;
+      }
 
       // Parse the show time (assuming format like "6:00 PM" or "18:00")
       let hours, minutes;
@@ -1204,9 +1416,23 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
         [hours, minutes] = showTime.split(":").map((num) => parseInt(num));
       }
 
-      // Create the show date/time
+      // Create the show date/time (month - 1 because Date constructor expects 0-based months)
       const showDateTime = new Date(year, month - 1, day, hours, minutes);
       const currentDateTime = new Date();
+
+      // Check if the date is valid
+      if (isNaN(showDateTime.getTime())) {
+        console.error("Invalid date created from:", {
+          bookingDate,
+          showTime,
+          year,
+          month,
+          day,
+          hours,
+          minutes,
+        });
+        return false;
+      }
 
       console.log("Show DateTime:", showDateTime);
       console.log("Current DateTime:", currentDateTime);
@@ -1214,8 +1440,10 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
 
       return currentDateTime > showDateTime;
     } catch (error) {
-      console.error("Error parsing date/time:", error);
-      // If there's an error parsing, assume it hasn't passed to be safe
+      console.error("Error parsing date/time:", error, {
+        bookingDate,
+        showTime,
+      });
       return false;
     }
   };
@@ -1223,9 +1451,25 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
   // Helper function to get cancellation deadline (e.g., 2 hours before show)
   const getCancellationDeadline = (bookingDate, showTime) => {
     try {
-      const [year, month, day] = bookingDate
-        .split("-")
-        .map((num) => parseInt(num));
+      // Parse the booking date - handle MM/DD/YYYY format like "6/24/2025"
+      let year, month, day;
+
+      if (bookingDate.includes("/")) {
+        // Handle MM/DD/YYYY or M/D/YYYY format
+        const [m, d, y] = bookingDate.split("/").map((num) => parseInt(num));
+        month = m;
+        day = d;
+        year = y;
+      } else if (bookingDate.includes("-")) {
+        // Handle YYYY-MM-DD format (fallback)
+        const [y, m, d] = bookingDate.split("-").map((num) => parseInt(num));
+        year = y;
+        month = m;
+        day = d;
+      } else {
+        console.error("Unsupported date format:", bookingDate);
+        return null;
+      }
 
       let hours, minutes;
       if (showTime.includes("AM") || showTime.includes("PM")) {
@@ -1243,7 +1487,23 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
         [hours, minutes] = showTime.split(":").map((num) => parseInt(num));
       }
 
+      // Create the show date/time (month - 1 because Date constructor expects 0-based months)
       const showDateTime = new Date(year, month - 1, day, hours, minutes);
+
+      // Check if the date is valid
+      if (isNaN(showDateTime.getTime())) {
+        console.error("Invalid date created from:", {
+          bookingDate,
+          showTime,
+          year,
+          month,
+          day,
+          hours,
+          minutes,
+        });
+        return null;
+      }
+
       // Set cancellation deadline to 2 hours before show time
       const cancellationDeadline = new Date(
         showDateTime.getTime() - 2 * 60 * 60 * 1000
@@ -1251,7 +1511,10 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
 
       return cancellationDeadline;
     } catch (error) {
-      console.error("Error calculating cancellation deadline:", error);
+      console.error("Error calculating cancellation deadline:", error, {
+        bookingDate,
+        showTime,
+      });
       return null;
     }
   };
@@ -1259,11 +1522,47 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
   // Check if booking can be cancelled
   const canCancelBooking = (bookingDate, showTime) => {
     const deadline = getCancellationDeadline(bookingDate, showTime);
-    if (!deadline) return true; // If we can't calculate deadline, allow cancellation
+
+    // If we can't calculate deadline or deadline is invalid, allow full cancellation
+    if (!deadline || isNaN(deadline.getTime())) {
+      console.warn(
+        "Could not calculate valid cancellation deadline, allowing full cancellation"
+      );
+      return true;
+    }
 
     const now = new Date();
-    return now < deadline;
+    const canCancel = now < deadline;
+
+    console.log("Cancellation check:", {
+      bookingDate,
+      showTime,
+      deadline: deadline.toLocaleString(),
+      now: now.toLocaleString(),
+      canCancel,
+    });
+
+    return canCancel;
   };
+
+  // Test function to verify date parsing
+  useEffect(() => {
+    // Test cases to verify parsing
+    console.log("\n=== Testing Date Parsing ===");
+    console.log(
+      "Test 1 - Past show (6/23/2025 1:00 PM):",
+      hasShowTimePassed("6/23/2025", "01:00 PM")
+    );
+    console.log(
+      "Test 2 - Future show (6/24/2025 8:00 AM):",
+      hasShowTimePassed("6/24/2025", "08:00 AM")
+    );
+    console.log(
+      "Test 3 - Can cancel (6/24/2025 8:00 AM):",
+      canCancelBooking("6/24/2025", "08:00 AM")
+    );
+    console.log("=== End Test ===\n");
+  }, []);
 
   // Load user data on component mount
   useEffect(() => {
@@ -1323,7 +1622,14 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
     try {
       const bookingResult = await getBookingHistory();
       if (bookingResult.success) {
-        setBookingHistory(bookingResult.data || []);
+        const bookings = bookingResult.data || [];
+        setBookingHistory(bookings);
+
+        // Debug: Log date formats
+        if (bookings.length > 0) {
+          console.log("Sample booking date format:", bookings[0].bookingDate);
+          console.log("Sample booking time format:", bookings[0].showTime);
+        }
       } else {
         console.error("Failed to load bookings:", bookingResult.message);
         setBookingHistory([]);
