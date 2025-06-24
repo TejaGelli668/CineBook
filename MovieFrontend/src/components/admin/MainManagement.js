@@ -10,72 +10,9 @@ const MainManagement = ({ type = "movies" }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [editingItem, setEditingItem] = useState(null);
 
-  // Sample data - replace with your actual data source or props
-  const [movies, setMovies] = useState([
-    {
-      id: "1",
-      title: "Avengers: Endgame",
-      genre: "Action",
-      rating: 8.4,
-      duration: "3h 1m",
-      price: 300,
-      poster: "/api/placeholder/300/400",
-      status: "Active",
-    },
-    {
-      id: "2",
-      title: "Spider-Man: No Way Home",
-      genre: "Action",
-      rating: 8.2,
-      duration: "2h 28m",
-      price: 250,
-      poster: "/api/placeholder/300/400",
-      status: "Active",
-    },
-    {
-      id: "3",
-      title: "Dune: Part Two",
-      genre: "Sci-Fi",
-      rating: 8.6,
-      duration: "2h 46m",
-      price: 280,
-      poster: "/api/placeholder/300/400",
-      status: "Active",
-    },
-    {
-      id: "4",
-      title: "Top Gun: Maverick",
-      genre: "Action",
-      rating: 8.3,
-      duration: "2h 11m",
-      price: 270,
-      poster: "/api/placeholder/300/400",
-      status: "Active",
-    },
-  ]);
 
-  const [theaters, setTheaters] = useState([
-    {
-      id: "1",
-      name: "PVR Cinemas",
-      location: "Phoenix Mall, Mumbai",
-      screens: 8,
-      totalSeats: 1200,
-      status: "Active",
-      facilities: ["M-Ticket", "Food & Beverage", "Parking", "IMAX"],
-      shows: ["10:00 AM", "1:30 PM", "6:00 PM", "9:30 PM"],
-    },
-    {
-      id: "2",
-      name: "INOX Multiplex",
-      location: "City Center, Delhi",
-      screens: 6,
-      totalSeats: 900,
-      status: "Active",
-      facilities: ["DOLBY ATMOS", "Recliner Seats", "Parking", "Food Court"],
-      shows: ["11:00 AM", "2:30 PM", "7:00 PM", "10:00 PM"],
-    },
-  ]);
+
+
 
   // Navigation handlers
   const handleAddMovie = () => {
