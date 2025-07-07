@@ -384,7 +384,7 @@ const LoginModal = ({ isOpen, onClose, onAdminLogin, onUserLogin }) => {
             </button>
           </form>
         )}
-        // In your LoginModal.js, update the admin form section:
+
         {activeTab === "admin" && (
           <form onSubmit={handleAdminSubmit} className="space-y-4">
             <div>

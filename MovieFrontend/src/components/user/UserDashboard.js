@@ -83,10 +83,25 @@
 //   // Helper function to check if show time has passed
 //   const hasShowTimePassed = (bookingDate, showTime) => {
 //     try {
-//       // Parse the booking date (assuming format like "2025-06-23")
-//       const [year, month, day] = bookingDate
-//         .split("-")
-//         .map((num) => parseInt(num));
+//       // Parse the booking date - handle MM/DD/YYYY format like "6/24/2025"
+//       let year, month, day;
+
+//       if (bookingDate.includes("/")) {
+//         // Handle MM/DD/YYYY or M/D/YYYY format
+//         const [m, d, y] = bookingDate.split("/").map((num) => parseInt(num));
+//         month = m;
+//         day = d;
+//         year = y;
+//       } else if (bookingDate.includes("-")) {
+//         // Handle YYYY-MM-DD format (fallback)
+//         const [y, m, d] = bookingDate.split("-").map((num) => parseInt(num));
+//         year = y;
+//         month = m;
+//         day = d;
+//       } else {
+//         console.error("Unsupported date format:", bookingDate);
+//         return false;
+//       }
 
 //       // Parse the show time (assuming format like "6:00 PM" or "18:00")
 //       let hours, minutes;
@@ -107,9 +122,23 @@
 //         [hours, minutes] = showTime.split(":").map((num) => parseInt(num));
 //       }
 
-//       // Create the show date/time
+//       // Create the show date/time (month - 1 because Date constructor expects 0-based months)
 //       const showDateTime = new Date(year, month - 1, day, hours, minutes);
 //       const currentDateTime = new Date();
+
+//       // Check if the date is valid
+//       if (isNaN(showDateTime.getTime())) {
+//         console.error("Invalid date created from:", {
+//           bookingDate,
+//           showTime,
+//           year,
+//           month,
+//           day,
+//           hours,
+//           minutes,
+//         });
+//         return false;
+//       }
 
 //       console.log("Show DateTime:", showDateTime);
 //       console.log("Current DateTime:", currentDateTime);
@@ -117,8 +146,10 @@
 
 //       return currentDateTime > showDateTime;
 //     } catch (error) {
-//       console.error("Error parsing date/time:", error);
-//       // If there's an error parsing, assume it hasn't passed to be safe
+//       console.error("Error parsing date/time:", error, {
+//         bookingDate,
+//         showTime,
+//       });
 //       return false;
 //     }
 //   };
@@ -126,9 +157,25 @@
 //   // Helper function to get cancellation deadline (e.g., 2 hours before show)
 //   const getCancellationDeadline = (bookingDate, showTime) => {
 //     try {
-//       const [year, month, day] = bookingDate
-//         .split("-")
-//         .map((num) => parseInt(num));
+//       // Parse the booking date - handle MM/DD/YYYY format like "6/24/2025"
+//       let year, month, day;
+
+//       if (bookingDate.includes("/")) {
+//         // Handle MM/DD/YYYY or M/D/YYYY format
+//         const [m, d, y] = bookingDate.split("/").map((num) => parseInt(num));
+//         month = m;
+//         day = d;
+//         year = y;
+//       } else if (bookingDate.includes("-")) {
+//         // Handle YYYY-MM-DD format (fallback)
+//         const [y, m, d] = bookingDate.split("-").map((num) => parseInt(num));
+//         year = y;
+//         month = m;
+//         day = d;
+//       } else {
+//         console.error("Unsupported date format:", bookingDate);
+//         return null;
+//       }
 
 //       let hours, minutes;
 //       if (showTime.includes("AM") || showTime.includes("PM")) {
@@ -146,7 +193,23 @@
 //         [hours, minutes] = showTime.split(":").map((num) => parseInt(num));
 //       }
 
+//       // Create the show date/time (month - 1 because Date constructor expects 0-based months)
 //       const showDateTime = new Date(year, month - 1, day, hours, minutes);
+
+//       // Check if the date is valid
+//       if (isNaN(showDateTime.getTime())) {
+//         console.error("Invalid date created from:", {
+//           bookingDate,
+//           showTime,
+//           year,
+//           month,
+//           day,
+//           hours,
+//           minutes,
+//         });
+//         return null;
+//       }
+
 //       // Set cancellation deadline to 2 hours before show time
 //       const cancellationDeadline = new Date(
 //         showDateTime.getTime() - 2 * 60 * 60 * 1000
@@ -154,7 +217,10 @@
 
 //       return cancellationDeadline;
 //     } catch (error) {
-//       console.error("Error calculating cancellation deadline:", error);
+//       console.error("Error calculating cancellation deadline:", error, {
+//         bookingDate,
+//         showTime,
+//       });
 //       return null;
 //     }
 //   };
@@ -162,11 +228,47 @@
 //   // Check if booking can be cancelled
 //   const canCancelBooking = (bookingDate, showTime) => {
 //     const deadline = getCancellationDeadline(bookingDate, showTime);
-//     if (!deadline) return true; // If we can't calculate deadline, allow cancellation
+
+//     // If we can't calculate deadline or deadline is invalid, allow full cancellation
+//     if (!deadline || isNaN(deadline.getTime())) {
+//       console.warn(
+//         "Could not calculate valid cancellation deadline, allowing full cancellation"
+//       );
+//       return true;
+//     }
 
 //     const now = new Date();
-//     return now < deadline;
+//     const canCancel = now < deadline;
+
+//     console.log("Cancellation check:", {
+//       bookingDate,
+//       showTime,
+//       deadline: deadline.toLocaleString(),
+//       now: now.toLocaleString(),
+//       canCancel,
+//     });
+
+//     return canCancel;
 //   };
+
+//   // Test function to verify date parsing
+//   useEffect(() => {
+//     // Test cases to verify parsing
+//     console.log("\n=== Testing Date Parsing ===");
+//     console.log(
+//       "Test 1 - Past show (6/23/2025 1:00 PM):",
+//       hasShowTimePassed("6/23/2025", "01:00 PM")
+//     );
+//     console.log(
+//       "Test 2 - Future show (6/24/2025 8:00 AM):",
+//       hasShowTimePassed("6/24/2025", "08:00 AM")
+//     );
+//     console.log(
+//       "Test 3 - Can cancel (6/24/2025 8:00 AM):",
+//       canCancelBooking("6/24/2025", "08:00 AM")
+//     );
+//     console.log("=== End Test ===\n");
+//   }, []);
 
 //   // Load user data on component mount
 //   useEffect(() => {
@@ -191,6 +293,9 @@
 //       const profileResult = await getUserProfile();
 //       if (profileResult.success && profileResult.data) {
 //         const userData = profileResult.data;
+//         const isoDate = userData.createdAt.split("T")[0]; // e.g. "2025-06-24"
+//         const [year, month, day] = isoDate.split("-").map(Number); // [2025, 06, 24]
+//         const localDate = new Date(year, month - 1, day); // midnight local
 //         setUserProfile({
 //           firstName: userData.firstName || "",
 //           lastName: userData.lastName || "",
@@ -198,8 +303,12 @@
 //           phone: userData.phoneNumber || "",
 //           dateOfBirth: userData.dateOfBirth || "",
 //           profilePicture: userData.profilePicture || null,
+
 //           memberSince: userData.createdAt
-//             ? new Date(userData.createdAt).toLocaleDateString()
+//             ? // ? new Date(userData.createdAt).toLocaleDateString()
+//               // : "",
+
+//               localDate.toLocaleDateString("en-US") // or omit locale for default
 //             : "",
 //           accountStatus: userData.isActive ? "Active Member" : "Inactive",
 //         });
@@ -226,7 +335,14 @@
 //     try {
 //       const bookingResult = await getBookingHistory();
 //       if (bookingResult.success) {
-//         setBookingHistory(bookingResult.data || []);
+//         const bookings = bookingResult.data || [];
+//         setBookingHistory(bookings);
+
+//         // Debug: Log date formats
+//         if (bookings.length > 0) {
+//           console.log("Sample booking date format:", bookings[0].bookingDate);
+//           console.log("Sample booking time format:", bookings[0].showTime);
+//         }
 //       } else {
 //         console.error("Failed to load bookings:", bookingResult.message);
 //         setBookingHistory([]);
@@ -1374,7 +1490,42 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
     return `http://localhost:8080${profilePicture}`;
   };
 
-  // Helper function to check if show time has passed
+  // FIXED: Helper function to parse time without timezone conversion
+  const parseTimeWithoutTimezone = (timeString) => {
+    // If it's already in 12-hour format, return as-is
+    if (timeString.includes("AM") || timeString.includes("PM")) {
+      return timeString;
+    }
+
+    // If it's in ISO format or 24-hour format, convert to 12-hour WITHOUT timezone conversion
+    try {
+      let hours, minutes;
+
+      if (timeString.includes("T")) {
+        // ISO format: "2025-06-24T13:00:00.000" or "2025-06-24T13:00:00.000Z"
+        const timePart = timeString.split("T")[1];
+        const timeOnly = timePart.split(".")[0]; // Remove milliseconds
+        [hours, minutes] = timeOnly.split(":").map(Number);
+      } else if (timeString.includes(":")) {
+        // 24-hour format: "13:00"
+        [hours, minutes] = timeString.split(":").map(Number);
+      } else {
+        return timeString; // Return as-is if format is unexpected
+      }
+
+      // Convert to 12-hour format
+      const hour12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+      const period = hours >= 12 ? "PM" : "AM";
+      const minutesStr = minutes.toString().padStart(2, "0");
+
+      return `${hour12}:${minutesStr} ${period}`;
+    } catch (error) {
+      console.error("Error parsing time:", error, timeString);
+      return timeString;
+    }
+  };
+
+  // FIXED: Helper function to check if show time has passed
   const hasShowTimePassed = (bookingDate, showTime) => {
     try {
       // Parse the booking date - handle MM/DD/YYYY format like "6/24/2025"
@@ -1397,11 +1548,13 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
         return false;
       }
 
-      // Parse the show time (assuming format like "6:00 PM" or "18:00")
+      // FIXED: Parse the show time using our helper function
+      const formattedTime = parseTimeWithoutTimezone(showTime);
       let hours, minutes;
-      if (showTime.includes("AM") || showTime.includes("PM")) {
+
+      if (formattedTime.includes("AM") || formattedTime.includes("PM")) {
         // 12-hour format
-        const [time, period] = showTime.split(" ");
+        const [time, period] = formattedTime.split(" ");
         const [h, m] = time.split(":").map((num) => parseInt(num));
         hours = h;
         minutes = m || 0;
@@ -1412,11 +1565,11 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
           hours = 0;
         }
       } else {
-        // 24-hour format
-        [hours, minutes] = showTime.split(":").map((num) => parseInt(num));
+        // 24-hour format fallback
+        [hours, minutes] = formattedTime.split(":").map((num) => parseInt(num));
       }
 
-      // Create the show date/time (month - 1 because Date constructor expects 0-based months)
+      // Create the show date/time using local timezone (no UTC conversion)
       const showDateTime = new Date(year, month - 1, day, hours, minutes);
       const currentDateTime = new Date();
 
@@ -1425,6 +1578,7 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
         console.error("Invalid date created from:", {
           bookingDate,
           showTime,
+          formattedTime,
           year,
           month,
           day,
@@ -1433,10 +1587,6 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
         });
         return false;
       }
-
-      console.log("Show DateTime:", showDateTime);
-      console.log("Current DateTime:", currentDateTime);
-      console.log("Has passed:", currentDateTime > showDateTime);
 
       return currentDateTime > showDateTime;
     } catch (error) {
@@ -1448,7 +1598,7 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
     }
   };
 
-  // Helper function to get cancellation deadline (e.g., 2 hours before show)
+  // FIXED: Helper function to get cancellation deadline (e.g., 2 hours before show)
   const getCancellationDeadline = (bookingDate, showTime) => {
     try {
       // Parse the booking date - handle MM/DD/YYYY format like "6/24/2025"
@@ -1471,9 +1621,12 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
         return null;
       }
 
+      // FIXED: Parse the show time using our helper function
+      const formattedTime = parseTimeWithoutTimezone(showTime);
       let hours, minutes;
-      if (showTime.includes("AM") || showTime.includes("PM")) {
-        const [time, period] = showTime.split(" ");
+
+      if (formattedTime.includes("AM") || formattedTime.includes("PM")) {
+        const [time, period] = formattedTime.split(" ");
         const [h, m] = time.split(":").map((num) => parseInt(num));
         hours = h;
         minutes = m || 0;
@@ -1484,10 +1637,10 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
           hours = 0;
         }
       } else {
-        [hours, minutes] = showTime.split(":").map((num) => parseInt(num));
+        [hours, minutes] = formattedTime.split(":").map((num) => parseInt(num));
       }
 
-      // Create the show date/time (month - 1 because Date constructor expects 0-based months)
+      // Create the show date/time using local timezone (no UTC conversion)
       const showDateTime = new Date(year, month - 1, day, hours, minutes);
 
       // Check if the date is valid
@@ -1495,6 +1648,7 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
         console.error("Invalid date created from:", {
           bookingDate,
           showTime,
+          formattedTime,
           year,
           month,
           day,
@@ -1587,6 +1741,9 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
       const profileResult = await getUserProfile();
       if (profileResult.success && profileResult.data) {
         const userData = profileResult.data;
+        const isoDate = userData.createdAt.split("T")[0]; // e.g. "2025-06-24"
+        const [year, month, day] = isoDate.split("-").map(Number); // [2025, 06, 24]
+        const localDate = new Date(year, month - 1, day); // midnight local
         setUserProfile({
           firstName: userData.firstName || "",
           lastName: userData.lastName || "",
@@ -1595,7 +1752,7 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
           dateOfBirth: userData.dateOfBirth || "",
           profilePicture: userData.profilePicture || null,
           memberSince: userData.createdAt
-            ? new Date(userData.createdAt).toLocaleDateString()
+            ? localDate.toLocaleDateString("en-US") // or omit locale for default
             : "",
           accountStatus: userData.isActive ? "Active Member" : "Inactive",
         });
@@ -1830,7 +1987,7 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
     }).format(amount || 0);
   };
 
-  // Dashboard Overview Tab
+  // FIXED: Dashboard Overview Tab
   const renderOverview = () => (
     <div className="space-y-6">
       {/* Welcome Section */}
@@ -1902,7 +2059,7 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
         </div>
       </div>
 
-      {/* Recent Bookings */}
+      {/* Recent Bookings - FIXED */}
       <div className="bg-white bg-opacity-10 backdrop-blur-xl rounded-lg border border-white border-opacity-20 p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl font-bold text-white">Recent Bookings</h3>
@@ -1936,11 +2093,9 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
             </div>
           ) : bookingHistory.slice(0, 3).length > 0 ? (
             bookingHistory.slice(0, 3).map((booking) => {
+              // FIXED: Use parseTimeWithoutTimezone for correct display
+              const formattedTime = parseTimeWithoutTimezone(booking.showTime);
               const isPastShow = hasShowTimePassed(
-                booking.bookingDate,
-                booking.showTime
-              );
-              const canCancel = canCancelBooking(
                 booking.bookingDate,
                 booking.showTime
               );
@@ -1955,7 +2110,7 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
                       {booking.movieTitle}
                     </h4>
                     <p className="text-white text-opacity-60 text-sm">
-                      {booking.bookingDate} • {booking.showTime}
+                      {booking.bookingDate} • {formattedTime}
                     </p>
                     <p className="text-white text-opacity-50 text-xs">
                       {booking.theaterName} • Seats: {booking.seatNumbers}
@@ -2007,6 +2162,7 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
     </div>
   );
 
+  // FIXED: renderBookings function
   const renderBookings = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -2053,6 +2209,8 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
           </div>
         ) : bookingHistory.length > 0 ? (
           bookingHistory.map((booking) => {
+            // FIXED: Use parseTimeWithoutTimezone for correct display
+            const formattedTime = parseTimeWithoutTimezone(booking.showTime);
             const isPastShow = hasShowTimePassed(
               booking.bookingDate,
               booking.showTime
@@ -2087,7 +2245,7 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
                       </div>
                       <div className="flex items-center space-x-1">
                         <Clock size={16} />
-                        <span>{booking.showTime}</span>
+                        <span>{formattedTime}</span>
                       </div>
                     </div>
                     <p className="text-white text-opacity-60 mt-1">
@@ -2191,7 +2349,7 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
     </div>
   );
 
-  // Keep existing renderProfile and renderPayments functions unchanged
+  // Keep existing renderProfile function unchanged
   const renderProfile = () => (
     <div className="space-y-6">
       {/* Profile Header */}

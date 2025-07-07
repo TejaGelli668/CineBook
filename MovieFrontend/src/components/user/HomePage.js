@@ -11,7 +11,7 @@ const HomePage = ({
   onDashboardClick,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedLocation, setSelectedLocation] = useState("Mumbai");
+  const [selectedLocation, setSelectedLocation] = useState("Hyderabad");
   const [movies, setMovies] = useState([]);
 
   // Fetch live movies on mount
