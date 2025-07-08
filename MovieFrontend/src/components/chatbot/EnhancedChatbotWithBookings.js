@@ -30,6 +30,7 @@ const EnhancedChatbotWithBookings = ({
   currentUser,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [messageIdCounter, setMessageIdCounter] = useState(1000);
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -41,9 +42,20 @@ const EnhancedChatbotWithBookings = ({
           type: "quick_action",
           text: "🎬 Browse Movies",
           action: "browse_movies_in_chat",
+          id: "initial-browse-movies",
         },
-        { type: "quick_action", text: "📅 View Shows", action: "view_shows" },
-        { type: "quick_action", text: "🍿 Snacks Menu", action: "view_snacks" },
+        {
+          type: "quick_action",
+          text: "📅 View Shows",
+          action: "view_shows",
+          id: "initial-view-shows",
+        },
+        {
+          type: "quick_action",
+          text: "🍿 Snacks Menu",
+          action: "view_snacks",
+          id: "initial-snacks-menu",
+        },
       ],
     },
   ]);
@@ -79,6 +91,82 @@ const EnhancedChatbotWithBookings = ({
     },
   ];
 
+  // ✅ ADDED: Same isShowExpired logic from booking page
+  const isShowExpired = (showTimeStr) => {
+    try {
+      // Parse the show time manually to avoid timezone conversion issues
+      if (showTimeStr.includes("T")) {
+        // Extract date and time parts from "2025-07-08T10:00:00.000Z"
+        const [datePart, timePart] = showTimeStr.split("T");
+        const [year, month, day] = datePart.split("-").map(Number);
+        const timeOnly = timePart.split(".")[0]; // Remove milliseconds and Z
+        const [hours, minutes, seconds = 0] = timeOnly.split(":").map(Number);
+
+        // Create date object in local timezone (treating stored time as local time)
+        const showDateTime = new Date(
+          year,
+          month - 1,
+          day,
+          hours,
+          minutes,
+          seconds
+        );
+
+        // Add 5 minutes buffer - show becomes unselectable 5 minutes after start time
+        const showTimeWithBuffer = new Date(
+          showDateTime.getTime() + 5 * 60 * 1000
+        );
+
+        const currentTime = new Date();
+        const isExpired = currentTime > showTimeWithBuffer;
+
+        console.log(
+          `Chatbot: Show time check: ${showTimeStr} -> Show: ${showDateTime.toLocaleString()}, Current: ${currentTime.toLocaleString()}, Expired: ${isExpired}`
+        );
+
+        return isExpired;
+      }
+
+      // Fallback: if format is unexpected, return false (don't block)
+      console.warn("Chatbot: Unexpected show time format:", showTimeStr);
+      return false;
+    } catch (error) {
+      console.error("Chatbot: Error parsing show time:", showTimeStr, error);
+      return false;
+    }
+  };
+
+  // ✅ FIXED: Added the same formatShowTime function from booking page
+  const formatShowTime = (showTimeStr) => {
+    try {
+      console.log("Chatbot formatting show time:", showTimeStr);
+
+      // Parse the time string directly without timezone conversion
+      if (showTimeStr.includes("T")) {
+        // Extract just the time part from "2025-06-24T07:30:00.000"
+        const timePart = showTimeStr.split("T")[1];
+        const timeOnly = timePart.split(".")[0]; // Remove milliseconds
+        const [hours, minutes] = timeOnly.split(":");
+
+        // Convert to 12-hour format manually
+        const hour24 = parseInt(hours, 10);
+        const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
+        const period = hour24 >= 12 ? "PM" : "AM";
+
+        const formattedTime = `${hour12}:${minutes} ${period}`;
+        console.log(`Chatbot converted ${showTimeStr} to ${formattedTime}`);
+        return formattedTime;
+      }
+
+      // Fallback: if format is unexpected, return as-is
+      console.warn("Chatbot: Unexpected time format:", showTimeStr);
+      return showTimeStr;
+    } catch (error) {
+      console.error("Chatbot: Error formatting show time:", error);
+      return showTimeStr;
+    }
+  };
+
   // Load all data
   useEffect(() => {
     loadAllData();
@@ -89,27 +177,104 @@ const EnhancedChatbotWithBookings = ({
 
   const loadAllData = async () => {
     try {
-      // Load movies
-      const moviesResponse = await fetch("http://localhost:8080/api/movies");
-      if (moviesResponse.ok) {
-        const moviesData = await moviesResponse.json();
-        setAvailableMovies(moviesData.data || moviesData || []);
+      // Get auth token for authenticated requests
+      const token = localStorage.getItem("userToken");
+      const authHeaders = {
+        "Content-Type": "application/json",
+      };
+
+      if (token) {
+        authHeaders["Authorization"] = `Bearer ${token}`;
       }
 
-      // Load shows
-      const showsResponse = await fetch("http://localhost:8080/api/shows");
-      if (showsResponse.ok) {
-        const showsData = await showsResponse.json();
-        setAvailableShows(showsData.data || showsData || []);
+      // Load movies (public endpoint)
+      try {
+        const moviesResponse = await fetch("http://localhost:8080/api/movies");
+        if (moviesResponse.ok) {
+          const moviesData = await moviesResponse.json();
+          setAvailableMovies(moviesData.data || moviesData || []);
+        } else {
+          console.warn("Failed to load movies:", moviesResponse.status);
+        }
+      } catch (error) {
+        console.error("Error loading movies:", error);
       }
 
-      // Load snacks
-      const snacksResponse = await fetch(
-        "http://localhost:8080/api/food-items"
-      );
-      if (snacksResponse.ok) {
-        const snacksData = await snacksResponse.json();
-        setAvailableSnacks(snacksData.data || snacksData || []);
+      // Load shows (requires authentication)
+      try {
+        const showsResponse = await fetch("http://localhost:8080/shows", {
+          headers: authHeaders,
+        });
+        if (showsResponse.ok) {
+          const showsData = await showsResponse.json();
+          const shows = showsData.data || showsData || [];
+
+          console.log(`Loaded ${shows.length} shows from API:`);
+          shows.forEach((show, index) => {
+            if (index < 3) {
+              // Log first 3 shows for debugging
+              console.log(
+                `Show ${show.id}: ${show.movie?.title} at ${show.showTime} (${
+                  show.showTime?.split("T")[0]
+                })`
+              );
+            }
+          });
+
+          setAvailableShows(shows);
+        } else {
+          console.warn("Failed to load shows:", showsResponse.status);
+          // If auth fails, try without authentication as fallback
+          if (showsResponse.status === 401) {
+            try {
+              const fallbackResponse = await fetch(
+                "http://localhost:8080/shows"
+              );
+              if (fallbackResponse.ok) {
+                const showsData = await fallbackResponse.json();
+                const shows = showsData.data || showsData || [];
+
+                console.log(`Loaded ${shows.length} shows from fallback API:`);
+                shows.forEach((show, index) => {
+                  if (index < 3) {
+                    // Log first 3 shows for debugging
+                    console.log(
+                      `Show ${show.id}: ${show.movie?.title} at ${
+                        show.showTime
+                      } (${show.showTime?.split("T")[0]})`
+                    );
+                  }
+                });
+
+                setAvailableShows(shows);
+              }
+            } catch (fallbackError) {
+              console.error(
+                "Fallback shows request also failed:",
+                fallbackError
+              );
+              setAvailableShows([]);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error loading shows:", error);
+        setAvailableShows([]);
+      }
+
+      // Load snacks (public endpoint)
+      try {
+        const snacksResponse = await fetch(
+          "http://localhost:8080/api/food-items"
+        );
+        if (snacksResponse.ok) {
+          const snacksData = await snacksResponse.json();
+          setAvailableSnacks(snacksData.data || snacksData || []);
+        } else {
+          console.warn("Failed to load snacks:", snacksResponse.status);
+        }
+      } catch (error) {
+        console.error("Error loading snacks:", error);
       }
     } catch (error) {
       console.error("Error loading data:", error);
@@ -123,7 +288,7 @@ const EnhancedChatbotWithBookings = ({
       const token = localStorage.getItem("userToken");
       if (!token) return;
 
-      const response = await fetch("http://localhost:8080/api/user/bookings", {
+      const response = await fetch("http://localhost:8080/user/bookings", {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -133,9 +298,13 @@ const EnhancedChatbotWithBookings = ({
       if (response.ok) {
         const bookingsData = await response.json();
         setUserBookings(bookingsData.data || bookingsData || []);
+      } else {
+        console.warn("Failed to load user bookings:", response.status);
+        setUserBookings([]);
       }
     } catch (error) {
       console.error("Error loading user bookings:", error);
+      setUserBookings([]);
     }
   };
 
@@ -229,13 +398,14 @@ const EnhancedChatbotWithBookings = ({
 
   const addBotMessage = (text, actions = null) => {
     const botMessage = {
-      id: Date.now(),
+      id: messageIdCounter,
       sender: "bot",
       text: text,
       timestamp: new Date(),
       actions: actions,
     };
     setMessages((prev) => [...prev, botMessage]);
+    setMessageIdCounter((prev) => prev + 1);
   };
 
   const showMoviesInChat = () => {
@@ -259,6 +429,7 @@ const EnhancedChatbotWithBookings = ({
         text: `🎟️ Book ${movie.title}`,
         action: "book_movie",
         data: movie,
+        id: `movie-${movie.id}-${index}`,
       });
     });
 
@@ -267,6 +438,7 @@ const EnhancedChatbotWithBookings = ({
       text: "🏠 Go to Movies Page",
       action: "book_movie_external",
       data: null,
+      id: "go-to-movies-page",
     });
 
     addBotMessage(responseText, movieActions);
@@ -280,16 +452,76 @@ const EnhancedChatbotWithBookings = ({
       return;
     }
 
-    let responseText = "📅 Today's Available Shows:\n\n";
+    // Filter shows by today's date
+    const today = new Date().toISOString().slice(0, 10);
+    console.log("Chatbot: Filtering shows for today:", today);
+
+    const todaysShows = availableShows.filter((show) => {
+      if (!show.showTime) return false;
+
+      try {
+        // Extract the date part from the ISO string
+        const showDate = show.showTime.split("T")[0];
+        const isToday = showDate === today;
+
+        console.log(
+          `Chatbot: Show ${show.id}: showTime=${show.showTime}, extracted date=${showDate}, isToday=${isToday}`
+        );
+        return isToday;
+      } catch (error) {
+        console.error(
+          "Chatbot: Error parsing show date:",
+          show.showTime,
+          error
+        );
+        return false;
+      }
+    });
+
+    // ✅ ADDED: Filter out expired shows (shows that have already started)
+    const availableNonExpiredShows = todaysShows.filter((show) => {
+      const expired = isShowExpired(show.showTime);
+      console.log(
+        `Chatbot: Show ${show.id} (${formatShowTime(
+          show.showTime
+        )}) - Expired: ${expired}`
+      );
+      return !expired; // Only include non-expired shows
+    });
+
+    console.log(
+      `Chatbot: Found ${availableNonExpiredShows.length} available shows out of ${todaysShows.length} total shows for today`
+    );
+
+    if (availableNonExpiredShows.length === 0) {
+      if (todaysShows.length > 0) {
+        addBotMessage(
+          `All shows for today (${today}) have already started! 🎬\n\nPlease check other dates for available shows. 😊`,
+          [
+            {
+              type: "action",
+              text: "🎬 Browse All Movies",
+              action: "browse_movies_in_chat",
+              id: "browse-movies-all-expired",
+            },
+          ]
+        );
+      } else {
+        addBotMessage(
+          `No shows are available for today (${today}). Please check other dates or ask admin to create shows! 😊`
+        );
+      }
+      return;
+    }
+
+    let responseText = `📅 Today's Available Shows (${today}):\n\n`;
     const showActions = [];
 
-    availableShows.slice(0, 5).forEach((show, index) => {
+    availableNonExpiredShows.slice(0, 5).forEach((show, index) => {
       const movieTitle = show.movie?.title || "Unknown Movie";
       const theaterName = show.theater?.name || "Unknown Theater";
-      const showTime = new Date(show.showTime).toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+      // ✅ FIXED: Use the same formatShowTime function as booking page
+      const showTime = formatShowTime(show.showTime);
 
       responseText += `${
         index + 1
@@ -303,14 +535,26 @@ const EnhancedChatbotWithBookings = ({
           text: `🎟️ Book ${movieTitle}`,
           action: "book_movie",
           data: show.movie,
+          id: `show-${show.id}-${index}`,
         });
       }
     });
+
+    // Show info about expired shows if there are any
+    const expiredCount = todaysShows.length - availableNonExpiredShows.length;
+    if (expiredCount > 0) {
+      responseText += `\n⏰ Note: ${expiredCount} show${
+        expiredCount > 1 ? "s" : ""
+      } ${expiredCount > 1 ? "have" : "has"} already started and ${
+        expiredCount > 1 ? "are" : "is"
+      } no longer available for booking.`;
+    }
 
     showActions.push({
       type: "action",
       text: "🎬 View All Movies",
       action: "browse_movies_in_chat",
+      id: "view-all-movies",
     });
 
     addBotMessage(responseText, showActions);
@@ -338,8 +582,14 @@ const EnhancedChatbotWithBookings = ({
         type: "action",
         text: "🎬 Browse Movies",
         action: "browse_movies_in_chat",
+        id: "browse-movies-from-snacks",
       },
-      { type: "action", text: "📅 View Shows", action: "view_shows_in_chat" },
+      {
+        type: "action",
+        text: "📅 View Shows",
+        action: "view_shows_in_chat",
+        id: "view-shows-from-snacks",
+      },
     ];
 
     addBotMessage(responseText, snackActions);
@@ -348,7 +598,12 @@ const EnhancedChatbotWithBookings = ({
   const showUserBookingsInChat = () => {
     if (!isUserLoggedIn) {
       addBotMessage("Please log in to view your bookings! 🔐", [
-        { type: "action", text: "🔐 Login", action: "login_required" },
+        {
+          type: "action",
+          text: "🔐 Login",
+          action: "login_required",
+          id: "login-required-bookings",
+        },
       ]);
       return;
     }
@@ -361,8 +616,14 @@ const EnhancedChatbotWithBookings = ({
             type: "action",
             text: "🎬 Browse Movies",
             action: "browse_movies_in_chat",
+            id: "browse-movies-no-bookings",
           },
-          { type: "action", text: "👤 View Profile", action: "view_profile" },
+          {
+            type: "action",
+            text: "👤 View Profile",
+            action: "view_profile",
+            id: "view-profile-no-bookings",
+          },
         ]
       );
       return;
@@ -404,7 +665,17 @@ const EnhancedChatbotWithBookings = ({
       const theaterName =
         booking.theaterName || booking.theater?.name || "Unknown Theater";
       const bookingDate = formatDate(booking.bookingDate || booking.createdAt);
-      const showTime = booking.showTime || "Time TBD";
+
+      // ✅ FIXED: Use the same formatShowTime function for booking show times if available
+      let showTime = "Time TBD";
+      if (booking.showTime) {
+        if (booking.showTime.includes("T")) {
+          showTime = formatShowTime(booking.showTime);
+        } else {
+          showTime = booking.showTime; // Already formatted
+        }
+      }
+
       const status = formatStatus(booking.status);
       const amount = booking.totalAmount
         ? `₹${booking.totalAmount}`
@@ -422,11 +693,17 @@ const EnhancedChatbotWithBookings = ({
     responseText += "Want to see all your bookings and manage them?";
 
     const bookingActions = [
-      { type: "action", text: "👤 View Full Profile", action: "view_profile" },
+      {
+        type: "action",
+        text: "👤 View Full Profile",
+        action: "view_profile",
+        id: "view-profile-from-bookings",
+      },
       {
         type: "action",
         text: "🎬 Book Another Movie",
         action: "browse_movies_in_chat",
+        id: "book-another-movie",
       },
     ];
 
@@ -437,13 +714,14 @@ const EnhancedChatbotWithBookings = ({
     if (!messageText.trim()) return;
 
     const userMessage = {
-      id: Date.now(),
+      id: messageIdCounter,
       sender: "user",
       text: messageText,
       timestamp: new Date(),
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    setMessageIdCounter((prev) => prev + 1);
     setInput("");
     setLoading(true);
     setTypingIndicator(true);
@@ -466,7 +744,9 @@ const EnhancedChatbotWithBookings = ({
       } else if (
         lowerMessage.includes("available shows") ||
         lowerMessage.includes("what shows") ||
-        lowerMessage.includes("today's shows")
+        lowerMessage.includes("today's shows") ||
+        lowerMessage.includes("shows today") ||
+        lowerMessage.includes("shows available")
       ) {
         showShowsInChat();
         setLoading(false);
@@ -487,7 +767,7 @@ const EnhancedChatbotWithBookings = ({
         lowerMessage.includes("booking history") ||
         lowerMessage.includes("my tickets")
       ) {
-        await loadUserBookings(); // Refresh bookings
+        await loadUserBookings();
         showUserBookingsInChat();
         setLoading(false);
         setTypingIndicator(false);
@@ -509,17 +789,24 @@ const EnhancedChatbotWithBookings = ({
               type: "action",
               text: "👤 Open Profile Page",
               action: "view_profile",
+              id: "open-profile-page",
             },
             {
               type: "action",
               text: "🎟️ View My Bookings",
               action: "view_bookings_in_chat",
+              id: "view-my-bookings",
             },
           ];
         } else {
           response = "Please log in to access your profile! 🔐";
           actions = [
-            { type: "action", text: "🔐 Login", action: "login_required" },
+            {
+              type: "action",
+              text: "🔐 Login",
+              action: "login_required",
+              id: "login-required-profile",
+            },
           ];
         }
       } else if (
@@ -533,6 +820,7 @@ const EnhancedChatbotWithBookings = ({
             type: "action",
             text: "🎬 Browse Movies",
             action: "browse_movies_in_chat",
+            id: "browse-movies-from-payment",
           },
         ];
       } else if (
@@ -548,11 +836,13 @@ const EnhancedChatbotWithBookings = ({
             type: "action",
             text: "🎬 Browse Movies",
             action: "browse_movies_in_chat",
+            id: "browse-movies-general",
           },
           {
             type: "action",
             text: "📅 View Shows",
             action: "view_shows_in_chat",
+            id: "view-shows-general",
           },
         ];
       }
@@ -569,7 +859,14 @@ const EnhancedChatbotWithBookings = ({
 
       addBotMessage(
         "Sorry, I'm having trouble right now. Please try again later! 😅",
-        [{ type: "action", text: "🏠 Go to Home", action: "go_home" }]
+        [
+          {
+            type: "action",
+            text: "🏠 Go to Home",
+            action: "go_home",
+            id: "go-home-error",
+          },
+        ]
       );
     }
   };
@@ -580,6 +877,7 @@ const EnhancedChatbotWithBookings = ({
         type: "action",
         text: "🎬 Browse Movies",
         action: "browse_movies_in_chat",
+        id: "browse-movies-booking",
       },
     ];
 
@@ -594,6 +892,7 @@ const EnhancedChatbotWithBookings = ({
         text: `🎟️ Book ${mentionedMovie.title}`,
         action: "book_movie",
         data: mentionedMovie,
+        id: `book-mentioned-movie-${mentionedMovie.id}`,
       });
     }
 
@@ -643,7 +942,9 @@ const EnhancedChatbotWithBookings = ({
       <div className="mt-3 flex flex-wrap gap-2">
         {actions.map((action, index) => (
           <button
-            key={index}
+            key={
+              action.id || `action-btn-${index}-${action.action}-${action.text}`
+            }
             onClick={() => {
               if (action.action === "login_required" && !isUserLoggedIn) {
                 handleActionClick("login_required");
@@ -748,7 +1049,7 @@ const EnhancedChatbotWithBookings = ({
 
                     return (
                       <button
-                        key={index}
+                        key={`quick-action-${index}-${action.text}`}
                         onClick={() => handleQuickAction(action.query)}
                         className="flex items-center space-x-2 p-2 bg-purple-800/30 rounded-lg hover:bg-purple-700/40 transition-colors text-sm border border-purple-500/30 hover:border-purple-400/50"
                       >
@@ -767,7 +1068,9 @@ const EnhancedChatbotWithBookings = ({
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-900/30">
             {messages.map((message) => (
               <div
-                key={message.id}
+                key={`msg-${message.id}-${
+                  message.sender
+                }-${message.timestamp.getTime()}`}
                 className={`flex ${
                   message.sender === "user" ? "justify-end" : "justify-start"
                 }`}

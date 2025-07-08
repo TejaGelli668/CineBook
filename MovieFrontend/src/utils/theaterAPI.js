@@ -1,33 +1,3 @@
-// // src/utils/theaterAPI.js
-// import { apiCall, withAuth } from "./movieAPI";
-
-// /**
-//  * Fetch all theaters
-//  * GET /api/theaters
-//  */
-// export async function getTheaters() {
-//   const resp = await apiCall("/api/theaters", {
-//     method: "GET",
-//     headers: withAuth(),
-//   });
-//   return resp.data || [];
-// }
-
-// /**
-//  * Fetch a single theater by ID
-//  * GET /api/theaters/{id}
-//  */
-// export async function getTheaterById(id) {
-//   const resp = await apiCall(`/api/theaters/${id}`, {
-//     method: "GET",
-//     headers: withAuth(),
-//   });
-//   return resp.data;
-// }
-// src/utils/theaterAPI.js
-// Create this file at: src/utils/theaterAPI.js
-// src/utils/theaterAPI.js - Create this file
-// src/utils/theaterAPI.js
 // src/utils/theaterAPI.js
 const API_BASE_URL = "http://localhost:8080";
 
