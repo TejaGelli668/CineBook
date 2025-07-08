@@ -80,7 +80,7 @@
 //     fetchShows();
 //   }, [movie.id]);
 
-//   // 3️⃣ Filter & group by theater when date or shows change
+//   // 3️⃣ FIXED: Filter & group by theater when date or shows change
 //   useEffect(() => {
 //     if (!selectedDate || !allShows.length) {
 //       setGrouped([]);
@@ -90,13 +90,12 @@
 //     console.log("Filtering shows for date:", selectedDate);
 //     console.log("All shows:", allShows);
 
-//     // FIXED: Filter shows for selected date using simple string comparison
+//     // Filter shows for selected date using simple string comparison
 //     const filtered = allShows.filter((show) => {
 //       if (!show.showTime) return false;
 
 //       try {
-//         // SIMPLE: Just extract the date part directly from the ISO string
-//         // "2025-06-23T18:00:00" becomes "2025-06-23"
+//         // Extract the date part directly from the ISO string
 //         const showDate = show.showTime.split("T")[0];
 
 //         console.log(
@@ -142,25 +141,42 @@
 //       theaterMap[theaterId].shows.push(show);
 //     });
 
-//     const groupedData = Object.values(theaterMap);
-//     console.log("Grouped data:", groupedData);
-//     // … inside your useEffect, right before setGrouped(groupedData):
-//     const toMinutes = (t) => {
-//       // "07:30 PM" → 19*60 + 30 = 1170
-//       let [time, period] = t.split(" ");
-//       let [h, m] = time.split(":").map(Number);
-//       if (period === "PM" && h !== 12) h += 12;
-//       if (period === "AM" && h === 12) h = 0;
-//       return h * 60 + m;
-//     };
-
+//     // FIXED: Sort shows by time in ascending order (earliest to latest)
 //     Object.values(theaterMap).forEach((group) => {
-//       group.shows.sort((a, b) => toMinutes(a.showTime) - toMinutes(b.showTime));
+//       group.shows.sort((a, b) => {
+//         // Extract time from ISO format and compare directly
+//         // "2025-06-24T07:30:00.000" vs "2025-06-24T19:30:00.000"
+
+//         const getTimeFromISO = (isoString) => {
+//           try {
+//             if (isoString.includes("T")) {
+//               const timePart = isoString.split("T")[1]; // "07:30:00.000"
+//               const timeOnly = timePart.split(".")[0]; // "07:30:00"
+//               const [hours, minutes] = timeOnly.split(":").map(Number);
+//               return hours * 60 + minutes; // Convert to minutes for easy comparison
+//             }
+//             return 0;
+//           } catch (error) {
+//             console.error("Error parsing time:", isoString, error);
+//             return 0;
+//           }
+//         };
+
+//         const timeA = getTimeFromISO(a.showTime);
+//         const timeB = getTimeFromISO(b.showTime);
+
+//         console.log(
+//           `Sorting: ${a.showTime} (${timeA} mins) vs ${b.showTime} (${timeB} mins)`
+//         );
+
+//         return timeA - timeB; // Ascending order: earlier times first
+//       });
 //     });
 
-//     setGrouped(groupedData);
+//     const groupedData = Object.values(theaterMap);
+//     console.log("Grouped and sorted data:", groupedData);
 
-//     // setGrouped(groupedData);
+//     setGrouped(groupedData);
 //     setSelectedTheater(null);
 //     setSelectedShow(null);
 //   }, [allShows, selectedDate]);
@@ -216,7 +232,6 @@
 //   };
 
 //   // ─── build a sliding 7-day window from today ─────────────────
-//   // Replace the date generation logic in BookingPage.js (around line 156)
 //   const dates = Array.from({ length: 7 }, (_, i) => {
 //     // FIXED: Use proper date construction to avoid timezone issues
 //     const today = new Date();
@@ -433,7 +448,15 @@
 
 // export default BookingPage;
 import React, { useState, useEffect } from "react";
-import { ChevronLeft, MapPin, Star, AlertCircle, Loader2 } from "lucide-react";
+import {
+  ChevronLeft,
+  MapPin,
+  Star,
+  AlertCircle,
+  Loader2,
+  Clock,
+  X,
+} from "lucide-react";
 import { getShowsByMovie } from "../../utils/movieAPI";
 
 const BookingPage = ({ movie, onBack, onSeatSelect }) => {
@@ -444,6 +467,16 @@ const BookingPage = ({ movie, onBack, onSeatSelect }) => {
   const [selectedShow, setSelectedShow] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // 🕐 Update current time every minute
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000); // Update every minute
+
+    return () => clearInterval(timer);
+  }, []);
 
   // 1️⃣ Initialize today's date
   useEffect(() => {
@@ -579,8 +612,6 @@ const BookingPage = ({ movie, onBack, onSeatSelect }) => {
     Object.values(theaterMap).forEach((group) => {
       group.shows.sort((a, b) => {
         // Extract time from ISO format and compare directly
-        // "2025-06-24T07:30:00.000" vs "2025-06-24T19:30:00.000"
-
         const getTimeFromISO = (isoString) => {
           try {
             if (isoString.includes("T")) {
@@ -615,13 +646,125 @@ const BookingPage = ({ movie, onBack, onSeatSelect }) => {
     setSelectedShow(null);
   }, [allShows, selectedDate]);
 
+  // 🚫 Check if show has already started
+  const isShowExpired = (showTimeStr) => {
+    try {
+      // Parse the show time manually to avoid timezone conversion issues
+      if (showTimeStr.includes("T")) {
+        // Extract date and time parts from "2025-07-08T10:00:00.000Z"
+        const [datePart, timePart] = showTimeStr.split("T");
+        const [year, month, day] = datePart.split("-").map(Number);
+        const timeOnly = timePart.split(".")[0]; // Remove milliseconds and Z
+        const [hours, minutes, seconds = 0] = timeOnly.split(":").map(Number);
+
+        // Create date object in local timezone (treating stored time as local time)
+        const showDateTime = new Date(
+          year,
+          month - 1,
+          day,
+          hours,
+          minutes,
+          seconds
+        );
+
+        // Add 5 minutes buffer - show becomes unselectable 5 minutes after start time
+        const showTimeWithBuffer = new Date(
+          showDateTime.getTime() + 5 * 60 * 1000
+        );
+
+        const isExpired = currentTime > showTimeWithBuffer;
+
+        console.log(
+          `Show time check: ${showTimeStr} -> Show: ${showDateTime.toLocaleString()}, Current: ${currentTime.toLocaleString()}, Expired: ${isExpired}`
+        );
+
+        return isExpired;
+      }
+
+      // Fallback: if format is unexpected, return false (don't block)
+      console.warn("Unexpected show time format:", showTimeStr);
+      return false;
+    } catch (error) {
+      console.error("Error parsing show time:", showTimeStr, error);
+      return false;
+    }
+  };
+
+  // 🕐 Get time remaining until show starts
+  const getTimeUntilShow = (showTimeStr) => {
+    try {
+      // Parse the show time manually to avoid timezone conversion issues
+      if (showTimeStr.includes("T")) {
+        // Extract date and time parts from "2025-07-08T10:00:00.000Z"
+        const [datePart, timePart] = showTimeStr.split("T");
+        const [year, month, day] = datePart.split("-").map(Number);
+        const timeOnly = timePart.split(".")[0]; // Remove milliseconds and Z
+        const [hours, minutes, seconds = 0] = timeOnly.split(":").map(Number);
+
+        // Create date object in local timezone (treating stored time as local time)
+        const showDateTime = new Date(
+          year,
+          month - 1,
+          day,
+          hours,
+          minutes,
+          seconds
+        );
+
+        const timeDiff = showDateTime.getTime() - currentTime.getTime();
+
+        if (timeDiff <= 0) {
+          const minutesPassed = Math.abs(timeDiff) / (1000 * 60);
+          if (minutesPassed <= 5) {
+            return `Started ${Math.round(minutesPassed)}m ago`;
+          } else {
+            return `Started ${Math.round(minutesPassed / 60)}h ago`;
+          }
+        }
+
+        const hoursLeft = Math.floor(timeDiff / (1000 * 60 * 60));
+        const minutesLeft = Math.floor(
+          (timeDiff % (1000 * 60 * 60)) / (1000 * 60)
+        );
+
+        if (hoursLeft > 0) {
+          return `Starts in ${hoursLeft}h ${minutesLeft}m`;
+        } else {
+          return `Starts in ${minutesLeft}m`;
+        }
+      }
+
+      // Fallback
+      console.warn("Unexpected show time format:", showTimeStr);
+      return "";
+    } catch (error) {
+      console.error("Error calculating time until show:", error);
+      return "";
+    }
+  };
+
   const handleShowSelection = (theater, show) => {
+    // Don't allow selection of expired shows
+    if (isShowExpired(show.showTime)) {
+      return;
+    }
+
     setSelectedTheater(theater);
     setSelectedShow(show);
   };
 
   const handleSeatSelection = () => {
     if (!selectedTheater || !selectedShow) return;
+
+    // Double-check that show hasn't expired since selection
+    if (isShowExpired(selectedShow.showTime)) {
+      alert(
+        "This show has already started and is no longer available for booking."
+      );
+      setSelectedShow(null);
+      setSelectedTheater(null);
+      return;
+    }
 
     const showTime = formatShowTime(selectedShow.showTime);
 
@@ -699,14 +842,22 @@ const BookingPage = ({ movie, onBack, onSeatSelect }) => {
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
       {/* Header */}
       <header className="bg-black/20 backdrop-blur-md border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center space-x-4">
-          <button
-            onClick={onBack}
-            className="p-2 hover:bg-white/10 rounded-full transition-colors"
-          >
-            <ChevronLeft className="w-6 h-6 text-white" />
-          </button>
-          <h1 className="text-2xl font-bold text-white">{movie.title}</h1>
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={onBack}
+              className="p-2 hover:bg-white/10 rounded-full transition-colors"
+            >
+              <ChevronLeft className="w-6 h-6 text-white" />
+            </button>
+            <h1 className="text-2xl font-bold text-white">{movie.title}</h1>
+          </div>
+
+          {/* Current Time Display */}
+          <div className="flex items-center space-x-2 text-white/80 text-sm">
+            <Clock className="w-4 h-4" />
+            <span>Current Time: {currentTime.toLocaleTimeString()}</span>
+          </div>
         </div>
       </header>
 
@@ -839,22 +990,63 @@ const BookingPage = ({ movie, onBack, onSeatSelect }) => {
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       {shows.map((show) => {
                         const time = formatShowTime(show.showTime);
+                        const expired = isShowExpired(show.showTime);
+                        const timeUntil = getTimeUntilShow(show.showTime);
+                        const isSelected =
+                          selectedTheater?.id === theater.id &&
+                          selectedShow?.id === show.id;
+
                         return (
-                          <button
-                            key={show.id}
-                            onClick={() => handleShowSelection(theater, show)}
-                            className={`p-4 rounded-xl border transition-all transform hover:scale-105 ${
-                              selectedTheater?.id === theater.id &&
-                              selectedShow?.id === show.id
-                                ? "border-pink-500 bg-gradient-to-r from-pink-500/20 to-purple-600/20 text-white shadow-lg"
-                                : "border-white/20 bg-white/5 text-gray-300 hover:border-white/40 hover:bg-white/10 hover:text-white"
-                            }`}
-                          >
-                            <div className="font-semibold text-lg">{time}</div>
-                            <div className="text-sm mt-1 opacity-80">
-                              ₹{show.ticketPrice || 250}
-                            </div>
-                          </button>
+                          <div key={show.id} className="relative group">
+                            <button
+                              onClick={() => handleShowSelection(theater, show)}
+                              disabled={expired}
+                              className={`w-full p-4 rounded-xl border transition-all transform ${
+                                expired
+                                  ? "border-red-500/30 bg-red-900/20 text-red-400 cursor-not-allowed opacity-60"
+                                  : isSelected
+                                  ? "border-pink-500 bg-gradient-to-r from-pink-500/20 to-purple-600/20 text-white shadow-lg hover:scale-105"
+                                  : "border-white/20 bg-white/5 text-gray-300 hover:border-white/40 hover:bg-white/10 hover:text-white hover:scale-105"
+                              }`}
+                            >
+                              {expired && (
+                                <X className="w-4 h-4 absolute top-2 right-2 text-red-400" />
+                              )}
+                              <div className="font-semibold text-lg">
+                                {time}
+                              </div>
+                              <div className="text-sm mt-1 opacity-80">
+                                ₹{show.ticketPrice || 250}
+                              </div>
+                              {expired && (
+                                <div className="text-xs mt-1 text-red-400">
+                                  Show Started
+                                </div>
+                              )}
+                            </button>
+
+                            {/* Tooltip for expired shows */}
+                            {expired && (
+                              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-red-900 border border-red-500 text-red-200 text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+                                <div className="font-medium">
+                                  Booking Unavailable
+                                </div>
+                                <div>{timeUntil}</div>
+                                <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-red-900"></div>
+                              </div>
+                            )}
+
+                            {/* Tooltip for available shows */}
+                            {!expired && (
+                              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-green-900 border border-green-500 text-green-200 text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+                                <div className="font-medium">
+                                  Available for Booking
+                                </div>
+                                <div>{timeUntil}</div>
+                                <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-green-900"></div>
+                              </div>
+                            )}
+                          </div>
                         );
                       })}
                     </div>
@@ -862,16 +1054,37 @@ const BookingPage = ({ movie, onBack, onSeatSelect }) => {
                 ))}
 
               {/* "Select Seats" CTA */}
-              {selectedTheater && selectedShow && (
-                <div className="mt-8 pt-6 border-t border-white/20">
-                  <button
-                    onClick={handleSeatSelection}
-                    className="w-full px-8 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl font-bold text-lg hover:from-pink-600 hover:to-purple-700 transform hover:scale-105 transition-all shadow-lg"
-                  >
-                    Select Seats
-                  </button>
-                </div>
-              )}
+              {selectedTheater &&
+                selectedShow &&
+                !isShowExpired(selectedShow.showTime) && (
+                  <div className="mt-8 pt-6 border-t border-white/20">
+                    <button
+                      onClick={handleSeatSelection}
+                      className="w-full px-8 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl font-bold text-lg hover:from-pink-600 hover:to-purple-700 transform hover:scale-105 transition-all shadow-lg"
+                    >
+                      Select Seats for {formatShowTime(selectedShow.showTime)}
+                    </button>
+                  </div>
+                )}
+
+              {/* Warning if selected show becomes expired */}
+              {selectedTheater &&
+                selectedShow &&
+                isShowExpired(selectedShow.showTime) && (
+                  <div className="mt-8 pt-6 border-t border-white/20">
+                    <div className="flex items-center p-4 bg-red-900/50 border border-red-500/50 text-red-300 rounded-lg">
+                      <AlertCircle className="w-5 h-5 mr-3 flex-shrink-0" />
+                      <div>
+                        <p className="font-medium">
+                          Selected show is no longer available
+                        </p>
+                        <p className="text-sm mt-1">
+                          Please select a different show time.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
             </div>
           </div>
         </div>

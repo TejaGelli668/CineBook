@@ -419,6 +419,7 @@
 // export default App;
 import React, { useState, useEffect } from "react";
 import "./App.css";
+import "./utils/debugUtils";
 
 // Import your ENHANCED chatbot with bookings
 import EnhancedChatbotWithBookings from "./components/chatbot/EnhancedChatbotWithBookings";

@@ -13,7 +13,7 @@
 //   Cookie,
 //   IceCream,
 // } from "lucide-react";
-// import { theaterLayout } from "../../data/sampleData";
+// // import { theaterLayout } from "../../data/sampleData";
 
 // const API_BASE = "http://localhost:8080";
 
@@ -33,6 +33,7 @@
 //     localStorage.getItem("userToken") || localStorage.getItem("authToken");
 
 //   // Your existing state
+//   const [theaterLayout, setTheaterLayout] = useState({});
 //   const [seatMap, setSeatMap] = useState({});
 //   const [selectedSeats, setSelectedSeats] = useState([]);
 //   const [lockedSeats, setLockedSeats] = useState([]);
@@ -234,10 +235,12 @@
 
 //         // Filter by theater if needed and we have all items
 //         let finalItems = availableItems;
-//         if (theaterId && !apiWorked) {
-//           // Only filter by theater if we're using mock data
+//         if (theaterId) {
 //           finalItems = availableItems.filter(
 //             (item) => item.theaterId === theaterId
+//           );
+//           console.log(
+//             `🏢 Filtered to theater ${theaterId}: ${finalItems.length} items`
 //           );
 //         }
 
@@ -962,7 +965,20 @@
 //                 <p className="text-slate-300">
 //                   Add delicious snacks and beverages (Optional)
 //                 </p>
-//                 {/* The entire data source indicator section is now removed */}
+//                 {/* Show data source indicator */}
+//                 {foodItems.length > 0 && (
+//                   <div className="mt-2 text-xs">
+//                     {foodItems[0].id <= 6 ? (
+//                       <div className="text-yellow-400 bg-yellow-400/10 border border-yellow-400/20 rounded-lg px-3 py-1 inline-block">
+//                         ⚠️ Demo menu - API temporarily unavailable
+//                       </div>
+//                     ) : (
+//                       <div className="text-green-400 bg-green-400/10 border border-green-400/20 rounded-lg px-3 py-1 inline-block">
+//                         ✅ Live menu from API
+//                       </div>
+//                     )}
+//                   </div>
+//                 )}
 //               </div>
 
 //               {foodItemsLoading ? (
@@ -1535,7 +1551,6 @@ import {
   Cookie,
   IceCream,
 } from "lucide-react";
-import { theaterLayout } from "../../data/sampleData";
 
 const API_BASE = "http://localhost:8080";
 
@@ -1554,7 +1569,8 @@ export default function SeatSelectionPage({
   const token =
     localStorage.getItem("userToken") || localStorage.getItem("authToken");
 
-  // Your existing state
+  // State variables
+  const [theaterLayout, setTheaterLayout] = useState({});
   const [seatMap, setSeatMap] = useState({});
   const [selectedSeats, setSelectedSeats] = useState([]);
   const [lockedSeats, setLockedSeats] = useState([]);
@@ -1839,7 +1855,51 @@ export default function SeatSelectionPage({
     }
   };
 
-  // 1. Load initial seats with better error handling
+  // ✅ ADD THIS FUNCTION to convert seat data to layout format:
+  const generateTheaterLayoutFromSeats = (seatMap) => {
+    const layout = {
+      "Royal Recliner": { price: 630, rows: [] },
+      Royal: { price: 360, rows: [] },
+      Club: { price: 350, rows: [] },
+      Executive: { price: 330, rows: [] },
+    };
+
+    // Group seats by row
+    const rowGroups = {};
+
+    Object.values(seatMap).forEach((seat) => {
+      const row = seat.row || seat.seatNumber?.[0];
+      const category = seat.category;
+
+      if (!rowGroups[row]) {
+        rowGroups[row] = { category, seats: [] };
+      }
+
+      const seatNum = parseInt(seat.seatNumber.substring(1));
+      if (!isNaN(seatNum)) {
+        rowGroups[row].seats.push(seatNum);
+      }
+    });
+
+    // Convert to layout format
+    Object.entries(rowGroups).forEach(([row, data]) => {
+      if (layout[data.category]) {
+        layout[data.category].rows.push({
+          row: row,
+          seats: data.seats.sort((a, b) => a - b),
+        });
+      }
+    });
+
+    // Sort rows within each category
+    Object.values(layout).forEach((category) => {
+      category.rows.sort((a, b) => a.row.localeCompare(b.row));
+    });
+
+    return layout;
+  };
+
+  // ✅ UPDATED loadSeats function - generates layout from API data
   const loadSeats = useCallback(async () => {
     if (!showId) {
       setError("No show selected.");
@@ -1877,9 +1937,17 @@ export default function SeatSelectionPage({
 
       if (body.seats && typeof body.seats === "object") {
         setSeatMap(body.seats);
+
+        // ✅ ADD THIS: Generate theater layout from seat data
+        const generatedLayout = generateTheaterLayoutFromSeats(body.seats);
+        setTheaterLayout(generatedLayout);
+
+        console.log("Generated layout:", generatedLayout);
+        console.log("Total seats loaded:", Object.keys(body.seats).length);
       } else {
         console.warn("Unexpected seat data format:", body);
         setSeatMap({});
+        setTheaterLayout({});
       }
     } catch (e) {
       console.error("Error loading seats:", e);
@@ -2860,7 +2928,7 @@ export default function SeatSelectionPage({
                   </div>
 
                   <div className="space-y-2">
-                    {categoryData.rows.map((rowData) => (
+                    {categoryData.rows?.map((rowData) => (
                       <div
                         key={rowData.row}
                         className="flex items-center justify-center gap-2"
@@ -2870,7 +2938,7 @@ export default function SeatSelectionPage({
                         </span>
 
                         <div className="flex gap-1">
-                          {rowData.seats.map((seatNum) => {
+                          {rowData.seats?.map((seatNum) => {
                             const seatId = `${rowData.row}${seatNum}`;
                             const isWheelchair =
                               seatMap[seatId]?.wheelchairAccessible;
@@ -2964,7 +3032,7 @@ export default function SeatSelectionPage({
                   {selectedSeats.map((seatId) => {
                     const row = seatId[0];
                     const catEntry = Object.entries(theaterLayout).find(
-                      ([_, d]) => d.rows.some((r) => r.row === row)
+                      ([_, d]) => d.rows?.some((r) => r.row === row)
                     );
                     const price = catEntry ? catEntry[1].price : 0;
                     const category = catEntry ? catEntry[0] : "Unknown";
