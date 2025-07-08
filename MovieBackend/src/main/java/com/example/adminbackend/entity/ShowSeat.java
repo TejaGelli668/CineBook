@@ -73,6 +73,8 @@ package com.example.adminbackend.entity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
+
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -103,6 +105,7 @@ public class ShowSeat {
     @JsonIgnore
     private Booking booking;
 
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "locked_by_user_id")
     @JsonIgnore
@@ -131,6 +134,7 @@ public class ShowSeat {
 
     public Seat getSeat() { return seat; }
     public void setSeat(Seat seat) { this.seat = seat; }
+
 
     public SeatStatus getStatus() { return status; }
     public void setStatus(SeatStatus status) { this.status = status; }

@@ -205,6 +205,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -219,6 +220,12 @@ public class SeatService {
 
     @Autowired
     private BookingRepository bookingRepository;
+
+    @Autowired
+    private ShowRepository showRepository;
+
+    @Autowired
+    private SeatRepository seatRepository;
 
     @Autowired
     private UserRepository userRepository;
@@ -463,6 +470,86 @@ public class SeatService {
             logger.debug("Broadcasted seat update for show {} with {} seats", showId, seatNumbers.size());
         } catch (Exception e) {
             logger.warn("Failed to broadcast seat update: {}", e.getMessage());
+        }
+    }
+    // Add this method to your SeatService.java
+
+    // Replace the createMissingSeats method in your SeatService.java with this:
+
+    @Transactional
+    public int createMissingSeats(Long showId, List<String> missingSeatNumbers) {
+        try {
+            // Get the show
+            Show show = showRepository.findById(showId)
+                    .orElseThrow(() -> new RuntimeException("Show not found with id: " + showId));
+
+            int createdCount = 0;
+
+            for (String seatNumber : missingSeatNumbers) {
+                try {
+                    // CHANGE THIS LINE:
+// Seat seat = seatRepository.findBySeatNumber(seatNumber);
+
+// TO THIS:
+                    Seat seat = seatRepository.findBySeatNumberAndTheaterId(seatNumber, show.getTheater().getId());
+                    if (seat == null) {
+                        // Create new seat if it doesn't exist
+                        seat = new Seat();
+                        seat.setSeatNumber(seatNumber);
+                        seat.setTheater(show.getTheater()); // Assuming show has theater
+
+                        // Parse row and position from seat number
+                        String row = seatNumber.substring(0, 1);
+                        seat.setRowLetter(row);
+
+                        try {
+                            Integer position = Integer.parseInt(seatNumber.substring(1));
+                            seat.setSeatPosition(position);
+                        } catch (NumberFormatException e) {
+                            seat.setSeatPosition(1); // Default position
+                        }
+
+                        // Set category and price based on row (FIXED: using Double instead of BigDecimal)
+                        switch (row) {
+                            case "A":
+                                seat.setCategory("Royal Recliner");
+                                seat.setPrice(630.0); // Double, not BigDecimal
+                                break;
+                            case "B": case "C": case "D":
+                                seat.setCategory("Royal");
+                                seat.setPrice(380.0); // Double, not BigDecimal
+                                break;
+                            case "E": case "F": case "G": case "H": case "I":
+                                seat.setCategory("Club");
+                                seat.setPrice(350.0); // Double, not BigDecimal
+                                break;
+                            default:
+                                seat.setCategory("Executive");
+                                seat.setPrice(330.0); // Double, not BigDecimal
+                                break;
+                        }
+
+                        seat = seatRepository.save(seat);
+                    }
+
+                    // Create ShowSeat (REMOVED price setting since ShowSeat doesn't have price field)
+                    ShowSeat showSeat = new ShowSeat();
+                    showSeat.setShow(show);
+                    showSeat.setSeat(seat);
+                    showSeat.setStatus(SeatStatus.AVAILABLE);
+                    // Note: ShowSeat doesn't store price directly - price comes from Seat entity
+
+                    showSeatRepository.save(showSeat);
+                    createdCount++;
+
+                } catch (Exception e) {
+                    logger.error("Failed to create seat " + seatNumber + ": " + e.getMessage());
+                }
+            }
+
+            return createdCount;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create missing seats: " + e.getMessage());
         }
     }
 
