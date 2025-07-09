@@ -254,6 +254,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE,
                                 "/api/shows/**"
                         ).hasAnyRole("ADMIN", "SUPER_ADMIN")
+                        .requestMatchers("/api/payments/create-payment-intent").permitAll()
 
                         // 19) everything else requires authentication - MUST BE LAST!
                         .anyRequest().authenticated()

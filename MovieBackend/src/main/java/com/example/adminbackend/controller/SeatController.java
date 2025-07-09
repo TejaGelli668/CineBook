@@ -7,6 +7,7 @@ import com.example.adminbackend.repository.ShowSeatRepository;
 import com.example.adminbackend.service.SeatService;
 import com.example.adminbackend.service.ShowService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -440,6 +441,16 @@ public class SeatController {
         } catch (Exception e) {
             return ResponseEntity.badRequest()
                     .body(Map.of("error", "Bulk operation failed: " + e.getMessage()));
+        }
+    }
+    @PostMapping("/extend-lock")
+    public ResponseEntity<ApiResponse<SeatLockResponse>> extendSeatLocks(@RequestBody SeatLockRequest request) {
+        try {
+            SeatLockResponse response = seatService.extendSeatLocks(request);
+            return ResponseEntity.ok(new ApiResponse<>(true, "Seat locks extended successfully", response));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ApiResponse<>(false, "Failed to extend seat locks: " + e.getMessage(), null));
         }
     }
 }

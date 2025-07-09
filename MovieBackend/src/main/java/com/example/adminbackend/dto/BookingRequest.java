@@ -6,8 +6,22 @@ public class BookingRequest {
     private Long showId;
     private List<String> seatNumbers;
 
+    private String paymentIntentId;
+    private String paymentMethod;
+    private Double totalAmount;
+
+
     // NEW: Add food items support
     private List<FoodItemRequest> foodItems;
+
+    public String getPaymentIntentId() { return paymentIntentId; }
+    public void setPaymentIntentId(String paymentIntentId) { this.paymentIntentId = paymentIntentId; }
+
+    public String getPaymentMethod() { return paymentMethod; }
+    public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }
+
+    public Double getTotalAmount() { return totalAmount; }
+    public void setTotalAmount(Double totalAmount) { this.totalAmount = totalAmount; }
 
     // Existing getters/setters
     public Long getShowId() { return showId; }
