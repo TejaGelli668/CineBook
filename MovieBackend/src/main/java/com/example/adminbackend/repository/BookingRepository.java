@@ -14,7 +14,9 @@
 package com.example.adminbackend.repository;
 
 import com.example.adminbackend.entity.Booking;
+import jakarta.transaction.Transactional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -39,4 +41,20 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findByUserIdOrderByBookingTimeDesc(Long userId);
 
     List<Booking> findByUserId(Long userId);
+
+    // Add these methods to your existing BookingRepository.java
+    boolean existsByShowId(Long showId);
+    long countByShowId(Long showId);
+    List<Booking> findByShowId(Long showId);
+
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM Booking b WHERE b.show.id = :showId")
+    void deleteByShowId(@Param("showId") Long showId);
+
+    @Query("SELECT COUNT(b) > 0 FROM Booking b WHERE b.show.movie.id = :movieId")
+    boolean existsByMovieId(@Param("movieId") Long movieId);
+
+    @Query("SELECT COUNT(b) FROM Booking b WHERE b.show.movie.id = :movieId")
+    long countByMovieId(@Param("movieId") Long movieId);
 }

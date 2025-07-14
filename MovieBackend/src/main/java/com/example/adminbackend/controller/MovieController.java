@@ -360,6 +360,8 @@ public class MovieController {
         return ResponseEntity.ok(new ApiResponse<>(true, "Movie patched", updated));
     }
 
+
+
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         service.deleteById(id);
@@ -467,4 +469,5 @@ public class MovieController {
                     .body(new ApiResponse<>(false, "Failed to update movie poster: " + e.getMessage(), null));
         }
     }
+
 }
