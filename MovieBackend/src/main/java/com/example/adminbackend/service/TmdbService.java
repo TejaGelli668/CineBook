@@ -34,10 +34,8 @@ public class TmdbService {
 
     private static final Logger log = LoggerFactory.getLogger(TmdbService.class);
     private static final String IMAGE_BASE = "https://image.tmdb.org/t/p/";
-    private static final String POSTER_DIR = "uploads/movie-posters";
 
     private final WebClient webClient;
-    private final WebClient imageClient;
 
     @Value("${tmdb.api.key:}")
     private String apiKey;
@@ -51,9 +49,6 @@ public class TmdbService {
     public TmdbService(WebClient.Builder builder) {
         this.webClient = builder.clone()
                 .baseUrl("https://api.themoviedb.org/3")
-                .build();
-        this.imageClient = builder.clone()
-                .codecs(c -> c.defaultCodecs().maxInMemorySize(10 * 1024 * 1024))
                 .build();
     }
 
@@ -160,7 +155,8 @@ public class TmdbService {
         }
         String posterPath = d.path("poster_path").asText(null);
         if (posterPath != null) {
-            m.setPosterUrl(downloadPoster(tmdbId, posterPath));
+            // TMDB's image CDN serves it; nothing is stored on our server
+            m.setPosterUrl(IMAGE_BASE + "w500" + posterPath);
         }
         m.setFormat(new ArrayList<>(List.of("2D")));
         return m;
@@ -202,27 +198,10 @@ public class TmdbService {
         }
     }
 
-    private String downloadPoster(long tmdbId, String posterPath) {
-        String filename = "tmdb-" + tmdbId + ".jpg";
-        String publicUrl = "/uploads/movie-posters/" + filename;
-        try {
-            Path dir = Paths.get(POSTER_DIR);
-            Files.createDirectories(dir);
-            Path target = dir.resolve(filename);
-            if (Files.exists(target)) return publicUrl;
-
-            byte[] bytes = imageClient.get()
-                    .uri(URI.create(IMAGE_BASE + "w500" + posterPath))
-                    .retrieve()
-                    .bodyToMono(byte[].class)
-                    .block();
-            if (bytes == null || bytes.length == 0) return null;
-            Files.write(target, bytes);
-            return publicUrl;
-        } catch (IOException | RuntimeException e) {
-            log.warn("Failed to download poster for TMDB movie {}", tmdbId, e);
-            return null;
-        }
+    /** The TMDB poster URL for a film, or null if it has none. */
+    public String posterUrlFor(long tmdbId) {
+        String posterPath = get("/movie/" + tmdbId, b -> b).path("poster_path").asText(null);
+        return posterPath == null ? null : IMAGE_BASE + "w500" + posterPath;
     }
 
     // ─── Mapping helpers ───────────────────────────────────────────────────────

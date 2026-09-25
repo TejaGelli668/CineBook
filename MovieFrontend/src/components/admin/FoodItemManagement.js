@@ -4,6 +4,7 @@ import { getFoodItems, deleteFoodItem } from "../../utils/foodItemAPI";
 import { Loading } from "../ui/Chrome";
 import SnackArt, { TINT } from "../ui/SnackArt";
 import "../user/booking.css";
+import { assetUrl } from "../../config";
 
 const SECTIONS = [
   { id: "SNACKS", label: "Snacks", icon: Cookie },
@@ -130,7 +131,7 @@ const FoodItemManagement = ({ onAddFoodItem, onEditFoodItem, refreshKey }) => {
                   {items.map((item) => (
                     <li key={item.id} className="cb-dish" data-off={!item.isAvailable}>
                       {item.imageUrl ? (
-                        <img className="cb-dish__img" src={item.imageUrl} alt="" onError={(e) => (e.target.style.display = "none")} />
+                        <img className="cb-dish__img" src={assetUrl(item.imageUrl)} alt="" onError={(e) => (e.target.style.display = "none")} />
                       ) : (
                         <span className="cb-dish__img cb-dish__art" data-tint={TINT[item.category] || "gold"}>
                           <SnackArt name={item.name} category={item.category} />

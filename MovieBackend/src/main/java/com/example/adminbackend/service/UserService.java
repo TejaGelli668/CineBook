@@ -29,6 +29,9 @@ import java.util.stream.Collectors;
 @Service
 public class UserService {
 
+    @Autowired
+    private StorageService storage;
+
     private static final Logger logger = LoggerFactory.getLogger(UserService.class);
 
     @Autowired
@@ -383,28 +386,8 @@ public class UserService {
 
             User currentUser = userOpt.get();
 
-            // Create upload directory if it doesn't exist
-            String uploadDir = "uploads/profile-pictures";
-            Path uploadPath = Paths.get(uploadDir);
-
-            if (!Files.exists(uploadPath)) {
-                Files.createDirectories(uploadPath);
-            }
-
-            // Generate unique filename
-            String originalFilename = file.getOriginalFilename();
-            String fileExtension = "";
-            if (originalFilename != null && originalFilename.contains(".")) {
-                fileExtension = originalFilename.substring(originalFilename.lastIndexOf("."));
-            }
-            String filename = UUID.randomUUID().toString() + fileExtension;
-
-            // Save file
-            Path filePath = uploadPath.resolve(filename);
-            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
-
-            // Update user profile picture URL
-            String profilePictureUrl = "/uploads/profile-pictures/" + filename;
+            // Supabase Storage URL, or a "/uploads/..." path when storing locally
+            String profilePictureUrl = storage.store("profile-pictures", file);
 
             currentUser.setProfilePicture(profilePictureUrl);
             userRepository.save(currentUser);
@@ -413,9 +396,8 @@ public class UserService {
 
             return profilePictureUrl;
 
-        } catch (IOException e) {
-            logger.error("File upload failed: {}", e.getMessage());
-            throw new RuntimeException("File upload failed: " + e.getMessage());
+        } catch (StorageService.UploadException e) {
+            throw e; // already a message the customer can act on
         } catch (Exception e) {
             logger.error("Profile picture upload failed: {}", e.getMessage());
             throw new RuntimeException("Profile picture upload failed: " + e.getMessage());

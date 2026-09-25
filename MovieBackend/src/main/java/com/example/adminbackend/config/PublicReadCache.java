@@ -137,6 +137,12 @@ public class PublicReadCache extends OncePerRequestFilter {
         wrapper.copyBodyToResponse();
     }
 
+    /** Drops everything and rebuilds, for changes made without an HTTP write (e.g. startup jobs). */
+    public void clear() {
+        entries.clear();
+        warmSoon();
+    }
+
     private static boolean isLoopback(HttpServletRequest request) {
         String addr = request.getRemoteAddr();
         return "127.0.0.1".equals(addr) || "0:0:0:0:0:0:0:1".equals(addr) || "::1".equals(addr);

@@ -241,6 +241,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 public class MovieController {
 
     @Autowired
+    private com.example.adminbackend.service.StorageService storage;
+
+    @Autowired
     private MovieService service;
 
     @Autowired
@@ -374,65 +377,13 @@ public class MovieController {
     public ResponseEntity<ApiResponse<Map<String, String>>> uploadMoviePoster(
             @RequestParam("file") MultipartFile file) {
         try {
-            if (file.isEmpty()) {
-                return ResponseEntity.badRequest()
-                        .body(new ApiResponse<>(false, "No file provided", null));
-            }
-
-            // Check file type
-            String contentType = file.getContentType();
-            if (contentType == null || !contentType.startsWith("image/")) {
-                return ResponseEntity.badRequest()
-                        .body(new ApiResponse<>(false, "Only image files are allowed", null));
-            }
-
-            // Check file size (5MB limit)
-            if (file.getSize() > 5 * 1024 * 1024) {
-                return ResponseEntity.badRequest()
-                        .body(new ApiResponse<>(false, "File size must be less than 5MB", null));
-            }
-
-            // Create upload directory if it doesn't exist
-            String uploadDir = "uploads/movie-posters";
-            Path uploadPath = Paths.get(uploadDir);
-
-            // Ensure the directory exists
-            File directory = uploadPath.toFile();
-            if (!directory.exists()) {
-                boolean created = directory.mkdirs();
-                if (!created) {
-                    return ResponseEntity.internalServerError()
-                            .body(new ApiResponse<>(false, "Failed to create upload directory", null));
-                }
-            }
-
-            // Generate unique filename
-            String originalFilename = file.getOriginalFilename();
-            String fileExtension = "";
-            if (originalFilename != null && originalFilename.contains(".")) {
-                fileExtension = originalFilename.substring(originalFilename.lastIndexOf("."));
-            } else {
-                fileExtension = ".jpg"; // default extension
-            }
-            String filename = UUID.randomUUID().toString() + fileExtension;
-
-            // Save file
-            Path filePath = uploadPath.resolve(filename);
-            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
-
-            // Return the URL path
-            String posterUrl = "/uploads/movie-posters/" + filename;
-            Map<String, String> response = Map.of("posterUrl", posterUrl);
-
-            return ResponseEntity.ok(new ApiResponse<>(true, "Poster uploaded successfully", response));
-
-        } catch (IOException e) {
-            return ResponseEntity.internalServerError()
-                    .body(new ApiResponse<>(false, "Failed to upload file: " + e.getMessage(), null));
+            String posterUrl = storage.store("movie-posters", file);
+            return ResponseEntity.ok(new ApiResponse<>(true, "Poster uploaded successfully", Map.of("posterUrl", posterUrl)));
+        } catch (com.example.adminbackend.service.StorageService.UploadException e) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>(false, e.getMessage(), null));
         }
     }
 
-    // Add endpoint to update movie poster specifically
     @PostMapping("/{id}/upload-poster")
     @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<Movie>> updateMoviePoster(
@@ -449,12 +400,8 @@ public class MovieController {
                         .body(new ApiResponse<>(false, "Failed to upload poster", null));
             }
 
+            // A Supabase Storage URL or a "/uploads/..." path
             String posterUrl = uploadResponse.getBody().getData().get("posterUrl");
-
-            // Ensure the URL starts with /uploads/
-            if (!posterUrl.startsWith("/uploads/")) {
-                posterUrl = "/uploads/" + posterUrl;
-            }
 
             // Update the movie with new poster URL
             Movie movie = service.findById(id)

@@ -1140,7 +1140,7 @@
 //                               <div className="h-24 bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg mb-3 flex items-center justify-center overflow-hidden">
 //                                 {item.imageUrl ? (
 //                                   <img
-//                                     src={item.imageUrl}
+//                                     src={assetUrl(item.imageUrl)}
 //                                     alt={item.name}
 //                                     className="w-full h-full object-cover"
 //                                     onError={(e) => {
@@ -1637,7 +1637,7 @@ import { TopBar, BookingSteps, Loading, HoldTimer, FilmBackdrop } from "../ui/Ch
 import SnackArt, { TINT } from "../ui/SnackArt";
 import "./booking.css";
 import { cinemaNow, parseCinemaTime } from "../../utils/cinemaTime";
-import { API_URL } from "../../config";
+import { API_URL, assetUrl } from "../../config";
 
 const API_BASE = API_URL;
 
@@ -2690,7 +2690,7 @@ export default function SeatSelectionPage({
                               <div className="cb-snack__art">
                                 {item.imageUrl ? (
                                   <img
-                                    src={item.imageUrl}
+                                    src={assetUrl(item.imageUrl)}
                                     alt=""
                                     onError={(e) => (e.target.style.display = "none")}
                                   />

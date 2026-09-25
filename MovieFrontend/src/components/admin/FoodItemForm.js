@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { X, Upload, Link2, Trash2, Plus } from "lucide-react";
 import SnackArt, { TINT } from "../ui/SnackArt";
-import { API_URL } from "../../config";
+import { API_URL, assetUrl } from "../../config";
 
 // Canteen item editor. An item with no theater is sold at every cinema.
 const FoodItemForm = ({ foodItem, onClose, onSave }) => {
@@ -47,7 +47,7 @@ const FoodItemForm = ({ foodItem, onClose, onSave }) => {
         theaterId: foodItem.theaterId ?? null,
       });
       if (foodItem.imageUrl) {
-        setImagePreview(foodItem.imageUrl);
+        setImagePreview(assetUrl(foodItem.imageUrl));
         setUploadMethod("url");
       }
     }
