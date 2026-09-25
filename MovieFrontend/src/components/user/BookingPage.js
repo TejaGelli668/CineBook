@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from "react";
-import {
-  ChevronLeft,
-  MapPin,
-  Star,
-  AlertCircle,
-  Loader2,
-  Clock,
-  X,
-} from "lucide-react";
+import { MapPin, Play } from "lucide-react";
 import { getShowsByMovie } from "../../utils/movieAPI";
+import { TopBar, BookingSteps, Loading, FilmBackdrop } from "../ui/Chrome";
+import "./booking.css";
+import { tmdbSrcSet } from "../../utils/tmdbImage";
+import { getSeatPrices } from "../../utils/seatPrices";
 
 const BookingPage = ({ movie, onBack, onSeatSelect }) => {
   const [selectedDate, setSelectedDate] = useState("");
+  const [seatPrices, setSeatPrices] = useState({});
+
+  // Seat prices by category at each theater: what checkout actually charges
+  useEffect(() => {
+    getSeatPrices().then(setSeatPrices);
+  }, []);
   const [allShows, setAllShows] = useState([]);
   const [grouped, setGrouped] = useState([]);
   const [selectedTheater, setSelectedTheater] = useState(null);
@@ -31,9 +33,11 @@ const BookingPage = ({ movie, onBack, onSeatSelect }) => {
 
   // 1️⃣ Initialize today's date
   useEffect(() => {
-    const todayIso = new Date().toISOString().slice(0, 10);
-    setSelectedDate(todayIso);
-  }, []);
+    const t = new Date();
+    const todayIso = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+    // A show picked on the landing page's board opens with that day selected
+    setSelectedDate(movie.preselect?.date || todayIso);
+  }, [movie.preselect]);
 
   // 2️⃣ Fetch shows for this movie
   useEffect(() => {
@@ -193,9 +197,17 @@ const BookingPage = ({ movie, onBack, onSeatSelect }) => {
     console.log("Grouped and sorted data:", groupedData);
 
     setGrouped(groupedData);
-    setSelectedTheater(null);
-    setSelectedShow(null);
-  }, [allShows, selectedDate]);
+    // ...and that exact show already chosen
+    const pre = movie.preselect?.showId;
+    const hit = pre && groupedData.find((g) => g.shows.some((sh) => sh.id === pre));
+    if (hit) {
+      setSelectedTheater(hit.theater);
+      setSelectedShow(hit.shows.find((sh) => sh.id === pre));
+    } else {
+      setSelectedTheater(null);
+      setSelectedShow(null);
+    }
+  }, [allShows, selectedDate, movie.preselect]);
 
   // 🚫 Check if show has already started
   const isShowExpired = (showTimeStr) => {
@@ -361,285 +373,245 @@ const BookingPage = ({ movie, onBack, onSeatSelect }) => {
 
   // ─── build a sliding 7-day window from today ─────────────────
   const dates = Array.from({ length: 7 }, (_, i) => {
-    // FIXED: Use proper date construction to avoid timezone issues
     const today = new Date();
     const targetDate = new Date(
       today.getFullYear(),
       today.getMonth(),
       today.getDate() + i
     );
-
-    // Get ISO string for comparison (YYYY-MM-DD format)
     const year = targetDate.getFullYear();
     const month = String(targetDate.getMonth() + 1).padStart(2, "0");
     const day = String(targetDate.getDate()).padStart(2, "0");
-    const iso = `${year}-${month}-${day}`;
-
-    // Get proper label
-    const label = targetDate.toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-    });
-
-    console.log(
-      `Date ${i}: iso=${iso}, label=${label}, targetDate=${targetDate.toDateString()}`
-    );
-
-    return { iso, label };
+    return {
+      iso: `${year}-${month}-${day}`,
+      day: targetDate.getDate(),
+      month: targetDate.toLocaleDateString("en-IN", { month: "short" }),
+      weekday:
+        i === 0
+          ? "Today"
+          : i === 1
+          ? "Tomorrow"
+          : targetDate.toLocaleDateString("en-IN", { weekday: "short" }),
+    };
   });
 
+  const poster = movie.posterUrl
+    ? `http://localhost:8080${movie.posterUrl}`
+    : null;
+  const backdrop = movie.backdropUrl || poster;
+  const cast = Array.isArray(movie.cast) ? movie.cast : [];
+  const selectedLabel =
+    selectedShow && selectedTheater
+      ? `${formatShowTime(selectedShow.showTime)} at ${selectedTheater.name}`
+      : "";
+  const selectedExpired =
+    selectedShow && isShowExpired(selectedShow.showTime);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
-      {/* Header */}
-      <header className="bg-black/20 backdrop-blur-md border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-4">
+    <div className="cb-app cb-app--film">
+        <FilmBackdrop movie={movie} />
+      <TopBar
+        onBack={onBack}
+        backLabel="Back to films"
+        title={movie.title}
+        sub="Pick a date and showtime"
+      />
+      <BookingSteps current="Showtime" />
+
+      <section className="cb-filmband">
+        {backdrop && (
+          <img
+            className="cb-filmband__bg"
+            src={backdrop}
+            srcSet={tmdbSrcSet(backdrop)}
+            sizes="100vw"
+            fetchpriority="high"
+            decoding="async"
+            alt=""
+          />
+        )}
+        <div className="cb-filmband__inner">
+          {poster && (
+            <span className="cb-thumb cb-filmband__poster">
+              <img src={poster} alt="" />
+            </span>
+          )}
+          <div className="cb-filmband__copy">
+            <h2 className="cb-display">{movie.title}</h2>
+            <p className="cb-filmband__meta">
+              {movie.certificate && (
+                <span className="cb-cert" title={`Certified ${movie.certificate}`}>
+                  {movie.certificate}
+                </span>
+              )}
+              {movie.language && <span>{movie.language}</span>}
+              {movie.duration && movie.duration !== "N/A" && (
+                <span>{movie.duration}</span>
+              )}
+              {movie.genre && movie.genre !== "N/A" && <span>{movie.genre}</span>}
+            </p>
+            {movie.description && (
+              <p className="cb-filmband__story">{movie.description}</p>
+            )}
+            {(movie.director || cast.length > 0) && (
+              <dl className="cb-filmband__credits">
+                {movie.director && (
+                  <div>
+                    <dt>Director</dt>
+                    <dd>{movie.director}</dd>
+                  </div>
+                )}
+                {cast.length > 0 && (
+                  <div>
+                    <dt>Starring</dt>
+                    <dd>{cast.slice(0, 4).join(", ")}</dd>
+                  </div>
+                )}
+              </dl>
+            )}
+            {movie.trailer && (
+              <a
+                className="cb-btn cb-btn--ghost cb-btn--sm"
+                href={movie.trailer}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Play size={14} aria-hidden="true" />
+                Watch trailer
+              </a>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <main className="cb-main">
+        <div className="cb-datestrip" role="group" aria-label="Choose a date">
+          {dates.map((d) => (
             <button
-              onClick={onBack}
-              className="p-2 hover:bg-white/10 rounded-full transition-colors"
+              key={d.iso}
+              type="button"
+              className="cb-leaf"
+              aria-pressed={selectedDate === d.iso}
+              onClick={() => setSelectedDate(d.iso)}
             >
-              <ChevronLeft className="w-6 h-6 text-white" />
+              <span className="cb-leaf__wd">{d.weekday}</span>
+              <span className="cb-leaf__day">{d.day}</span>
+              <span className="cb-leaf__mo">{d.month}</span>
             </button>
-            <h1 className="text-2xl font-bold text-white">{movie.title}</h1>
-          </div>
-
-          {/* Current Time Display */}
-          <div className="flex items-center space-x-2 text-white/80 text-sm">
-            <Clock className="w-4 h-4" />
-            <span>Current Time: {currentTime.toLocaleTimeString()}</span>
-          </div>
+          ))}
         </div>
-      </header>
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* ← Movie Info Panel */}
-          <div className="lg:col-span-1">
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl overflow-hidden border border-white/20 shadow-2xl">
-              <div className="relative">
-                {movie.posterUrl ? (
-                  <img
-                    src={`http://localhost:8080${movie.posterUrl}`}
-                    alt={movie.title}
-                    className="w-full h-96 object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-96 bg-gray-800 flex items-center justify-center text-gray-500">
-                    No Image
-                  </div>
-                )}
-                <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-sm rounded-full px-3 py-1 flex items-center space-x-1">
-                  <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                  <span className="text-white font-semibold">
-                    {movie.rating}
-                  </span>
-                </div>
-                <div className="absolute top-4 right-4">
-                  <span className="px-3 py-1 bg-purple-500 text-white rounded-full text-xs">
-                    {movie.genre}
-                  </span>
-                </div>
-              </div>
-              <div className="p-6 text-white">
-                <h2 className="text-2xl font-bold mb-3">{movie.title}</h2>
-                <p className="text-gray-300 text-sm leading-relaxed mb-4">
-                  {movie.description}
-                </p>
-                <p className="text-gray-300 text-sm">
-                  <strong>Director:</strong> {movie.director}
-                </p>
-                <p className="text-gray-300 text-sm">
-                  <strong>Cast:</strong>{" "}
-                  {Array.isArray(movie.cast)
-                    ? movie.cast.join(", ")
-                    : movie.cast}
-                </p>
-                <p className="text-gray-300 text-sm mt-2">
-                  <strong>Language:</strong> {movie.language}
-                </p>
-                <p className="text-gray-300 text-sm mt-1">
-                  <strong>Duration:</strong> {movie.duration}
-                </p>
-              </div>
-            </div>
+        {loading && <Loading label="Finding showtimes" />}
+
+        {!loading && error && (
+          <div className="cb-empty">
+            <h2 className="cb-h2">No shows scheduled yet</h2>
+            <p>
+              {allShows.length === 0
+                ? "This film has no showtimes in Hyderabad right now. Check back soon, or pick another film."
+                : error}
+            </p>
+            <button type="button" className="cb-btn cb-btn--pink" onClick={onBack}>
+              Browse other films
+            </button>
           </div>
+        )}
 
-          {/* ← Date & Show-time Picker */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Date Picker */}
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-              <h3 className="text-xl font-bold text-white mb-4">Select Date</h3>
-              <div className="flex space-x-3 overflow-x-auto pb-2">
-                {dates.map(({ iso, label }) => (
-                  <button
-                    key={iso}
-                    onClick={() => setSelectedDate(iso)}
-                    className={`px-6 py-2 rounded-xl whitespace-nowrap font-medium transition-all ${
-                      selectedDate === iso
-                        ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg scale-105"
-                        : "bg-white/10 text-gray-300 hover:bg-white/20 hover:text-white"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Cinema & Show Time */}
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-              <h3 className="text-xl font-bold text-white mb-6">
-                Select Cinema & Show Time
-              </h3>
-
-              {loading && (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-8 h-8 animate-spin text-white mr-3" />
-                  <span className="text-white">Loading show times...</span>
-                </div>
-              )}
-
-              {error && (
-                <div className="flex items-center p-4 bg-red-900/50 border border-red-500/50 text-red-300 rounded-lg mb-6">
-                  <AlertCircle className="w-5 h-5 mr-3 flex-shrink-0" />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              {!loading && !error && grouped.length === 0 && (
-                <div className="text-center py-8">
-                  <div className="bg-yellow-900/50 border border-yellow-500/50 text-yellow-300 rounded-lg p-4">
-                    <p className="font-medium">
-                      No shows available for {selectedDate}
-                    </p>
-                    <p className="text-sm mt-1">
-                      Please select a different date or ask admin to create
-                      shows for this movie.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {!loading &&
-                !error &&
-                grouped.map(({ theater, shows }) => (
-                  <div
-                    key={theater.id}
-                    className="border-b border-white/10 pb-6 mb-6 last:border-b-0 last:mb-0"
-                  >
-                    <div className="mb-4">
-                      <h4 className="font-bold text-white text-lg mb-1">
-                        {theater.name}
-                      </h4>
-                      <div className="flex items-center text-gray-300 text-sm">
-                        <MapPin className="w-4 h-4 mr-1" />
-                        {theater.location}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      {shows.map((show) => {
-                        const time = formatShowTime(show.showTime);
-                        const expired = isShowExpired(show.showTime);
-                        const timeUntil = getTimeUntilShow(show.showTime);
-                        const isSelected =
-                          selectedTheater?.id === theater.id &&
-                          selectedShow?.id === show.id;
-
-                        return (
-                          <div key={show.id} className="relative group">
-                            <button
-                              onClick={() => handleShowSelection(theater, show)}
-                              disabled={expired}
-                              className={`w-full p-4 rounded-xl border transition-all transform ${
-                                expired
-                                  ? "border-red-500/30 bg-red-900/20 text-red-400 cursor-not-allowed opacity-60"
-                                  : isSelected
-                                  ? "border-pink-500 bg-gradient-to-r from-pink-500/20 to-purple-600/20 text-white shadow-lg hover:scale-105"
-                                  : "border-white/20 bg-white/5 text-gray-300 hover:border-white/40 hover:bg-white/10 hover:text-white hover:scale-105"
-                              }`}
-                            >
-                              {expired && (
-                                <X className="w-4 h-4 absolute top-2 right-2 text-red-400" />
-                              )}
-                              <div className="font-semibold text-lg">
-                                {time}
-                              </div>
-                              <div className="text-sm mt-1 opacity-80">
-                                ₹{show.ticketPrice || 250}
-                              </div>
-                              {expired && (
-                                <div className="text-xs mt-1 text-red-400">
-                                  Show Started
-                                </div>
-                              )}
-                            </button>
-
-                            {/* Tooltip for expired shows */}
-                            {expired && (
-                              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-red-900 border border-red-500 text-red-200 text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
-                                <div className="font-medium">
-                                  Booking Unavailable
-                                </div>
-                                <div>{timeUntil}</div>
-                                <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-red-900"></div>
-                              </div>
-                            )}
-
-                            {/* Tooltip for available shows */}
-                            {!expired && (
-                              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-green-900 border border-green-500 text-green-200 text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
-                                <div className="font-medium">
-                                  Available for Booking
-                                </div>
-                                <div>{timeUntil}</div>
-                                <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-green-900"></div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-
-              {/* "Select Seats" CTA */}
-              {selectedTheater &&
-                selectedShow &&
-                !isShowExpired(selectedShow.showTime) && (
-                  <div className="mt-8 pt-6 border-t border-white/20">
-                    <button
-                      onClick={handleSeatSelection}
-                      className="w-full px-8 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl font-bold text-lg hover:from-pink-600 hover:to-purple-700 transform hover:scale-105 transition-all shadow-lg"
-                    >
-                      Select Seats for {formatShowTime(selectedShow.showTime)}
-                    </button>
-                  </div>
-                )}
-
-              {/* Warning if selected show becomes expired */}
-              {selectedTheater &&
-                selectedShow &&
-                isShowExpired(selectedShow.showTime) && (
-                  <div className="mt-8 pt-6 border-t border-white/20">
-                    <div className="flex items-center p-4 bg-red-900/50 border border-red-500/50 text-red-300 rounded-lg">
-                      <AlertCircle className="w-5 h-5 mr-3 flex-shrink-0" />
-                      <div>
-                        <p className="font-medium">
-                          Selected show is no longer available
-                        </p>
-                        <p className="text-sm mt-1">
-                          Please select a different show time.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-            </div>
+        {!loading && !error && grouped.length === 0 && (
+          <div className="cb-empty">
+            <h2 className="cb-h2">Nothing on this day</h2>
+            <p>
+              There are no shows on{" "}
+              {dates.find((d) => d.iso === selectedDate)?.weekday.toLowerCase() ||
+                selectedDate}
+              . Try another date above.
+            </p>
           </div>
+        )}
+
+        {!loading && !error && grouped.length > 0 && (
+          <ul className="cb-venues">
+            {grouped.map(({ theater, shows }) => (
+              <li key={theater.id} className="cb-venue">
+                <div className="cb-venue__head">
+                  <h3 className="cb-h3">{theater.name}</h3>
+                  <p className="cb-muted cb-small">
+                    <MapPin size={14} aria-hidden="true" /> {theater.location}
+                  </p>
+                  {seatPrices[theater.id] && (
+                    <ul className="cb-venue__prices" aria-label="Seat prices">
+                      {seatPrices[theater.id].categories.map((c) => (
+                        <li key={c.name} title={`Rows ${c.rows}`}>
+                          {c.name} <strong>₹{c.price}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="cb-times">
+                  {shows.map((show) => {
+                    const expired = isShowExpired(show.showTime);
+                    const isSelected =
+                      selectedTheater?.id === theater.id &&
+                      selectedShow?.id === show.id;
+                    return (
+                      <button
+                        key={show.id}
+                        type="button"
+                        className="cb-time"
+                        aria-pressed={isSelected}
+                        disabled={expired}
+                        title={getTimeUntilShow(show.showTime)}
+                        onClick={() => handleShowSelection(theater, show)}
+                      >
+                        <span className="cb-time__at">
+                          {formatShowTime(show.showTime)}
+                        </span>
+                        <span className="cb-time__sub">
+                          {expired
+                            ? "Started"
+                            : seatPrices[theater.id]
+                            ? `from ₹${seatPrices[theater.id].from}`
+                            : ""}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </main>
+
+      {selectedShow && selectedTheater && (
+        <div className="cb-actionbar" role="region" aria-label="Selected show">
+          <div className="cb-actionbar__text">
+            {selectedExpired ? (
+              <span className="cb-actionbar__warn">
+                This show has started. Pick another time.
+              </span>
+            ) : (
+              <>
+                <strong>{selectedLabel}</strong>
+                <span className="cb-muted">
+                  {dates.find((d) => d.iso === selectedDate)?.weekday}
+                  {seatPrices[selectedTheater.id] &&
+                    `, seats ₹${seatPrices[selectedTheater.id].from} to ₹${seatPrices[selectedTheater.id].to} by row`}
+                </span>
+              </>
+            )}
+          </div>
+          <button
+            type="button"
+            className="cb-btn cb-btn--stamp"
+            onClick={handleSeatSelection}
+            disabled={selectedExpired}
+          >
+            Choose seats
+          </button>
         </div>
-      </div>
+      )}
     </div>
   );
 };

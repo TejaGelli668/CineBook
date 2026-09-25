@@ -7,6 +7,9 @@ import TheaterManagement from "./TheaterManagement";
 import AddTheaterPage from "./AddTheaterPage";
 import MovieForm from "./MovieForm";
 import AdminFixShows from "./AdminFixShows";
+import "./desk.css";
+import "./paperwork.css";
+import Concierge from "../chatbot/Concierge";
 import FoodItemManagement from "./FoodItemManagement";
 import FoodItemForm from "./FoodItemForm";
 
@@ -44,6 +47,7 @@ const AdminDashboard = ({
   const [showFoodItemForm, setShowFoodItemForm] = useState(false);
   const [editingFoodItem, setEditingFoodItem] = useState(null);
   const [foodItems, setFoodItems] = useState([]);
+  const [menuVersion, setMenuVersion] = useState(0); // bumps to refresh the canteen list
 
   const [movies, setMovies] = useState([]);
 
@@ -101,7 +105,6 @@ const AdminDashboard = ({
     if (!window.confirm("Are you sure you want to delete this movie?")) return;
     try {
       await deleteMovie(movieId);
-      alert("Movie deleted successfully!");
       loadMovies();
     } catch (err) {
       console.error("Delete failed", err);
@@ -111,17 +114,18 @@ const AdminDashboard = ({
 
   const handleSaveMovie = async (movieData) => {
     try {
-      if (editingMovie) {
-        await updateMovie(editingMovie.id, movieData);
-      } else {
-        await addMovie(movieData);
-      }
+      // MovieForm needs the saved movie's id to create its shows
+      const saved = editingMovie
+        ? await updateMovie(editingMovie.id, movieData)
+        : await addMovie(movieData);
       setShowMovieForm(false);
       setEditingMovie(null);
       loadMovies();
+      return saved;
     } catch (err) {
       console.error("Save failed", err);
       alert("Failed to save movie");
+      throw err;
     }
   };
 
@@ -145,17 +149,16 @@ const AdminDashboard = ({
     try {
       if (editingFoodItem) {
         await updateFoodItem(editingFoodItem.id, foodItemData);
-        alert("Food item updated successfully!");
       } else {
         await createFoodItem(foodItemData);
-        alert("Food item created successfully!");
       }
       setShowFoodItemForm(false);
       setEditingFoodItem(null);
       loadFoodItems();
+      setMenuVersion((v) => v + 1);
     } catch (err) {
       console.error("Save failed", err);
-      // Error is already handled in the form component
+      throw err; // the form shows the message
     }
   };
 
@@ -188,9 +191,6 @@ const AdminDashboard = ({
     setActiveTab("fixShows");
   };
 
-  const handleBackToDashboard = () => {
-    setActiveTab("dashboard");
-  };
 
   const handleSaveTheater = async (theaterData) => {
     try {
@@ -235,10 +235,8 @@ const AdminDashboard = ({
 
       if (editingItem) {
         await updateTheater(editingItem.id, backendData);
-        alert("Theater updated successfully!");
       } else {
         await createTheater(backendData);
-        alert("Theater created successfully!");
       }
 
       handleBackToTheaters();
@@ -248,27 +246,12 @@ const AdminDashboard = ({
     }
   };
 
-  const handleBack = () => {
-    if (activeTab.includes("Movie")) {
-      setActiveTab("movies");
-    } else if (activeTab.includes("Theater")) {
-      setActiveTab("theaters");
-    } else if (activeTab === "fixShows") {
-      setActiveTab("dashboard");
-    }
-    setEditingItem(null);
-  };
 
   // ─── Main content switch ─────────────────────────────────────────────────────
   const renderContent = () => {
     switch (activeTab) {
       case "addTheater":
-        return (
-          <AddTheaterPage
-            onBack={handleBackToTheaters}
-            onSave={handleSaveTheater}
-          />
-        );
+        return <AddTheaterPage onBack={handleBackToTheaters} onSave={handleSaveTheater} />;
       case "editTheater":
         return (
           <AddTheaterPage
@@ -279,48 +262,30 @@ const AdminDashboard = ({
         );
       case "fixShows":
         return (
-          <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
-            <div className="max-w-7xl mx-auto">
-              <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 p-8 shadow-2xl">
-                <div className="flex items-center justify-between mb-8">
-                  <div>
-                    <h2 className="text-4xl font-bold text-white mb-2 flex items-center">
-                      🔧 Fix Shows & Seats
-                    </h2>
-                    <p className="text-slate-300 text-lg">
-                      Repair and generate missing show data
-                    </p>
-                  </div>
-                  <button
-                    onClick={handleBackToDashboard}
-                    className="group flex items-center px-6 py-3 bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800 text-white rounded-xl transition-all duration-300 hover:scale-105 shadow-lg border border-white/20"
-                  >
-                    <span className="mr-2">←</span>
-                    Back to Dashboard
-                  </button>
-                </div>
-                <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6">
-                  <AdminFixShows />
-                </div>
-              </div>
+          <section className="cb-stack">
+            <div>
+              <h1 className="cb-display">Seat repair</h1>
+              <p className="cb-muted">
+                Fix shows whose seat maps are missing or duplicated. Use this
+                after adding a theater or changing its layout.
+              </p>
             </div>
-          </div>
+            <AdminFixShows />
+          </section>
         );
       case "movies":
         return (
-          <div className="space-y-8">
-            <div className="bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 rounded-3xl border border-white/10 p-8">
-              <MovieManagement
-                movies={movies}
-                searchTerm={searchTerm}
-                onAddMovie={handleAddMovie}
-                onEditMovie={handleEditMovie}
-                onDeleteMovie={handleDeleteMovie}
-              />
-            </div>
+          <>
+            <MovieManagement
+              movies={movies}
+              searchTerm={searchTerm}
+              onAddMovie={handleAddMovie}
+              onEditMovie={handleEditMovie}
+              onDeleteMovie={handleDeleteMovie}
+            />
             {showMovieForm && (
-              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl border border-white/20 max-w-4xl w-full max-h-[90vh] overflow-auto">
+              <div className="cb-modal-backdrop">
+                <div className="cb-modal cb-modal--xl cb-modal--paper cb-modal--flush">
                   <MovieForm
                     movie={editingMovie}
                     onClose={handleCloseMovieForm}
@@ -329,32 +294,26 @@ const AdminDashboard = ({
                 </div>
               </div>
             )}
-          </div>
+          </>
         );
       case "theaters":
         return (
-          <div className="space-y-8">
-            <div className="bg-gradient-to-br from-blue-900 via-cyan-900 to-teal-900 rounded-3xl border border-white/10 p-8">
-              <TheaterManagement
-                onNavigateToAddTheater={handleNavigateToAddTheater}
-                onNavigateToEditTheater={handleNavigateToEditTheater}
-              />
-            </div>
-          </div>
+          <TheaterManagement
+            onNavigateToAddTheater={handleNavigateToAddTheater}
+            onNavigateToEditTheater={handleNavigateToEditTheater}
+          />
         );
-      // NEW: Food items case
       case "foodItems":
         return (
-          <div className="space-y-8">
-            <div className="bg-gradient-to-br from-orange-900 via-red-900 to-pink-900 rounded-3xl border border-white/10 p-8">
-              <FoodItemManagement
-                onAddFoodItem={handleAddFoodItem}
-                onEditFoodItem={handleEditFoodItem}
-              />
-            </div>
+          <>
+            <FoodItemManagement
+              refreshKey={menuVersion}
+              onAddFoodItem={handleAddFoodItem}
+              onEditFoodItem={handleEditFoodItem}
+            />
             {showFoodItemForm && (
-              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl border border-white/20 max-w-4xl w-full max-h-[90vh] overflow-auto">
+              <div className="cb-modal-backdrop">
+                <div className="cb-modal cb-modal--slip cb-modal--flush">
                   <FoodItemForm
                     foodItem={editingFoodItem}
                     onClose={handleCloseFoodItemForm}
@@ -363,88 +322,60 @@ const AdminDashboard = ({
                 </div>
               </div>
             )}
-          </div>
-        );
-      case "showtimes":
-        return (
-          <div className="bg-gradient-to-br from-emerald-900 via-teal-900 to-cyan-900 rounded-3xl border border-white/10 p-8 shadow-2xl">
-            <div className="text-center py-16">
-              <div className="p-6 bg-emerald-500/10 rounded-full w-24 h-24 mx-auto mb-6 border border-emerald-400/30">
-                <span className="text-4xl">🎭</span>
-              </div>
-              <h2 className="text-4xl font-bold mb-4 text-white">
-                Showtimes Management
-              </h2>
-              <p className="text-slate-300 text-xl mb-8">
-                Advanced showtime scheduling coming soon...
-              </p>
-            </div>
-          </div>
-        );
-      case "bookings":
-        return (
-          <div className="bg-gradient-to-br from-rose-900 via-pink-900 to-purple-900 rounded-3xl border border-white/10 p-8 shadow-2xl">
-            <div className="text-center py-16">
-              <div className="p-6 bg-rose-500/10 rounded-full w-24 h-24 mx-auto mb-6 border border-rose-400/30">
-                <span className="text-4xl">🎫</span>
-              </div>
-              <h2 className="text-4xl font-bold mb-4 text-white">
-                Bookings Management
-              </h2>
-              <p className="text-slate-300 text-xl mb-8">
-                Comprehensive booking system coming soon...
-              </p>
-            </div>
-          </div>
+          </>
         );
       default:
         return (
-          <div className="space-y-8">
-            <DashboardStats
-              movies={movies}
-              theaters={[]}
-              foodItems={foodItems} // Pass food items to stats
-              onNavigateToMovies={() => handleTabChange("movies")}
-              onNavigateToTheaters={() => handleTabChange("theaters")}
-              onNavigateToFoodItems={() => handleTabChange("foodItems")} // Add food items navigation
-              onNavigateToFixShows={handleNavigateToFixShows}
-            />
-          </div>
+          <DashboardStats
+            movies={movies}
+            theaters={[]}
+            foodItems={foodItems}
+            onNavigateToMovies={() => handleTabChange("movies")}
+            onNavigateToTheaters={() => handleTabChange("theaters")}
+            onNavigateToFoodItems={() => handleTabChange("foodItems")}
+            onNavigateToFixShows={handleNavigateToFixShows}
+          />
         );
     }
   };
 
-  // If on add/edit theater, food item form, or fix shows, render it full-screen:
-  if (
-    activeTab === "addTheater" ||
-    activeTab === "editTheater" ||
-    activeTab === "fixShows"
-  ) {
-    return renderContent();
-  }
+  const fullPage = ["addTheater", "editTheater", "fixShows"].includes(activeTab);
 
-  // Otherwise normal layout:
+  // Posters now showing, tiled behind the desk (heavily dimmed)
+  const collage = movies.filter((m) => m.posterUrl).map((m) => m.poster);
+  const tiles = collage.length
+    ? Array.from({ length: 48 }, (_, i) => collage[(i * 5) % collage.length])
+    : [];
+
   return (
-    <div className="flex h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <div className="cb-app cb-desk">
+      {tiles.length > 0 && (
+        <div className="cb-desk__collage" aria-hidden="true">
+          <div className="cb-desk__tiles">
+            {tiles.map((src, i) => (
+              <img key={i} src={src} alt="" loading="lazy" />
+            ))}
+          </div>
+        </div>
+      )}
       <AdminSidebar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        currentView={activeTab}
         onNavigate={handleTabChange}
-        onNavigateToFixShows={handleNavigateToFixShows}
+        onLogout={onLogout}
+        counts={{ films: movies.length, snacks: foodItems.length }}
       />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <AdminHeader
-          searchTerm={searchTerm}
-          setSearchTerm={setSearchTerm}
-          onSearchChange={setSearchTerm}
-          currentUser={currentUser}
-          onLogout={onLogout}
-        />
-        <div className="flex-1 overflow-auto bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-          <div className="p-6">{renderContent()}</div>
-        </div>
+      <div className="cb-desk__body">
+        {!fullPage && (
+          <AdminHeader
+            activeTab={activeTab}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            currentUser={currentUser}
+          />
+        )}
+        <main className="cb-desk__main">{renderContent()}</main>
       </div>
+      <Concierge mode="admin" onChanged={loadMovies} />
     </div>
   );
 };

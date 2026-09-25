@@ -28,7 +28,7 @@ const convertFoodItemData = (item) => {
       item.is_available === 1 ||
       item.is_available === true ||
       item.isAvailable === true,
-    theaterId: item.theater_id || item.theaterId || 1,
+    theaterId: item.theater_id ?? item.theaterId ?? null, // null = sold at every theater
     createdAt: item.created_at || item.createdAt,
     updatedAt: item.updated_at || item.updatedAt,
   };

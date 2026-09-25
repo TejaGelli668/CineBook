@@ -1,14 +1,6 @@
 import React, { useState, useEffect } from "react";
-import {
-  Building,
-  Plus,
-  Edit,
-  Trash2,
-  MapPin,
-  Settings,
-  Loader2,
-  AlertCircle,
-} from "lucide-react";
+import { Plus, Edit, Trash2, MapPin, AlertCircle } from "lucide-react";
+import { Loading } from "../ui/Chrome";
 
 const TheaterManagement = ({
   onNavigateToAddTheater,
@@ -85,171 +77,105 @@ const TheaterManagement = ({
   };
 
   const handleDeleteTheater = async (theaterId) => {
-    if (window.confirm("Are you sure you want to delete this theater?")) {
+    if (window.confirm("Delete this theater? Its shows and seat maps are removed too.")) {
       try {
         await deleteTheater(theaterId);
         setTheaters(theaters.filter((t) => t.id !== theaterId));
       } catch (error) {
         console.error("Error deleting theater:", error);
-        alert("Failed to delete theater. Please try again.");
+        setError("The theater couldn't be deleted. It may still have bookings.");
       }
     }
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center">
-        <div className="flex items-center space-x-3 text-slate-300">
-          <Loader2 className="w-8 h-8 animate-spin" />
-          <span className="text-lg">Loading theaters...</span>
-        </div>
-      </div>
-    );
+    return <Loading label="Loading theaters" />;
   }
 
+  const isActive = (t) => (t.status || "").toUpperCase() === "ACTIVE";
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-8">
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">
-              Theater Management
-            </h1>
-            <p className="text-slate-400 mt-2">
-              Manage your theaters and their schedules
-            </p>
-          </div>
-          <button
-            onClick={onNavigateToAddTheater}
-            className="flex items-center px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:shadow-lg hover:shadow-purple-500/30 transition-all"
-          >
-            <Plus className="w-5 h-5 mr-2" />
-            Add Theater
-          </button>
-        </div>
+    <section aria-label="Theaters">
+      <div className="cb-desk-bar">
+        <p className="cb-muted">
+          {theaters.length} {theaters.length === 1 ? "theater" : "theaters"},{" "}
+          {theaters.filter(isActive).length} open
+        </p>
+        <button type="button" className="cb-btn cb-btn--stamp" onClick={onNavigateToAddTheater}>
+          <Plus size={16} aria-hidden="true" /> Add a theater
+        </button>
       </div>
 
       {error && (
-        <div className="mb-6 p-4 bg-red-900/50 border border-red-500/50 text-red-300 rounded-lg flex items-center">
-          <AlertCircle className="w-5 h-5 mr-3 flex-shrink-0" />
-          <span>{error}</span>
-          <button
-            onClick={fetchTheaters}
-            className="ml-auto px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm transition-colors"
-          >
-            Retry
+        <div className="cb-alert cb-alert--error" style={{ marginBottom: 20 }}>
+          <AlertCircle size={18} aria-hidden="true" />
+          <span style={{ flex: 1 }}>{error}</span>
+          <button type="button" className="cb-btn cb-btn--ghost cb-btn--sm" onClick={fetchTheaters}>
+            Try again
           </button>
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {theaters.map((theater) => (
-          <div
-            key={theater.id}
-            className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700 p-6 hover:border-purple-500/50 transition-all"
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center">
-                <Building className="w-6 h-6 text-purple-400 mr-3" />
+      {theaters.length === 0 && !error ? (
+        <div className="cb-empty">
+          <h2 className="cb-h2">No theaters yet</h2>
+          <p>Add a theater to start scheduling shows. Its seat map is generated for you.</p>
+          <button type="button" className="cb-btn cb-btn--stamp" onClick={onNavigateToAddTheater}>
+            <Plus size={16} aria-hidden="true" /> Add a theater
+          </button>
+        </div>
+      ) : (
+        <ul className="cb-deck">
+          {theaters.map((theater) => (
+            <li key={theater.id} className="cb-panel">
+              <div className="cb-panel__head" style={{ marginBottom: 0 }}>
                 <div>
-                  <h3 className="text-lg font-semibold text-slate-200">
-                    {theater.name}
-                  </h3>
-                  <p className="text-sm text-slate-400 flex items-center mt-1">
-                    <MapPin className="w-4 h-4 mr-1" />
-                    {theater.location}
+                  <h3 className="cb-h3">{theater.name}</h3>
+                  <p className="cb-muted cb-small cb-theater__where">
+                    <MapPin size={13} aria-hidden="true" />
+                    {theater.location}, {theater.city}
                   </p>
                 </div>
+                <span className={`cb-badge ${isActive(theater) ? "cb-badge--ok" : "cb-badge--quiet"}`}>
+                  {(theater.status || "").toLowerCase()}
+                </span>
               </div>
-              <div className="flex space-x-2">
+              <dl className="cb-fields cb-theater__nums">
+                <div>
+                  <dt>Screens</dt>
+                  <dd>{theater.numberOfScreens || theater.screens || 0}</dd>
+                </div>
+                <div>
+                  <dt>Seats</dt>
+                  <dd>{theater.totalSeats || 0}</dd>
+                </div>
+              </dl>
+              <p className="cb-muted cb-small">
+                {[theater.phoneNumber || theater.phone, theater.email].filter(Boolean).join(", ")}
+              </p>
+              <div className="cb-deck__foot">
                 <button
-                  onClick={() =>
-                    onNavigateToEditTheater && onNavigateToEditTheater(theater)
-                  }
-                  className="p-2 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
+                  type="button"
+                  className="cb-btn cb-btn--ghost cb-btn--sm"
+                  onClick={() => onNavigateToEditTheater && onNavigateToEditTheater(theater)}
                 >
-                  <Edit className="w-4 h-4" />
+                  <Edit size={14} aria-hidden="true" /> Edit
                 </button>
                 <button
+                  type="button"
+                  className="cb-iconbtn cb-iconbtn--danger"
                   onClick={() => handleDeleteTheater(theater.id)}
-                  className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                  aria-label={`Delete ${theater.name}`}
+                  title="Delete"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash2 size={16} />
                 </button>
               </div>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-400">Location:</span>
-                <span className="text-slate-300">
-                  {theater.city}, {theater.state}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-400">Screens:</span>
-                <span className="text-slate-300">
-                  {theater.numberOfScreens || theater.screens || 0}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-400">Total Seats:</span>
-                <span className="text-slate-300">
-                  {theater.totalSeats || 0}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-400">Status:</span>
-                <span
-                  className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    theater.status === "ACTIVE" || theater.status === "Active"
-                      ? "bg-green-500/20 text-green-400"
-                      : "bg-red-500/20 text-red-400"
-                  }`}
-                >
-                  {theater.status}
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-4 pt-4 border-t border-slate-700">
-              <div className="flex items-center text-sm text-slate-400 mb-2">
-                <Settings className="w-4 h-4 mr-1" />
-                Contact
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs text-slate-500">{theater.email}</p>
-                <p className="text-xs text-slate-500">
-                  {theater.phoneNumber || theater.phone}
-                </p>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {theaters.length === 0 && !loading && !error && (
-        <div className="text-center py-16">
-          <Building className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-slate-400 mb-2">
-            No Theaters Found
-          </h3>
-          <p className="text-slate-500 mb-6">
-            Get started by adding your first theater
-          </p>
-          <button
-            onClick={onNavigateToAddTheater}
-            className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:shadow-lg hover:shadow-purple-500/30 transition-all"
-          >
-            <Plus className="w-5 h-5 mr-2" />
-            Add Theater
-          </button>
-        </div>
+            </li>
+          ))}
+        </ul>
       )}
-    </div>
+    </section>
   );
 };
 

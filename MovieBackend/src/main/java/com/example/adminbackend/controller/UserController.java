@@ -353,6 +353,9 @@ import java.util.Map;
 @CrossOrigin(origins = {"http://localhost:3000", "http://localhost:5173"})
 public class UserController {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.example.adminbackend.service.LoginAttemptService loginAttemptService;
+
     private static final Logger logger = LoggerFactory.getLogger(UserController.class);
 
     @Autowired
@@ -385,18 +388,22 @@ public class UserController {
      */
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<Map<String, Object>>> loginUser(@Valid @RequestBody UserLoginRequest loginRequest) {
+        String login = loginRequest.getEmail();
+        long blocked = loginAttemptService.minutesBlocked("user", login);
+        if (blocked > 0) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(new ApiResponse<>(false,
+                    "Too many wrong passwords. Try again in " + blocked + " minute" + (blocked == 1 ? "" : "s") + ".", null));
+        }
         try {
-            logger.info("User login attempt for email: {}", loginRequest.getEmail());
             Map<String, Object> loginResponse = userService.loginUser(loginRequest);
-
-            ApiResponse<Map<String, Object>> response = new ApiResponse<>(true, "Login successful", loginResponse);
-            logger.info("User login successful for email: {}", loginRequest.getEmail());
-            return ResponseEntity.ok(response);
-
+            loginAttemptService.succeeded("user", login);
+            return ResponseEntity.ok(new ApiResponse<>(true, "Login successful", loginResponse));
         } catch (Exception e) {
-            logger.error("User login failed: {}", e.getMessage());
-            ApiResponse<Map<String, Object>> response = new ApiResponse<>(false, e.getMessage(), null);
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+            loginAttemptService.failed("user", login);
+            logger.warn("Failed sign-in for {}", login);
+            // Same answer whether the email is registered or not
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(false,
+                    "That email and password didn't match.", null));
         }
     }
 
@@ -701,11 +708,8 @@ public class UserController {
                 dto.put("createdAt", booking.getBookingTime().toString());
 
                 // Add seat information if available
-                if (booking.getSeats() != null && !booking.getSeats().isEmpty()) {
-                    List<String> seatNumbers = booking.getSeats().stream()
-                            .filter(showSeat -> showSeat.getSeat() != null)
-                            .map(showSeat -> showSeat.getSeat().getSeatNumber())
-                            .collect(Collectors.toList());
+                List<String> seatNumbers = booking.seatNumberList();
+                if (!seatNumbers.isEmpty()) {
                     dto.put("seatNumbers", String.join(", ", seatNumbers));
                 }
 

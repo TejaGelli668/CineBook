@@ -1,0 +1,10 @@
+# Secrets: API keys and the database password (see .env.example)
+.env
+.env.*
+!.env.example
+
+# Mac folder files
+.DS_Store
+
+# Files the app stores while running (posters, snack photos, profile pictures)
+MovieBackend/uploads/

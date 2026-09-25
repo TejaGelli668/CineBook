@@ -23,6 +23,9 @@ import java.util.Map;
 @CrossOrigin(origins = {"http://localhost:3000", "http://localhost:5173"})
 public class AuthController {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.example.adminbackend.service.LoginAttemptService loginAttemptService;
+
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
 
     @Autowired
@@ -39,43 +42,26 @@ public class AuthController {
      */
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest loginRequest) {
+        String login = loginRequest.getUsername();
+        long blocked = loginAttemptService.minutesBlocked("admin", login);
+        if (blocked > 0) {
+            return ResponseEntity.status(429).body(new ApiResponse<>(false,
+                    "Too many wrong passwords. Try again in " + blocked + " minute" + (blocked == 1 ? "" : "s") + ".", null));
+        }
         try {
-            logger.info("=== ADMIN LOGIN ATTEMPT ===");
-            logger.info("Username: {}", loginRequest.getUsername());
-            logger.info("Password length: {}", loginRequest.getPassword() != null ? loginRequest.getPassword().length() : 0);
-
-            // Check if admin exists in database
-            boolean adminExists = adminRepository.existsByUsername(loginRequest.getUsername());
-            logger.info("Admin exists in database: {}", adminExists);
-
-            if (!adminExists) {
-                logger.warn("Admin with username {} not found in database", loginRequest.getUsername());
-                return ResponseEntity.badRequest()
-                        .body(new ApiResponse<>(
-                                false,
-                                "Admin not found. Please contact system administrator.",
-                                null
-                        ));
+            if (!adminRepository.existsByUsername(login)) {
+                throw new RuntimeException("unknown admin");
             }
-
             LoginResponse loginResponse = authService.login(loginRequest);
-            logger.info("Login successful for: {}", loginRequest.getUsername());
-
-            return ResponseEntity.ok(new ApiResponse<>(
-                    true,
-                    "Login successful",
-                    loginResponse
-            ));
-
+            loginAttemptService.succeeded("admin", login);
+            logger.info("Admin signed in: {}", login);
+            return ResponseEntity.ok(new ApiResponse<>(true, "Login successful", loginResponse));
         } catch (Exception e) {
-            logger.error("Login failed for username: {} - Error: {}", loginRequest.getUsername(), e.getMessage(), e);
-
-            return ResponseEntity.badRequest()
-                    .body(new ApiResponse<>(
-                            false,
-                            "Login failed: " + e.getMessage(),
-                            null
-                    ));
+            loginAttemptService.failed("admin", login);
+            logger.warn("Failed admin sign-in for {}", login);
+            // Same answer whether the account exists or not
+            return ResponseEntity.status(401).body(new ApiResponse<>(false,
+                    "That username and password didn't match.", null));
         }
     }
 

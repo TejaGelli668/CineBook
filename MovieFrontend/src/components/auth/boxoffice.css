@@ -1,0 +1,377 @@
+/* Sign-in: the box-office window.
+   A drifting wall of now-showing posters behind; the form printed on a ticket. */
+
+.cb-boxoffice {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  overflow-y: auto;
+  font-family: var(--body);
+  color: var(--ink);
+  background: var(--night);
+  animation: cb-fade-in 0.25s ease both;
+}
+
+/* ─── poster wall ─────────────────────────────────────────────────────── */
+
+.cb-boxoffice__wall {
+  position: fixed;
+  inset: -10% -5%;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+  transform: rotate(-7deg) scale(1.08);
+  pointer-events: none;
+}
+.cb-boxoffice__col {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+  animation: cb-drift var(--speed, 80s) linear infinite;
+  animation-direction: var(--dir, normal);
+}
+.cb-boxoffice__col img {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 6px;
+  box-shadow: 0 20px 40px -18px rgba(0, 0, 0, 0.9);
+}
+@keyframes cb-drift {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-50%);
+  }
+}
+.cb-boxoffice__shade {
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 55% at 50% 50%, rgba(28, 21, 53, 0.7), rgba(28, 21, 53, 0.5) 70%, rgba(28, 21, 53, 0.8)),
+    linear-gradient(180deg, rgba(28, 21, 53, 0.45), rgba(28, 21, 53, 0.15) 40%, rgba(28, 21, 53, 0.65));
+}
+.cb-boxoffice__close {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 2;
+  color: var(--paper);
+  background: rgba(28, 21, 53, 0.6);
+  backdrop-filter: blur(8px);
+  border-color: rgba(255, 246, 233, 0.3);
+}
+
+/* ─── the ticket ──────────────────────────────────────────────────────── */
+
+.cb-ticketform {
+  --stub: 96px;
+  --tear: calc(100% - var(--stub));
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--stub);
+  width: min(620px, 100%);
+  background-color: var(--pink);
+  background-image: var(--paper-grain);
+  border-radius: 10px;
+  filter: drop-shadow(0 40px 60px rgba(4, 2, 12, 0.75));
+  transform: rotate(-1deg);
+  animation: cb-ticket-in 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
+  -webkit-mask:
+    radial-gradient(circle 15px at var(--tear) 0, #0000 96%, #000),
+    radial-gradient(circle 15px at var(--tear) 100%, #0000 96%, #000);
+  -webkit-mask-composite: source-in;
+  mask:
+    radial-gradient(circle 15px at var(--tear) 0, #0000 96%, #000),
+    radial-gradient(circle 15px at var(--tear) 100%, #0000 96%, #000);
+  mask-composite: intersect;
+}
+@keyframes cb-ticket-in {
+  from {
+    opacity: 0;
+    transform: translateY(40px) rotate(3deg);
+  }
+}
+
+.cb-ticketform__main {
+  min-width: 0;
+  padding: 28px clamp(22px, 5vw, 44px) 32px;
+}
+.cb-ticketform__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1.5px solid var(--ink-line);
+}
+.cb-ticketform__brand {
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+.cb-ticketform__head span[lang="te"] {
+  font-family: var(--telugu);
+  font-size: 0.95rem;
+  color: rgba(42, 22, 48, 0.7);
+}
+
+/* tabs are printed boxes you tick */
+.cb-ticketform__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 18px 0 20px;
+}
+.cb-ticketform__tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: rgba(42, 22, 48, 0.72);
+  font: inherit;
+  font-weight: 650;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.cb-ticketform__tabs button::before {
+  content: "";
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-radius: 3px;
+}
+.cb-ticketform__tabs button[aria-selected="true"] {
+  color: var(--ink);
+}
+.cb-ticketform__tabs button[aria-selected="true"]::before {
+  background: var(--stamp) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='%23fff6e9' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 100% no-repeat;
+  border-color: var(--stamp);
+}
+.cb-ticketform__tabs button:focus-visible {
+  outline: 3px solid var(--stamp);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.cb-ticketform__title {
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: clamp(2.6rem, 7vw, 3.6rem);
+  line-height: 0.9;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.cb-ticketform__lede {
+  margin: 8px 0 18px;
+  color: rgba(42, 22, 48, 0.75);
+}
+.cb-ticketform__msg {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border-left: 4px solid #1f6b47;
+  background: rgba(255, 246, 233, 0.55);
+  font-size: 0.92rem;
+}
+.cb-ticketform__msg--error {
+  border-left-color: var(--stamp);
+  color: #7a1520;
+}
+
+.cb-ticketform__form {
+  display: grid;
+  gap: 18px;
+}
+.cb-ticketform__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+/* fields are ruled lines written on the ticket */
+.cb-ink-field {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.cb-ink-field label,
+.cb-ink-field legend {
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: rgba(42, 22, 48, 0.72);
+  padding: 0;
+}
+.cb-ink-field__line {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-bottom: 2px solid rgba(42, 22, 48, 0.45);
+}
+.cb-ink-field__line:focus-within {
+  border-bottom-color: var(--stamp);
+}
+.cb-ink-field input,
+.cb-ticketform__dob select {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 0 6px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 1.12rem;
+  font-weight: 600;
+}
+.cb-ink-field input::placeholder {
+  color: rgba(42, 22, 48, 0.38);
+  font-weight: 500;
+}
+.cb-ink-field input:focus,
+.cb-ticketform__dob select:focus {
+  outline: none;
+}
+.cb-ink-field__eye {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: rgba(42, 22, 48, 0.7);
+  cursor: pointer;
+}
+.cb-ink-field__eye:hover {
+  color: var(--ink);
+}
+.cb-ticketform__dob {
+  display: grid;
+  grid-template-columns: 0.8fr 1.1fr 1fr;
+  gap: 14px;
+}
+.cb-ticketform__dob select {
+  border-bottom: 2px solid rgba(42, 22, 48, 0.45);
+  cursor: pointer;
+}
+.cb-ticketform__dob select:focus {
+  border-bottom-color: var(--stamp);
+}
+.cb-ticketform .cb-btn--stamp {
+  margin-top: 6px;
+  box-shadow: 0 10px 20px -10px rgba(122, 21, 32, 0.8);
+}
+.cb-ticketform .cb-btn--stamp:focus-visible,
+.cb-ticketform input:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}
+.cb-ticketform__switch {
+  text-align: center;
+  font-size: 0.92rem;
+  color: rgba(42, 22, 48, 0.75);
+}
+.cb-ticketform__switch button {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--stamp);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* ─── stub ────────────────────────────────────────────────────────────── */
+
+.cb-ticketform__stub {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 30px 0;
+  border-left: 2px dashed rgba(42, 22, 48, 0.4);
+  writing-mode: vertical-rl;
+}
+.cb-ticketform__admit {
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 1.9rem;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--stamp);
+}
+.cb-ticketform__serial {
+  font-family: var(--stencil);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--stamp);
+}
+.cb-ticketform__city {
+  font-family: var(--display);
+  font-weight: 800;
+}
+
+@media (max-width: 560px) {
+  .cb-ticketform {
+    --stub: 0px;
+    grid-template-columns: minmax(0, 1fr);
+    transform: none;
+    -webkit-mask: none;
+    mask: none;
+  }
+  .cb-ticketform__stub {
+    writing-mode: horizontal-tb;
+    flex-direction: row;
+    padding: 14px 22px;
+    border-left: 0;
+    border-top: 2px dashed rgba(42, 22, 48, 0.4);
+  }
+  .cb-ticketform__admit {
+    font-size: 1.3rem;
+  }
+  .cb-ticketform__row {
+    grid-template-columns: 1fr;
+  }
+  .cb-boxoffice__wall {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .cb-boxoffice {
+    place-items: start center;
+    padding-top: 70px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cb-boxoffice__col,
+  .cb-ticketform {
+    animation: none;
+  }
+}
+
+/* Staff entrance (/admin): same ticket, quieter room, stamp-red tint */
+.cb-boxoffice--staff {
+  background:
+    radial-gradient(ellipse 60% 50% at 50% 40%, rgba(217, 43, 58, 0.18), transparent 70%),
+    repeating-linear-gradient(180deg, transparent 0 46px, rgba(0, 0, 0, 0.3) 46px 48px, rgba(255, 255, 255, 0.03) 48px 49px),
+    var(--night);
+}
+.cb-boxoffice--staff .cb-boxoffice__shade {
+  display: none;
+}
+.cb-ticketform__switch a {
+  color: var(--stamp);
+  font-weight: 700;
+}

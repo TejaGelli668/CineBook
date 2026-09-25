@@ -18,4 +18,9 @@ public interface SeatRepository extends JpaRepository<Seat, Long> {
             "GROUP BY s.seatNumber, s.theater.id " +
             "HAVING COUNT(s) > 1")
     List<Object[]> findDuplicateSeats();
+
+    // Seat categories and prices per theater in one query: rows of [theaterId, category, price, firstRow, lastRow]
+    @org.springframework.data.jpa.repository.Query("SELECT s.theater.id, s.category, MIN(s.price), MIN(s.rowLetter), MAX(s.rowLetter) "
+            + "FROM Seat s GROUP BY s.theater.id, s.category")
+    List<Object[]> seatPriceBands();
 }

@@ -24,6 +24,36 @@ public class TheaterController {
     @Autowired
     private TheaterService theaterService;
 
+    @Autowired
+    private com.example.adminbackend.repository.SeatRepository seatRepository;
+
+    /**
+     * What seats cost at each theater, by category (the prices checkout charges).
+     * Keyed by theater id: {from, to, categories: [{name, price, rows}]}, cheapest first.
+     */
+    @GetMapping("/seat-prices")
+    public ResponseEntity<ApiResponse<Map<Long, Map<String, Object>>>> seatPrices() {
+        Map<Long, List<Map<String, Object>>> bands = new java.util.TreeMap<>();
+        for (Object[] row : seatRepository.seatPriceBands()) {
+            if (row[2] == null) continue;
+            Map<String, Object> band = new java.util.LinkedHashMap<>();
+            band.put("name", row[1]);
+            band.put("price", Math.round(((Number) row[2]).doubleValue()));
+            band.put("rows", row[3].equals(row[4]) ? row[3] : row[3] + "–" + row[4]);
+            bands.computeIfAbsent((Long) row[0], k -> new java.util.ArrayList<>()).add(band);
+        }
+        Map<Long, Map<String, Object>> out = new java.util.TreeMap<>();
+        bands.forEach((theaterId, list) -> {
+            list.sort(java.util.Comparator.comparingLong(b -> (Long) b.get("price")));
+            Map<String, Object> t = new java.util.LinkedHashMap<>();
+            t.put("from", list.get(0).get("price"));
+            t.put("to", list.get(list.size() - 1).get("price"));
+            t.put("categories", list);
+            out.put(theaterId, t);
+        });
+        return ResponseEntity.ok(new ApiResponse<>(true, "Seat prices", out));
+    }
+
     /**
      * Get all theaters
      * GET /api/theaters

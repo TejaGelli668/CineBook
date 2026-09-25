@@ -236,3 +236,15 @@ export const formatMovieData = (m) => ({
 
 // ─── **NEW**: export the low-level helpers so other modules can use them ─────────
 export { apiCall, withAuth };
+
+// Upcoming releases in India from TMDB (public, cached server-side)
+export const getComingSoon = async (limit = 16) => {
+  try {
+    const resp = await apiCall(`/api/movies/coming-soon?limit=${limit}`, {
+      method: "GET",
+    });
+    return resp.data || [];
+  } catch {
+    return [];
+  }
+};

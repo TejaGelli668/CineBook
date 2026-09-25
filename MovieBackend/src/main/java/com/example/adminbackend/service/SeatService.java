@@ -197,70 +197,121 @@ public class SeatService {
         }
     }
 
+    @Autowired
+    private PricingService pricingService;
+
+    @Autowired
+    private StripeService stripeService;
+
+    @Autowired
+    private BookingFoodItemRepository bookingFoodItemRepository;
+
+    /**
+     * Turns a paid order into a booking. The payment is checked with Stripe first:
+     * it must have succeeded, belong to this customer, cover exactly these seats and
+     * snacks, and be for at least the server-calculated total. Repeating the call with
+     * the same payment returns the same booking instead of booking twice.
+     */
     @Transactional
     public BookingResponse bookSeats(BookingRequest request) {
-        logger.info("Booking seats: {} for show: {}", request.getSeatNumbers(), request.getShowId());
-
-        // Remove duplicates
-        List<String> uniqueSeatNumbers = request.getSeatNumbers().stream()
-                .distinct()
-                .collect(Collectors.toList());
-
-        List<ShowSeat> seatsToBook = showSeatRepository.findByShowIdAndSeatNumbers(
-                request.getShowId(), uniqueSeatNumbers
-        );
-
         User currentUser = getCurrentUser();
+        logger.info("Booking seats {} for show {} (payment {})",
+                request.getSeatNumbers(), request.getShowId(), request.getPaymentIntentId());
 
-        // Verify all seats are locked by current user
-        for (ShowSeat seat : seatsToBook) {
-            if (seat.getStatus() != SeatStatus.LOCKED ||
-                    seat.getLockedByUser() == null ||
-                    !seat.getLockedByUser().getId().equals(currentUser.getId())) {
-
-                logger.error("Invalid seat selection for seat: {}, status: {}, locked by: {}",
-                        seat.getSeat().getSeatNumber(),
-                        seat.getStatus(),
-                        seat.getLockedByUser() != null ? seat.getLockedByUser().getEmail() : "null");
-                throw new RuntimeException("Invalid seat selection for seat: " + seat.getSeat().getSeatNumber());
+        // Same payment again (e.g. a retry after a network blip): hand back the existing booking
+        if (request.getPaymentIntentId() != null) {
+            Optional<Booking> existing = bookingRepository.findByPaymentId(request.getPaymentIntentId());
+            if (existing.isPresent()) {
+                Booking b = existing.get();
+                if (!b.getUser().getId().equals(currentUser.getId())) {
+                    throw new RuntimeException("This payment belongs to another booking");
+                }
+                return toResponse(b);
             }
         }
 
-        // Create booking
+        PricingService.Quote quote = pricingService.quote(request.getShowId(), request.getSeatNumbers(), request.getFoodItems());
+        String seatsKey = PricingService.seatsKey(request.getSeatNumbers());
+        String foodKey = PricingService.foodKey(request.getFoodItems());
+        stripeService.verifyBookingPayment(request.getPaymentIntentId(), currentUser.getId(),
+                request.getShowId(), seatsKey, foodKey, quote.totalPaise());
+
+        // The payment is real. Seats must still be ours (held) or free; if someone else got
+        // them meanwhile, give the money back rather than keep a payment with no booking.
+        List<String> lost = new ArrayList<>();
+        for (ShowSeat seat : quote.showSeats) {
+            boolean heldByMe = seat.getStatus() == SeatStatus.LOCKED && seat.getLockedByUser() != null
+                    && seat.getLockedByUser().getId().equals(currentUser.getId());
+            boolean free = seat.getStatus() == SeatStatus.AVAILABLE
+                    || (seat.getStatus() == SeatStatus.LOCKED && seat.getExpiresAt() != null
+                        && seat.getExpiresAt().isBefore(LocalDateTime.now()));
+            if (!heldByMe && !free) lost.add(seat.getSeat().getSeatNumber());
+        }
+        if (!lost.isEmpty()) {
+            String msg = "Seat(s) " + String.join(", ", lost) + " were taken before your booking completed.";
+            try {
+                stripeService.refund(request.getPaymentIntentId(), null, "seats_unavailable");
+                msg += " Your payment has been refunded in full.";
+            } catch (Exception e) {
+                logger.error("Refund failed for {}: {}", request.getPaymentIntentId(), e.getMessage());
+                msg += " We couldn't refund automatically; contact the cinema with reference " + request.getPaymentIntentId() + ".";
+            }
+            throw new RuntimeException(msg);
+        }
+
         Booking booking = new Booking();
         booking.setBookingId(generateBookingId());
         booking.setUser(currentUser);
-        booking.setShow(seatsToBook.get(0).getShow());
+        booking.setShow(quote.show);
         booking.setBookingTime(LocalDateTime.now());
         booking.setStatus(BookingStatus.CONFIRMED);
+        booking.setPaymentId(request.getPaymentIntentId());
+        booking.setPaymentMethod("stripe");
+        booking.setSeatNumbers(seatsKey);
+        booking.setTicketTotal(BigDecimal.valueOf(quote.ticketTotal));
+        booking.setFoodTotal(BigDecimal.valueOf(quote.foodTotal));
+        booking.setConvenienceFee(BigDecimal.valueOf(quote.fee));
+        booking.setGrandTotal(BigDecimal.valueOf(quote.total));
+        booking.setTotalAmount((double) quote.total);
 
-        double totalAmount = 0;
-        for (ShowSeat seat : seatsToBook) {
+        for (ShowSeat seat : quote.showSeats) {
             seat.setStatus(SeatStatus.BOOKED);
             seat.setBooking(booking);
             seat.setLockedByUser(null);
             seat.setLockedAt(null);
             seat.setExpiresAt(null);
-            totalAmount += seat.getSeat().getPrice();
+        }
+        booking.setSeats(quote.showSeats);
+        booking = bookingRepository.save(booking);
+        showSeatRepository.saveAll(quote.showSeats);
+
+        List<BookingFoodItem> foodItems = new ArrayList<>();
+        for (PricingService.FoodLine line : quote.foodLines) {
+            BookingFoodItem bfi = new BookingFoodItem();
+            bfi.setBooking(booking);
+            bfi.setFoodItem(line.item);
+            bfi.setQuantity(line.quantity);
+            bfi.setUnitPrice(BigDecimal.valueOf(line.unitPrice));
+            bfi.setTotalPrice(BigDecimal.valueOf(line.unitPrice * line.quantity));
+            bfi.setCreatedAt(LocalDateTime.now());
+            foodItems.add(bfi);
+        }
+        if (!foodItems.isEmpty()) {
+            bookingFoodItemRepository.saveAll(foodItems);
+            booking.setFoodItems(foodItems);
         }
 
-        booking.setTotalAmount(totalAmount);
-        booking.setSeats(seatsToBook);
+        logger.info("Booking {} confirmed: {} seats, INR {} paid via {}",
+                booking.getBookingId(), quote.showSeats.size(), quote.total, request.getPaymentIntentId());
+        broadcastSeatUpdate(request.getShowId(), quote.seatNumbers, SeatStatus.BOOKED);
+        return toResponse(booking);
+    }
 
-        booking = bookingRepository.save(booking);
-        showSeatRepository.saveAll(seatsToBook);
-
-        logger.info("Successfully created booking: {} for {} seats with total amount: {}",
-                booking.getBookingId(), seatsToBook.size(), totalAmount);
-
-        // Broadcast update via WebSocket
-        broadcastSeatUpdate(request.getShowId(), uniqueSeatNumbers, SeatStatus.BOOKED);
-
+    private BookingResponse toResponse(Booking booking) {
         BookingResponse response = new BookingResponse();
         response.setBookingId(booking.getBookingId());
         response.setSuccess(true);
-        response.setTotalAmount(totalAmount);
-
+        response.setTotalAmount(booking.getTotalAmount());
         return response;
     }
 

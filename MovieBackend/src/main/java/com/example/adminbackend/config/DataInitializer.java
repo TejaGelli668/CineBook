@@ -5,11 +5,16 @@ import com.example.adminbackend.repository.AdminRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
+/**
+ * Creates the first manager account from configuration (ADMIN_USERNAME / ADMIN_PASSWORD
+ * in .env) when no admin exists yet. There is no built-in default password.
+ */
 @Component
 public class DataInitializer implements CommandLineRunner {
 
@@ -22,37 +27,34 @@ public class DataInitializer implements CommandLineRunner {
     @Lazy
     private PasswordEncoder passwordEncoder;
 
+    @Value("${app.admin.username:admin}")
+    private String username;
+
+    @Value("${app.admin.email:admin@cinebook.local}")
+    private String email;
+
+    @Value("${app.admin.password:}")
+    private String password;
+
     @Override
-    public void run(String... args) throws Exception {
-        initializeDefaultAdmin();
-    }
-
-    private void initializeDefaultAdmin() {
-        try {
-            // Check if any admin exists
-            if (adminRepository.count() == 0) {
-                // Create default admin
-                Admin defaultAdmin = new Admin();
-                defaultAdmin.setUsername("admin");
-                defaultAdmin.setEmail("admin@example.com");
-                defaultAdmin.setPassword(passwordEncoder.encode("admin123"));
-                defaultAdmin.setFirstName("System");
-                defaultAdmin.setLastName("Administrator");
-                defaultAdmin.setRole(Admin.Role.SUPER_ADMIN);
-                defaultAdmin.setIsActive(true);
-
-                adminRepository.save(defaultAdmin);
-
-                logger.info("Default admin created successfully:");
-                logger.info("Username: admin");
-                logger.info("Password: admin123");
-                logger.info("Email: admin@example.com");
-                logger.info("Please change the default credentials after first login!");
-            } else {
-                logger.info("Admin users already exist in the database");
-            }
-        } catch (Exception e) {
-            logger.error("Error initializing default admin: {}", e.getMessage());
+    public void run(String... args) {
+        if (adminRepository.count() > 0) {
+            logger.info("Admin account already exists");
+            return;
         }
+        if (password == null || password.length() < 12) {
+            logger.warn("No admin account created: set ADMIN_PASSWORD (12+ characters) in .env and restart");
+            return;
+        }
+        Admin admin = new Admin();
+        admin.setUsername(username);
+        admin.setEmail(email);
+        admin.setPassword(passwordEncoder.encode(password));
+        admin.setFirstName("Cinema");
+        admin.setLastName("Manager");
+        admin.setRole(Admin.Role.SUPER_ADMIN);
+        admin.setIsActive(true);
+        adminRepository.save(admin);
+        logger.info("Admin account '{}' created from configuration", username);
     }
 }

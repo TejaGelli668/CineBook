@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 
-// Mock API functions - replace with your actual API calls
 const apiCall = async (url, options = {}) => {
   const response = await fetch(`http://localhost:8080${url}`, {
     ...options,
@@ -19,7 +18,7 @@ const apiCall = async (url, options = {}) => {
 };
 
 const withAuth = () => {
-  const token = localStorage.getItem("token"); // or however you store it
+  const token = localStorage.getItem("adminToken");
   return {
     Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
@@ -117,16 +116,12 @@ const AdminFixShows = () => {
       setResult("");
 
       const response = await apiCallFunction();
-      setResult(
-        `✅ ${actionName} Success: ${
-          response.message || "Completed successfully"
-        }`
-      );
+      setResult(`${actionName}: ${response.message || "done"}`);
 
       // Refresh data after successful action
       await loadInitialData();
     } catch (err) {
-      setError(`❌ ${actionName} Error: ${err.message}`);
+      setError(`${actionName} failed: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -134,6 +129,9 @@ const AdminFixShows = () => {
 
   // 🚀 NUCLEAR OPTION: Complete Reset
   const completeReset = () =>
+    window.confirm(
+      "Delete every seat map and rebuild them? Held seats are released. Use only if seat maps are badly broken."
+    ) &&
     executeAction("Complete Reset", async () => {
       // Delete all seats
       const deleteResponse = await apiCall(
@@ -175,6 +173,9 @@ const AdminFixShows = () => {
 
   // ✅ Make All Seats Available
   const makeAllSeatsAvailable = () =>
+    window.confirm(
+      "Release every held seat across all shows? Customers mid-checkout lose their hold. Sold seats stay sold."
+    ) &&
     executeAction("Make All Seats Available", async () => {
       return await apiCall("/api/shows/make-all-seats-available", {
         method: "POST",
@@ -184,6 +185,7 @@ const AdminFixShows = () => {
 
   // 🧹 Clean Up Duplicates
   const cleanupDuplicates = () =>
+    window.confirm("Rebuild seat maps to remove the duplicates?") &&
     executeAction("Cleanup Duplicates", async () => {
       if (duplicates.length === 0) {
         return { message: "No duplicates found to clean up" };
@@ -228,244 +230,148 @@ const AdminFixShows = () => {
     });
   };
 
+  const Tool = ({ title, body, action, label, tone = "ghost" }) => (
+    <li className="cb-tool">
+      <div>
+        <p className="cb-tool__title">{title}</p>
+        <p className="cb-muted cb-small">{body}</p>
+      </div>
+      <button type="button" className={`cb-btn cb-btn--${tone} cb-btn--sm`} onClick={action} disabled={loading}>
+        {label}
+      </button>
+    </li>
+  );
+
   return (
-    <div className="p-6 bg-gradient-to-br from-slate-900 to-slate-800 text-white min-h-screen">
-      <h1 className="text-3xl font-bold mb-6 text-center bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-        🎭 Theater Management Dashboard
-      </h1>
+    <div className="cb-stack cb-repair">
+      {(result || error) && (
+        <div className={`cb-alert cb-alert--${error ? "error" : "ok"}`} role="status">
+          {error || result}
+        </div>
+      )}
+      {loading && (
+        <div className="cb-alert cb-alert--info" role="status">
+          <span className="cb-spinner cb-spinner--sm" /> Working on it…
+        </div>
+      )}
 
-      {/* Layout Preview */}
       {layoutPreview && (
-        <div className="bg-gradient-to-r from-blue-900 to-purple-900 p-6 rounded-xl mb-6 border border-blue-500">
-          <h2 className="text-xl font-semibold mb-4 text-blue-100">
-            📊 Current Layout Configuration
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-            <div className="bg-blue-800/50 p-3 rounded text-center">
-              <div className="text-2xl font-bold text-yellow-400">
-                {layoutPreview.totalSeats}
-              </div>
-              <div className="text-blue-200">Total Seats</div>
-            </div>
-            <div className="bg-green-800/50 p-3 rounded text-center">
-              <div className="text-2xl font-bold text-green-400">
-                {layoutPreview.wheelchairSeats}
-              </div>
-              <div className="text-green-200">Wheelchair</div>
-            </div>
-            <div className="bg-purple-800/50 p-3 rounded text-center">
-              <div className="text-2xl font-bold text-purple-400">
-                {Object.keys(layoutPreview.categories || {}).length}
-              </div>
-              <div className="text-purple-200">Categories</div>
-            </div>
-            <div className="bg-red-800/50 p-3 rounded text-center">
-              <div className="text-2xl font-bold text-red-400">
-                {duplicates.length}
-              </div>
-              <div className="text-red-200">Duplicates</div>
-            </div>
+        <dl className="cb-ledger">
+          <div>
+            <dt>Seats per show</dt>
+            <dd>{layoutPreview.totalSeats}</dd>
           </div>
-        </div>
+          <div>
+            <dt>Wheelchair spaces</dt>
+            <dd>{layoutPreview.wheelchairSeats}</dd>
+          </div>
+          <div>
+            <dt>Price tiers</dt>
+            <dd>{Object.keys(layoutPreview.categories || {}).length}</dd>
+          </div>
+          <div>
+            <dt>Duplicate seats</dt>
+            <dd style={duplicates.length ? { color: "#ff8a93" } : undefined}>{duplicates.length}</dd>
+          </div>
+        </dl>
       )}
 
-      {/* Critical Actions */}
-      <div className="grid md:grid-cols-2 gap-6 mb-6">
-        {/* Nuclear Option */}
-        <div className="bg-gradient-to-r from-red-900 to-red-800 p-6 rounded-xl border-2 border-red-500">
-          <h2 className="text-xl font-semibold mb-3 text-red-100">
-            🚀 Complete System Reset (NUCLEAR)
-          </h2>
-          <p className="text-red-200 mb-4 text-sm">
-            ⚠️ <strong>Use when everything is broken:</strong>
-            <br />
-            • Deletes ALL existing seats
-            <br />
-            • Regenerates clean 161-seat layout
-            <br />
-            • Fixes ALL theaters and shows
-            <br />• <strong>This will reset everything!</strong>
-          </p>
-          <button
-            onClick={completeReset}
-            disabled={loading}
-            className="w-full px-4 py-3 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 rounded-lg transition-colors font-semibold"
-          >
-            {loading ? "⏳ Resetting Everything..." : "🚀 Complete Reset"}
-          </button>
-        </div>
-
-        {/* Quick Fix */}
-        <div className="bg-gradient-to-r from-green-900 to-green-800 p-6 rounded-xl border-2 border-green-500">
-          <h2 className="text-xl font-semibold mb-3 text-green-100">
-            ✅ Quick Fix (RECOMMENDED)
-          </h2>
-          <p className="text-green-200 mb-4 text-sm">
-            🎯 <strong>For most issues:</strong>
-            <br />
-            • Makes all seats AVAILABLE
-            <br />
-            • Keeps BOOKED seats intact
-            <br />
-            • Releases LOCKED seats
-            <br />• Works across all shows
-          </p>
-          <button
-            onClick={makeAllSeatsAvailable}
-            disabled={loading}
-            className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 rounded-lg transition-colors font-semibold"
-          >
-            {loading ? "⏳ Processing..." : "✅ Make All Seats Available"}
-          </button>
-        </div>
-      </div>
-
-      {/* Duplicate Cleanup */}
       {duplicates.length > 0 && (
-        <div className="bg-yellow-900/50 border-2 border-yellow-500 p-4 rounded-xl mb-6">
-          <h3 className="text-yellow-400 font-semibold mb-2">
-            ⚠️ Duplicates Detected!
-          </h3>
-          <p className="text-yellow-200 mb-3">
-            Found {duplicates.length} duplicate seats that need cleanup.
-          </p>
-          <button
-            onClick={cleanupDuplicates}
-            disabled={loading}
-            className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 rounded-lg transition-colors"
-          >
-            {loading ? "Cleaning..." : "🧹 Clean Up Duplicates"}
+        <div className="cb-alert cb-alert--warn">
+          <span style={{ flex: 1 }}>
+            {duplicates.length} duplicate seats found. Customers may see the same seat twice.
+          </span>
+          <button type="button" className="cb-btn cb-btn--pink cb-btn--sm" onClick={cleanupDuplicates} disabled={loading}>
+            Remove duplicates
           </button>
         </div>
       )}
 
-      {/* Management Actions */}
-      <div className="grid md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-slate-800 p-4 rounded-lg">
-          <h3 className="text-lg font-semibold mb-3">🏢 Theater Management</h3>
-          <button
-            onClick={fixAllTheaters}
-            disabled={loading}
-            className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 rounded-lg transition-colors mb-2"
-          >
-            Fix All Theaters
+      <section className="cb-panel">
+        <h2 className="cb-h3" style={{ marginBottom: 6 }}>Everyday fixes</h2>
+        <p className="cb-muted cb-small" style={{ marginBottom: 8 }}>Safe to run any time. Sold seats are never touched.</p>
+        <ul className="cb-tools">
+          <Tool
+            title="Add missing seat maps"
+            body="For shows created before their theater had seats."
+            action={fixAllShows}
+            label="Fix shows"
+            tone="pink"
+          />
+          <Tool
+            title="Rebuild every theater's layout"
+            body="Regenerates each theater's seats and every show's seat map."
+            action={fixAllTheaters}
+            label="Rebuild layouts"
+          />
+          <Tool
+            title="Release stuck seat holds"
+            body="Frees seats held by customers who left mid-checkout."
+            action={makeAllSeatsAvailable}
+            label="Release holds"
+          />
+        </ul>
+      </section>
+
+      <div className="cb-overview__two" style={{ marginTop: 0 }}>
+        <section className="cb-panel">
+          <h2 className="cb-h3" style={{ marginBottom: 12 }}>One theater</h2>
+          {theaters.length === 0 ? (
+            <p className="cb-muted cb-small">No theaters found.</p>
+          ) : (
+            <ul className="cb-tools">
+              {theaters.slice(0, 6).map((theater) => (
+                <li key={theater.id} className="cb-tool">
+                  <p className="cb-tool__title">{theater.name}</p>
+                  <button type="button" className="cb-btn cb-btn--ghost cb-btn--sm" onClick={() => setupTheater(theater.id)} disabled={loading}>
+                    Set up seats
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+        <section className="cb-panel">
+          <h2 className="cb-h3" style={{ marginBottom: 12 }}>One show</h2>
+          {shows.length === 0 ? (
+            <p className="cb-muted cb-small">No shows found.</p>
+          ) : (
+            <ul className="cb-tools">
+              {shows.slice(0, 6).map((show) => (
+                <li key={show.id} className="cb-tool">
+                  <p className="cb-tool__title">
+                    {show.movie?.title || "Show"} <span className="cb-muted cb-small">#{show.id}</span>
+                  </p>
+                  <button type="button" className="cb-btn cb-btn--ghost cb-btn--sm" onClick={() => fixSpecificShow(show.id)} disabled={loading}>
+                    Repair
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+
+      <section className="cb-panel">
+        <div className="cb-panel__head">
+          <h2 className="cb-h3">Seat report</h2>
+          <button type="button" className="cb-btn cb-btn--ghost cb-btn--sm" onClick={loadInitialData} disabled={loading}>
+            Refresh
           </button>
-          <div className="max-h-32 overflow-y-auto">
-            {theaters.slice(0, 5).map((theater) => (
-              <button
-                key={theater.id}
-                onClick={() => setupTheater(theater.id)}
-                disabled={loading}
-                className="w-full px-2 py-1 bg-slate-600 hover:bg-slate-700 disabled:bg-gray-600 rounded text-xs mb-1 transition-colors"
-              >
-                Setup Theater {theater.id}: {theater.name}
-              </button>
-            ))}
-          </div>
         </div>
+        <pre className="cb-repair__stats">{statistics || "Loading…"}</pre>
+      </section>
 
-        <div className="bg-slate-800 p-4 rounded-lg">
-          <h3 className="text-lg font-semibold mb-3">🎭 Show Management</h3>
-          <button
-            onClick={fixAllShows}
-            disabled={loading}
-            className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 rounded-lg transition-colors mb-2"
-          >
-            Fix All Shows
-          </button>
-          <div className="max-h-32 overflow-y-auto">
-            {shows.slice(0, 5).map((show) => (
-              <button
-                key={show.id}
-                onClick={() => fixSpecificShow(show.id)}
-                disabled={loading}
-                className="w-full px-2 py-1 bg-slate-600 hover:bg-slate-700 disabled:bg-gray-600 rounded text-xs mb-1 transition-colors truncate"
-              >
-                Fix Show {show.id}: {show.movie?.title || "Unknown"}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="bg-slate-800 p-4 rounded-lg">
-          <h3 className="text-lg font-semibold mb-3">🔄 Refresh Data</h3>
-          <div className="space-y-2">
-            <button
-              onClick={loadStatistics}
-              disabled={loading}
-              className="w-full px-3 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:bg-gray-600 rounded text-sm transition-colors"
-            >
-              📊 Refresh Statistics
-            </button>
-            <button
-              onClick={loadDuplicates}
-              disabled={loading}
-              className="w-full px-3 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 rounded text-sm transition-colors"
-            >
-              🔍 Check Duplicates
-            </button>
-            <button
-              onClick={loadInitialData}
-              disabled={loading}
-              className="w-full px-3 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 rounded text-sm transition-colors"
-            >
-              🔄 Refresh All
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Statistics */}
-      <div className="bg-slate-800 p-4 rounded-lg mb-6">
-        <h2 className="text-lg font-semibold mb-2">📈 System Statistics</h2>
-        <div className="bg-slate-900 p-3 rounded font-mono text-sm text-slate-300 whitespace-pre-wrap">
-          {statistics || "Loading statistics..."}
-        </div>
-      </div>
-
-      {/* Results */}
-      {result && (
-        <div className="bg-green-900/30 border border-green-500 p-4 rounded-lg mb-4">
-          <h3 className="text-green-400 font-semibold">✅ Success:</h3>
-          <p className="text-green-200">{result}</p>
-        </div>
-      )}
-
-      {error && (
-        <div className="bg-red-900/30 border border-red-500 p-4 rounded-lg mb-4">
-          <h3 className="text-red-400 font-semibold">❌ Error:</h3>
-          <p className="text-red-200">{error}</p>
-        </div>
-      )}
-
-      {/* Instructions */}
-      <div className="bg-slate-700 p-4 rounded-lg">
-        <h3 className="text-slate-200 font-semibold mb-2">
-          📋 Quick Action Guide
-        </h3>
-        <div className="text-slate-300 text-sm space-y-1">
-          <p>
-            <strong>🎯 Most Common Issues:</strong> Use "Make All Seats
-            Available" (green button)
-          </p>
-          <p>
-            <strong>🚨 Broken System:</strong> Use "Complete Reset" (red button)
-            - this will fix everything
-          </p>
-          <p>
-            <strong>⚠️ Duplicates Found:</strong> Use "Clean Up Duplicates"
-            (yellow button)
-          </p>
-          <p>
-            <strong>🔧 Specific Issues:</strong> Use individual theater/show
-            buttons
-          </p>
-          <p>
-            <strong>📊 Check Progress:</strong> Monitor statistics after each
-            action
-          </p>
-        </div>
-      </div>
+      <section className="cb-panel cb-repair__danger">
+        <h2 className="cb-h3" style={{ marginBottom: 6 }}>Last resort</h2>
+        <p className="cb-muted cb-small" style={{ marginBottom: 14 }}>
+          Deletes every seat map and rebuilds them from scratch. Held seats are
+          released. Only use this if the fixes above don't help.
+        </p>
+        <button type="button" className="cb-btn cb-btn--danger" onClick={completeReset} disabled={loading}>
+          Reset all seat maps
+        </button>
+      </section>
     </div>
   );
 };

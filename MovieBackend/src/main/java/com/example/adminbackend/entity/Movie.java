@@ -43,6 +43,12 @@ public class Movie {
     private String certificate;   // U, UA, A, S
     private String status;        // Active, Inactive, Coming Soon
 
+    @Column(unique = true)
+    private Long tmdbId;          // The Movie Database id, when imported from TMDB
+
+    @Column(length = 500)
+    private String backdropUrl;   // full TMDB image URL
+
     @OneToMany(mappedBy = "movie", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonIgnore
     private List<Show> shows;
@@ -175,6 +181,22 @@ public class Movie {
     }
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    // TMDB Id
+    public Long getTmdbId() {
+        return tmdbId;
+    }
+    public void setTmdbId(Long tmdbId) {
+        this.tmdbId = tmdbId;
+    }
+
+    // Backdrop URL
+    public String getBackdropUrl() {
+        return backdropUrl;
+    }
+    public void setBackdropUrl(String backdropUrl) {
+        this.backdropUrl = backdropUrl;
     }
 
     // Shows

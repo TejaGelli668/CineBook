@@ -26,10 +26,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     long countByIsActiveTrue();
 
-    @Query("SELECT COUNT(u) FROM User u WHERE DATE(u.createdAt) = CURRENT_DATE")
+    @Query("SELECT COUNT(u) FROM User u WHERE cast(u.createdAt as date) = CURRENT_DATE")
     long countUsersRegisteredToday();
 
-    @Query("SELECT COUNT(u) FROM User u WHERE YEAR(u.createdAt) = YEAR(CURRENT_DATE) AND MONTH(u.createdAt) = MONTH(CURRENT_DATE)")
+    @Query("SELECT COUNT(u) FROM User u WHERE extract(year from u.createdAt) = extract(year from CURRENT_DATE) AND extract(month from u.createdAt) = extract(month from CURRENT_DATE)")
     long countUsersRegisteredThisMonth();
 
     @Query("SELECT u FROM User u WHERE u.createdAt >= :startDate")

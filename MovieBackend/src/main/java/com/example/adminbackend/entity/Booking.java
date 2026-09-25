@@ -251,7 +251,7 @@ public class Booking {
     @Column(name = "payment_method")
     private String paymentMethod;
 
-    @Column(name = "payment_id")
+    @Column(name = "payment_id", unique = true)
     private String paymentId;
 
     @Column(name = "seat_numbers", columnDefinition = "TEXT")
@@ -302,6 +302,21 @@ public class Booking {
     @Transient
     public String getBookingDate() {
         return bookingTime != null ? bookingTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) : "Unknown Date";
+    }
+
+    /**
+     * The booked seat numbers, e.g. [D4, D5]. Uses the numbers stored on the booking,
+     * which survive the nightly cleanup of past shows' seat rows and cancellations
+     * (both of which unlink the seats); falls back to the linked seats for old rows.
+     */
+    public java.util.List<String> seatNumberList() {
+        if (seatNumbers != null && !seatNumbers.isBlank()) {
+            return java.util.Arrays.stream(seatNumbers.split(","))
+                    .map(String::trim).filter(s -> !s.isEmpty()).toList();
+        }
+        if (seats == null) return java.util.List.of();
+        return seats.stream().map(ShowSeat::getSeatNumber)
+                .filter(n -> n != null && !"Unknown".equals(n)).sorted().toList();
     }
 
     @Transient

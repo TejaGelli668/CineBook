@@ -28,6 +28,9 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     Optional<Booking> findByBookingId(String bookingId);
 
+    // One booking per Stripe payment (idempotent booking)
+    Optional<Booking> findByPaymentId(String paymentId);
+
     @Query("SELECT DISTINCT b FROM Booking b " +
             "LEFT JOIN FETCH b.show s " +
             "LEFT JOIN FETCH s.movie m " +
@@ -57,4 +60,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     @Query("SELECT COUNT(b) FROM Booking b WHERE b.show.movie.id = :movieId")
     long countByMovieId(@Param("movieId") Long movieId);
+
+    List<Booking> findByBookingTimeBetween(java.time.LocalDateTime from, java.time.LocalDateTime to);
+
 }

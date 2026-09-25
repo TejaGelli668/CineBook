@@ -1,116 +1,89 @@
 import React from "react";
-import { Home, Film, Building2, Coffee, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 
-const AdminSidebar = ({ activeTab, setActiveTab, currentView, onNavigate }) => {
-  // Support both old and new prop patterns
-  const currentActiveTab = activeTab || currentView || "dashboard";
-  const handleTabChange = setActiveTab || onNavigate || (() => {});
+const MENU = [
+  { tab: "dashboard", label: "Overview", te: "సారాంశం" },
+  { tab: "movies", label: "Films", te: "సినిమాలు", count: "films" },
+  { tab: "theaters", label: "Theaters", te: "థియేటర్లు" },
+  { tab: "foodItems", label: "Canteen", te: "క్యాంటీన్", count: "snacks" },
+  { tab: "fixShows", label: "Seat repair", te: "సీట్ల మరమ్మతు" },
+];
 
-  const menuItems = [
-    {
-      id: "dashboard",
-      label: "Dashboard",
-      icon: Home,
-      tab: "dashboard",
-    },
-    {
-      id: "movies",
-      label: "Movies",
-      icon: Film,
-      tab: "movies",
-    },
-    {
-      id: "theaters",
-      label: "Theaters",
-      icon: Building2,
-      tab: "theaters",
-    },
-    {
-      id: "foodItems",
-      label: "Food & Beverages",
-      icon: Coffee,
-      tab: "foodItems",
-    },
-  ];
+// Tabs that belong to a menu item (e.g. editing a film keeps "Films" highlighted)
+const OWNER = {
+  addMovie: "movies",
+  editMovie: "movies",
+  addTheater: "theaters",
+  editTheater: "theaters",
+  addFoodItem: "foodItems",
+  editFoodItem: "foodItems",
+};
+
+const TE_DAYS = ["ఆదివారం", "సోమవారం", "మంగళవారం", "బుధవారం", "గురువారం", "శుక్రవారం", "శనివారం"];
+
+const AdminSidebar = ({ activeTab, setActiveTab, currentView, onNavigate, onLogout, counts = {} }) => {
+  const current = activeTab || currentView || "dashboard";
+  const active = OWNER[current] || current;
+  const go = onNavigate || setActiveTab || (() => {});
+  const today = new Date();
 
   const handleLogout = () => {
-    if (window.confirm("Are you sure you want to logout?")) {
+    if (!window.confirm("Sign out of the manager's desk?")) return;
+    if (onLogout) {
+      onLogout();
+    } else {
       localStorage.removeItem("adminToken");
-      localStorage.removeItem("userToken");
+      localStorage.removeItem("isAdmin");
       window.location.href = "/";
     }
   };
 
-  const handleMenuClick = (tab) => {
-    try {
-      handleTabChange(tab);
-    } catch (error) {
-      console.error("Navigation error:", error);
-    }
-  };
-
   return (
-    <div className="w-64 bg-slate-900 text-white flex flex-col h-full">
-      {/* Logo */}
-      <div className="p-6 border-b border-slate-700">
-        <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg flex items-center justify-center">
-            <Film className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold">CineAdmin</h1>
-            <p className="text-xs text-slate-400">Dashboard</p>
-          </div>
-        </div>
+    <aside className="cb-booth">
+      <div className="cb-booth__sign">
+        <span className="cb-booth__bulbs" aria-hidden="true" />
+        <span className="cb-booth__name">CineBook</span>
+        <span className="cb-booth__role">Manager's desk</span>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 p-4">
-        <ul className="space-y-2">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            const isActive =
-              currentActiveTab === item.tab ||
-              (item.tab === "movies" &&
-                (currentActiveTab === "addMovie" ||
-                  currentActiveTab === "editMovie")) ||
-              (item.tab === "theaters" &&
-                (currentActiveTab === "addTheater" ||
-                  currentActiveTab === "editTheater")) ||
-              (item.tab === "foodItems" &&
-                (currentActiveTab === "addFoodItem" ||
-                  currentActiveTab === "editFoodItem"));
+      <div className="cb-booth__leaf" aria-label={today.toDateString()}>
+        <span className="cb-booth__month">
+          {today.toLocaleDateString("en-IN", { month: "long" })} {today.getFullYear()}
+        </span>
+        <span className="cb-booth__day">{today.getDate()}</span>
+        <span className="cb-booth__weekday">
+          {today.toLocaleDateString("en-IN", { weekday: "long" })}
+          <span lang="te">{TE_DAYS[today.getDay()]}</span>
+        </span>
+      </div>
 
-            return (
-              <li key={item.id}>
-                <button
-                  onClick={() => handleMenuClick(item.tab)}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                    isActive
-                      ? "bg-gradient-to-r from-purple-500 to-blue-500 text-white"
-                      : "text-slate-300 hover:bg-slate-800 hover:text-white"
-                  }`}
-                >
-                  <Icon className="w-5 h-5" />
-                  <span className="font-medium">{item.label}</span>
-                </button>
-              </li>
-            );
-          })}
+      <nav aria-label="Manager sections">
+        <ul className="cb-booth__nav">
+          {MENU.map(({ tab, label, te, count }) => (
+            <li key={tab}>
+              <button
+                type="button"
+                aria-current={active === tab ? "page" : undefined}
+                onClick={() => go(tab)}
+              >
+                <span className="cb-booth__label">{label}</span>
+                <span className="cb-booth__te" lang="te">{te}</span>
+                {count && counts[count] != null && (
+                  <span className="cb-booth__count" aria-label={`${counts[count]} ${count}`}>
+                    {counts[count]}
+                  </span>
+                )}
+              </button>
+            </li>
+          ))}
         </ul>
       </nav>
 
-      {/* Bottom Section - Only Logout */}
-      <div className="p-4 border-t border-slate-700">
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors text-red-400 hover:bg-red-900 hover:text-red-300"
-        >
-          <LogOut className="w-5 h-5" />
-          <span className="font-medium">Logout</span>
-        </button>
-      </div>
-    </div>
+      <button type="button" className="cb-booth__signout" onClick={handleLogout}>
+        <LogOut size={16} aria-hidden="true" />
+        Sign out
+      </button>
+    </aside>
   );
 };
 

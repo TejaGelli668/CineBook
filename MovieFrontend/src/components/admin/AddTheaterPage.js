@@ -1,15 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-  ChevronLeft,
-  MapPin,
-  Building,
-  Users,
-  Settings,
-  Phone,
-  Mail,
-  Calendar,
-  DollarSign,
-} from "lucide-react";
+import { ChevronLeft, MapPin } from "lucide-react";
 
 const AddTheaterPage = ({ onBack, onSave, theater }) => {
   const [theaterData, setTheaterData] = useState({
@@ -154,32 +144,32 @@ const AddTheaterPage = ({ onBack, onSave, theater }) => {
   const validateForm = () => {
     const newErrors = {};
 
-    if (!theaterData.name.trim()) newErrors.name = "Theater name is required";
+    if (!theaterData.name.trim()) newErrors.name = "Enter the theater's name";
     if (!theaterData.location.trim())
-      newErrors.location = "Location is required";
-    if (!theaterData.address.trim()) newErrors.address = "Address is required";
-    if (!theaterData.city.trim()) newErrors.city = "City is required";
-    if (!theaterData.state.trim()) newErrors.state = "State is required";
-    if (!theaterData.pincode.trim()) newErrors.pincode = "Pincode is required";
+      newErrors.location = "Enter the area, e.g. RTC X Roads";
+    if (!theaterData.address.trim()) newErrors.address = "Enter the street address";
+    if (!theaterData.city.trim()) newErrors.city = "Enter the city";
+    if (!theaterData.state.trim()) newErrors.state = "Enter the state";
+    if (!theaterData.pincode.trim()) newErrors.pincode = "Enter the PIN code";
     if (!theaterData.phoneNumber.trim())
-      newErrors.phoneNumber = "Phone number is required";
-    if (!theaterData.email.trim()) newErrors.email = "Email is required";
+      newErrors.phoneNumber = "Enter a phone number";
+    if (!theaterData.email.trim()) newErrors.email = "Enter an email address";
     if (
       !theaterData.numberOfScreens ||
       isNaN(theaterData.numberOfScreens) ||
       theaterData.numberOfScreens <= 0
     ) {
-      newErrors.numberOfScreens = "Valid number of screens is required";
+      newErrors.numberOfScreens = "Enter how many screens (1 or more)";
     }
     if (
       !theaterData.totalSeats ||
       isNaN(theaterData.totalSeats) ||
       theaterData.totalSeats <= 0
     ) {
-      newErrors.totalSeats = "Valid total seats number is required";
+      newErrors.totalSeats = "Enter the total seats (1 or more)";
     }
     if (theaterData.shows.length === 0) {
-      newErrors.shows = "At least one show time is required";
+      newErrors.shows = "Pick at least one show time";
     }
 
     setErrors(newErrors);
@@ -238,421 +228,256 @@ const AddTheaterPage = ({ onBack, onSave, theater }) => {
     }
   };
 
+  const field = (name, label, props = {}, span = false) => (
+    <div className="cb-field" style={span ? { gridColumn: "1 / -1" } : undefined}>
+      <label htmlFor={`th-${name}`} className="cb-label">
+        {label}
+      </label>
+      {props.as === "textarea" ? (
+        <textarea
+          id={`th-${name}`}
+          name={name}
+          rows={2}
+          value={theaterData[name]}
+          onChange={handleInputChange}
+          className="cb-textarea"
+          aria-invalid={!!errors[name]}
+          placeholder={props.placeholder}
+        />
+      ) : (
+        <input
+          id={`th-${name}`}
+          name={name}
+          value={theaterData[name]}
+          onChange={handleInputChange}
+          className="cb-input"
+          aria-invalid={!!errors[name]}
+          {...props}
+        />
+      )}
+      {errors[name] && <p className="cb-field__error">{errors[name]}</p>}
+    </div>
+  );
+
+  const PRICE_BANDS = [
+    ["morning", "Morning", "6 AM to 12 PM", "200"],
+    ["afternoon", "Afternoon", "12 PM to 5 PM", "250"],
+    ["evening", "Evening", "5 PM to 9 PM", "300"],
+    ["night", "Night", "After 9 PM", "350"],
+  ];
+
+  const STATUSES = [
+    ["ACTIVE", "Open", "mint"],
+    ["INACTIVE", "Closed"],
+    ["UNDER_MAINTENANCE", "Under repair"],
+  ];
+
+  const bandFor = (slot) => {
+    const [h, rest] = slot.split(":");
+    const pm = rest.includes("PM");
+    const hour = (parseInt(h, 10) % 12) + (pm ? 12 : 0);
+    if (hour < 12) return PRICE_BANDS[0];
+    if (hour < 17) return PRICE_BANDS[1];
+    if (hour < 21) return PRICE_BANDS[2];
+    return PRICE_BANDS[3];
+  };
+  const priceFor = (slot) => {
+    const [key, , , fallback] = bandFor(slot);
+    return theaterData.pricing[key] || fallback;
+  };
+  const pickedSlots = timeSlots.filter((s) => theaterData.shows.includes(s));
+
+  const part = (letter, title, note, children) => (
+    <section className="cb-docket__part">
+      <header>
+        <span className="cb-docket__letter" aria-hidden="true">{letter}</span>
+        <div>
+          <h2>{title}</h2>
+          {note && <p>{note}</p>}
+        </div>
+      </header>
+      {children}
+    </section>
+  );
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
-      {/* Header */}
-      <div className="bg-slate-900/80 backdrop-blur-xl border-b border-slate-700 px-8 py-6 flex items-center space-x-4">
-        <button
-          onClick={onBack}
-          className="p-2 hover:bg-slate-700 rounded-full transition-colors text-slate-400 hover:text-white"
-        >
-          <ChevronLeft className="w-6 h-6" />
+    <section className="cb-regform" aria-labelledby="th-title">
+      <div className="cb-regform__head">
+        <button type="button" className="cb-iconbtn" onClick={onBack} aria-label="Back to theaters">
+          <ChevronLeft size={20} />
         </button>
         <div>
-          <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">
-            {theater ? "Edit Theater" : "Add New Theater"}
+          <h1 id="th-title" className="cb-display">
+            {theater ? "Edit theater" : "Add a theater"}
           </h1>
-          <p className="text-slate-400">
-            {theater
-              ? "Update the theater details below"
-              : "Fill in the theater details below"}
-          </p>
+          <p>Customers see the name and area. Seat maps are made from the screens and seats.</p>
         </div>
       </div>
 
-      {/* Form Content */}
-      <div className="max-w-6xl mx-auto px-8 py-8">
-        <div className="space-y-8">
-          {/* Basic Information */}
-          <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700 p-8">
-            <h3 className="text-xl font-bold text-slate-200 mb-6 flex items-center">
-              <Building className="w-6 h-6 mr-3 text-purple-400" />
-              Basic Information
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Theater Name *
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  value={theaterData.name}
-                  onChange={handleInputChange}
-                  className={`w-full p-4 bg-slate-700/50 border rounded-xl text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
-                    errors.name ? "border-red-500" : "border-slate-600"
-                  }`}
-                  placeholder="e.g., PVR Cinemas - Phoenix Mall"
-                />
-                {errors.name && (
-                  <p className="text-red-400 text-sm mt-1">{errors.name}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Location *
-                </label>
-                <input
-                  type="text"
-                  name="location"
-                  value={theaterData.location}
-                  onChange={handleInputChange}
-                  className={`w-full p-4 bg-slate-700/50 border rounded-xl text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
-                    errors.location ? "border-red-500" : "border-slate-600"
-                  }`}
-                  placeholder="e.g., Phoenix Mall, Mumbai"
-                />
-                {errors.location && (
-                  <p className="text-red-400 text-sm mt-1">{errors.location}</p>
-                )}
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Address *
-                </label>
-                <textarea
-                  name="address"
-                  value={theaterData.address}
-                  onChange={handleInputChange}
-                  rows={3}
-                  className={`w-full p-4 bg-slate-700/50 border rounded-xl text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all resize-none ${
-                    errors.address ? "border-red-500" : "border-slate-600"
-                  }`}
-                  placeholder="Enter full address"
-                />
-                {errors.address && (
-                  <p className="text-red-400 text-sm mt-1">{errors.address}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  City *
-                </label>
-                <input
-                  type="text"
-                  name="city"
-                  value={theaterData.city}
-                  onChange={handleInputChange}
-                  className={`w-full p-4 bg-slate-700/50 border rounded-xl text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
-                    errors.city ? "border-red-500" : "border-slate-600"
-                  }`}
-                  placeholder="Enter city"
-                />
-                {errors.city && (
-                  <p className="text-red-400 text-sm mt-1">{errors.city}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  State *
-                </label>
-                <input
-                  type="text"
-                  name="state"
-                  value={theaterData.state}
-                  onChange={handleInputChange}
-                  className={`w-full p-4 bg-slate-700/50 border rounded-xl text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
-                    errors.state ? "border-red-500" : "border-slate-600"
-                  }`}
-                  placeholder="Enter state"
-                />
-                {errors.state && (
-                  <p className="text-red-400 text-sm mt-1">{errors.state}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Pincode *
-                </label>
-                <input
-                  type="text"
-                  name="pincode"
-                  value={theaterData.pincode}
-                  onChange={handleInputChange}
-                  className={`w-full p-4 bg-slate-700/50 border rounded-xl text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
-                    errors.pincode ? "border-red-500" : "border-slate-600"
-                  }`}
-                  placeholder="Enter pincode"
-                />
-                {errors.pincode && (
-                  <p className="text-red-400 text-sm mt-1">{errors.pincode}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2 flex items-center">
-                  <Phone className="w-4 h-4 mr-2" />
-                  Phone Number *
-                </label>
-                <input
-                  type="tel"
-                  name="phoneNumber"
-                  value={theaterData.phoneNumber}
-                  onChange={handleInputChange}
-                  className={`w-full p-4 bg-slate-700/50 border rounded-xl text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
-                    errors.phoneNumber ? "border-red-500" : "border-slate-600"
-                  }`}
-                  placeholder="Enter phone number"
-                />
-                {errors.phoneNumber && (
-                  <p className="text-red-400 text-sm mt-1">
-                    {errors.phoneNumber}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2 flex items-center">
-                  <Mail className="w-4 h-4 mr-2" />
-                  Email *
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  value={theaterData.email}
-                  onChange={handleInputChange}
-                  className={`w-full p-4 bg-slate-700/50 border rounded-xl text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
-                    errors.email ? "border-red-500" : "border-slate-600"
-                  }`}
-                  placeholder="Enter email address"
-                />
-                {errors.email && (
-                  <p className="text-red-400 text-sm mt-1">{errors.email}</p>
-                )}
-              </div>
-            </div>
+      <div className="cb-regform__grid">
+        <form className="cb-docket" onSubmit={handleSubmit} noValidate>
+          <div className="cb-docket__masthead">
+            <span className="cb-docket__brand">CineBook theater register</span>
+            <span lang="te">థియేటర్ నమోదు</span>
           </div>
 
-          {/* Theater Specifications */}
-          <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700 p-8">
-            <h3 className="text-xl font-bold text-slate-200 mb-6 flex items-center">
-              <Users className="w-6 h-6 mr-3 text-blue-400" />
-              Theater Specifications
-            </h3>
+          {Object.values(errors).some(Boolean) && (
+            <div className="cb-alert cb-alert--error" style={{ marginTop: 20 }} role="alert">
+              Some details are missing. Check the marked lines.
+            </div>
+          )}
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Number of Screens *
-                </label>
-                <input
-                  type="number"
-                  name="numberOfScreens"
-                  value={theaterData.numberOfScreens}
-                  onChange={handleInputChange}
-                  min="1"
-                  className={`w-full p-4 bg-slate-700/50 border rounded-xl text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
-                    errors.numberOfScreens
-                      ? "border-red-500"
-                      : "border-slate-600"
-                  }`}
-                  placeholder="e.g., 8"
-                />
-                {errors.numberOfScreens && (
-                  <p className="text-red-400 text-sm mt-1">
-                    {errors.numberOfScreens}
-                  </p>
-                )}
-              </div>
+          {part("A", "Where it is", null, <>
+            <div className="cb-form-row">
+              {field("name", "Theater name", { placeholder: "Charminar Talkies" })}
+              {field("location", "Area", { placeholder: "RTC X Roads" })}
+              {field("address", "Street address", { as: "textarea", placeholder: "Building, street, landmark" }, true)}
+              {field("city", "City", { placeholder: "Hyderabad" })}
+              {field("state", "State", { placeholder: "Telangana" })}
+              {field("pincode", "PIN code", { inputMode: "numeric", placeholder: "500020" })}
+            </div>
+          </>)}
 
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Total Seats *
-                </label>
-                <input
-                  type="number"
-                  name="totalSeats"
-                  value={theaterData.totalSeats}
-                  onChange={handleInputChange}
-                  min="1"
-                  className={`w-full p-4 bg-slate-700/50 border rounded-xl text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
-                    errors.totalSeats ? "border-red-500" : "border-slate-600"
-                  }`}
-                  placeholder="e.g., 1200"
-                />
-                {errors.totalSeats && (
-                  <p className="text-red-400 text-sm mt-1">
-                    {errors.totalSeats}
-                  </p>
-                )}
-              </div>
+          {part("B", "Box office contact", null, <>
+            <div className="cb-form-row">
+              {field("phoneNumber", "Phone", { type: "tel", placeholder: "+91 40 …" })}
+              {field("email", "Email", { type: "email", placeholder: "boxoffice@…" })}
+            </div>
+          </>)}
 
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Status
-                </label>
-                <select
-                  name="status"
-                  value={theaterData.status}
-                  onChange={handleInputChange}
-                  className="w-full p-4 bg-slate-700/50 border border-slate-600 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                >
-                  <option value="ACTIVE">Active</option>
-                  <option value="INACTIVE">Inactive</option>
-                  <option value="UNDER_MAINTENANCE">Under Maintenance</option>
-                </select>
+          {part("C", "Screens and seats", null, <>
+            <div className="cb-form-row">
+              {field("numberOfScreens", "Screens", { type: "number", min: "1", placeholder: "3" })}
+              {field("totalSeats", "Total seats", { type: "number", min: "1", placeholder: "450" })}
+            </div>
+            <div className="cb-field">
+              <span className="cb-label" id="th-status-label">Status</span>
+              <div className="cb-stampset" role="group" aria-labelledby="th-status-label" style={{ marginTop: 8 }}>
+                {STATUSES.map(([value, label, tone]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    data-tone={tone}
+                    aria-pressed={theaterData.status === value}
+                    onClick={() => setTheaterData((p) => ({ ...p, status: value }))}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
-          </div>
+          </>)}
 
-          {/* Facilities */}
-          <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700 p-8">
-            <h3 className="text-xl font-bold text-slate-200 mb-6 flex items-center">
-              <Settings className="w-6 h-6 mr-3 text-green-400" />
-              Facilities
-            </h3>
-
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {part("D", "Facilities", "Tick what the theater has. Shown on its listing.", <>
+            <div className="cb-chips">
               {availableFacilities.map((facility) => (
-                <label
+                <button
                   key={facility}
-                  className="flex items-center space-x-3 cursor-pointer group"
+                  type="button"
+                  className="cb-chip"
+                  aria-pressed={theaterData.facilities.includes(facility)}
+                  onClick={() => handleFacilityToggle(facility)}
                 >
-                  <input
-                    type="checkbox"
-                    checked={theaterData.facilities.includes(facility)}
-                    onChange={() => handleFacilityToggle(facility)}
-                    className="w-5 h-5 text-purple-600 bg-slate-700 border-slate-600 rounded focus:ring-purple-500 focus:ring-2"
-                  />
-                  <span className="text-slate-300 text-sm group-hover:text-slate-200 transition-colors">
-                    {facility}
-                  </span>
-                </label>
+                  {facility}
+                </button>
               ))}
             </div>
-          </div>
+          </>)}
 
-          {/* Show Times */}
-          <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700 p-8">
-            <h3 className="text-xl font-bold text-slate-200 mb-6 flex items-center">
-              <Calendar className="w-6 h-6 mr-3 text-orange-400" />
-              Show Times *
-            </h3>
-
-            <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-3">
+          {part("E", "Show times", "Punch the usual slots at this theater. At least one.", <>
+            <div className="cb-punch" role="group" aria-label="Show times">
               {timeSlots.map((slot) => (
-                <label
+                <button
                   key={slot}
-                  className="flex items-center space-x-2 cursor-pointer group"
+                  type="button"
+                  aria-pressed={theaterData.shows.includes(slot)}
+                  onClick={() => handleShowToggle(slot)}
                 >
-                  <input
-                    type="checkbox"
-                    checked={theaterData.shows.includes(slot)}
-                    onChange={() => handleShowToggle(slot)}
-                    className="w-4 h-4 text-purple-600 bg-slate-700 border-slate-600 rounded focus:ring-purple-500 focus:ring-2"
-                  />
-                  <span className="text-slate-300 text-sm group-hover:text-slate-200 transition-colors">
-                    {slot}
-                  </span>
-                </label>
+                  {slot}
+                </button>
               ))}
             </div>
-            {errors.shows && (
-              <p className="text-red-400 text-sm mt-3">{errors.shows}</p>
-            )}
-          </div>
+            {errors.shows && <p className="cb-field__error">{errors.shows}</p>}
+          </>)}
 
-          {/* Pricing */}
-          <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700 p-8">
-            <h3 className="text-xl font-bold text-slate-200 mb-6 flex items-center">
-              <DollarSign className="w-6 h-6 mr-3 text-yellow-400" />
-              Pricing (₹)
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Morning Shows (6 AM - 12 PM)
-                </label>
-                <input
-                  type="number"
-                  value={theaterData.pricing.morning}
-                  onChange={(e) =>
-                    handlePricingChange("morning", e.target.value)
-                  }
-                  className="w-full p-4 bg-slate-700/50 border border-slate-600 rounded-xl text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                  placeholder="200"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Afternoon Shows (12 PM - 5 PM)
-                </label>
-                <input
-                  type="number"
-                  value={theaterData.pricing.afternoon}
-                  onChange={(e) =>
-                    handlePricingChange("afternoon", e.target.value)
-                  }
-                  className="w-full p-4 bg-slate-700/50 border border-slate-600 rounded-xl text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                  placeholder="250"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Evening Shows (5 PM - 9 PM)
-                </label>
-                <input
-                  type="number"
-                  value={theaterData.pricing.evening}
-                  onChange={(e) =>
-                    handlePricingChange("evening", e.target.value)
-                  }
-                  className="w-full p-4 bg-slate-700/50 border border-slate-600 rounded-xl text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                  placeholder="300"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Night Shows (9 PM onwards)
-                </label>
-                <input
-                  type="number"
-                  value={theaterData.pricing.night}
-                  onChange={(e) => handlePricingChange("night", e.target.value)}
-                  className="w-full p-4 bg-slate-700/50 border border-slate-600 rounded-xl text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                  placeholder="350"
-                />
-              </div>
+          {part("F", "Ticket rates", "Each show time is charged by the time of day it starts.", <>
+            <div className="cb-rates">
+              {PRICE_BANDS.map(([key, label, hint, placeholder]) => (
+                <div key={key} className="cb-rate">
+                  <label htmlFor={`th-price-${key}`}>{label}</label>
+                  <small>{hint}</small>
+                  <div className="cb-rate__amount">
+                    <span aria-hidden="true">₹</span>
+                    <input
+                      id={`th-price-${key}`}
+                      type="number"
+                      min="0"
+                      inputMode="numeric"
+                      value={theaterData.pricing[key]}
+                      onChange={(e) => handlePricingChange(key, e.target.value)}
+                      placeholder={placeholder}
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
+          </>)}
 
-          {/* Submit Buttons */}
-          <div className="flex justify-end space-x-4">
-            <button
-              type="button"
-              onClick={onBack}
-              className="px-8 py-4 border border-slate-600 text-slate-300 rounded-xl hover:bg-slate-700/50 transition-all"
-            >
+          <div className="cb-regform__foot">
+            <button type="button" className="cb-btn cb-btn--ghost" onClick={onBack}>
               Cancel
             </button>
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={loading}
-              className="px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:shadow-lg hover:shadow-purple-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading
-                ? theater
-                  ? "Updating Theater..."
-                  : "Adding Theater..."
-                : theater
-                ? "Update Theater"
-                : "Add Theater"}
+            <button type="submit" className="cb-btn cb-btn--stamp" disabled={loading}>
+              {loading && <span className="cb-spinner cb-spinner--sm" />}
+              {loading ? "Saving…" : theater ? "Save changes" : "Add theater"}
             </button>
           </div>
-        </div>
+        </form>
+
+        <aside className="cb-proof" aria-label="Preview">
+          <p className="cb-proof__caption">How it appears on CineBook</p>
+          <div className="cb-hall">
+            <div className="cb-hall__sign">
+              <span className="cb-hall__bulbs" aria-hidden="true" />
+              <h3 className={theaterData.name ? undefined : "cb-proof__placeholder"}>
+                {theaterData.name || "Theater name"}
+              </h3>
+            </div>
+            <div className="cb-hall__body">
+              <p className="cb-hall__where">
+                <MapPin size={14} aria-hidden="true" />
+                {[theaterData.location, theaterData.city].filter(Boolean).join(", ") || "Area, city"}
+              </p>
+              {theaterData.facilities.length > 0 && (
+                <p className="cb-hall__facilities">{theaterData.facilities.slice(0, 5).join(", ")}</p>
+              )}
+              <div className="cb-proof__nums">
+                <span>
+                  <strong>{theaterData.numberOfScreens || "–"}</strong>
+                  screens
+                </span>
+                <span>
+                  <strong>{theaterData.totalSeats || "–"}</strong>
+                  seats
+                </span>
+              </div>
+            </div>
+          </div>
+          {pickedSlots.length > 0 ? (
+            <ul className="cb-proof__times" aria-label="Show times and prices">
+              {pickedSlots.map((slot) => (
+                <li key={slot}>
+                  {slot}
+                  <span>₹{priceFor(slot)}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="cb-muted cb-small">Punched show times appear here with their prices.</p>
+          )}
+        </aside>
       </div>
-    </div>
+    </section>
   );
 };
 

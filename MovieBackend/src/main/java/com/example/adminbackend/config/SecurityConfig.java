@@ -81,7 +81,16 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
 
-                        // 1) PUBLIC AUTH ENDPOINTS - MUST BE FIRST!
+                        // 0) Manager-only tools. Listed first so no broader rule below can open them up.
+                        .requestMatchers(
+                                "/api/admin/**",
+                                "/api/seats/debug/**",
+                                "/api/shows/seats-statistics",
+                                "/api/shows/*/seats-count"
+                        ).hasAnyRole("ADMIN", "SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/shows/**", "/shows/**").hasAnyRole("ADMIN", "SUPER_ADMIN")
+
+                        // 1) PUBLIC AUTH ENDPOINTS
                         .requestMatchers(HttpMethod.POST,
                                 "/auth/login",           // Admin login
                                 "/api/auth/login"        // Admin login with /api prefix
@@ -89,16 +98,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/chat").permitAll()
 
 
-                        // 2) Public health and setup endpoints (MUST BE PERMITALL!)
-                        .requestMatchers(
-                                "/auth/health",
-                                "/api/auth/health",
-                                "/setup/**",
-                                "/api/setup/**",
-                                "/setup/create-admin",
-                                "/setup/admin-exists",
-                                "/setup/health"
-                        ).permitAll()
+                        // 2) Public health check
+                        .requestMatchers("/auth/health", "/api/auth/health").permitAll()
 
                         // 3) static uploads
                         .requestMatchers("/uploads/**").permitAll()
@@ -115,12 +116,6 @@ public class SecurityConfig {
                                 "/user/register",
                                 "/api/user/login",
                                 "/api/user/register"
-                        ).permitAll()
-
-                        // 6) test endpoints
-                        .requestMatchers(
-                                "/test/**",
-                                "/api/test/**"
                         ).permitAll()
 
                         // 7) WebSocket endpoints
@@ -254,7 +249,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE,
                                 "/api/shows/**"
                         ).hasAnyRole("ADMIN", "SUPER_ADMIN")
-                        .requestMatchers("/api/payments/create-payment-intent").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/payments/config").permitAll()
 
                         // 19) everything else requires authentication - MUST BE LAST!
                         .anyRequest().authenticated()

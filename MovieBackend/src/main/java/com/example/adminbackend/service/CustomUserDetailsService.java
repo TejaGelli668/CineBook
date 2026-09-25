@@ -283,6 +283,13 @@ public class CustomUserDetailsService implements UserDetailsService {
             return new Principal(user);
         }
 
+        // Admin JWTs carry the admin's username (not email) as their subject
+        Optional<Admin> adminByUsername = adminRepository.findByUsername(email);
+        if (adminByUsername.isPresent()) {
+            logger.info("Found ADMIN with username {}", email);
+            return new Principal(adminByUsername.get(), email);
+        }
+
         logger.error("No user or admin found with email {}", email);
         throw new UsernameNotFoundException("No account found for " + email);
     }
@@ -296,7 +303,12 @@ public class CustomUserDetailsService implements UserDetailsService {
         private final boolean active;
 
         public Principal(Admin admin) {
-            this.email      = admin.getEmail();
+            this(admin, admin.getEmail());
+        }
+
+        /** principalName is what getUsername() returns; it must match the JWT subject. */
+        public Principal(Admin admin, String principalName) {
+            this.email      = principalName;
             this.password   = admin.getPassword();
             this.roleName   = "ROLE_" + admin.getRole().name();
             this.active     = admin.getIsActive();

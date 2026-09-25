@@ -222,6 +222,15 @@ import java.util.Optional;
 public class BookingController {
 
     @Autowired
+    private com.example.adminbackend.service.StripeService stripeService;
+
+    @Autowired
+    private com.example.adminbackend.service.CancellationService cancellationService;
+
+    @Autowired
+    private com.example.adminbackend.service.SeatService seatService;
+
+    @Autowired
     private BookingService bookingService;
 
     @Autowired
@@ -234,24 +243,14 @@ public class BookingController {
     public ResponseEntity<ApiResponse<BookingResponse>> createBooking(
             @RequestBody BookingRequest request,
             HttpServletRequest httpRequest) {
+        // Every booking goes through the same checks: a verified Stripe payment
+        // for exactly these seats and snacks (see SeatService.bookSeats).
         try {
-            if (request.getFoodItems() != null && !request.getFoodItems().isEmpty()) {
-                bookingService.validateFoodItems(request.getFoodItems());
-            }
-
-            BookingResponse booking;
-
-            if ("stripe".equals(request.getPaymentMethod()) || request.getPaymentIntentId() != null) {
-                User currentUser = getCurrentUserFromRequest(httpRequest);
-                booking = bookingService.createBookingWithFood(request, currentUser);
-            } else {
-                booking = bookingService.createBookingWithFood(request);
-            }
-
+            BookingResponse booking = seatService.bookSeats(request);
             return ResponseEntity.ok(new ApiResponse<>(true, "Booking created successfully", booking));
         } catch (Exception e) {
-            return ResponseEntity.status(500)
-                    .body(new ApiResponse<>(false, "Failed to create booking: " + e.getMessage(), null));
+            return ResponseEntity.badRequest()
+                    .body(new ApiResponse<>(false, e.getMessage(), null));
         }
     }
 
@@ -348,21 +347,20 @@ public class BookingController {
                 return ResponseEntity.status(404).body("User not found");
             }
 
-            Optional<Booking> booking = bookingService.getBookingById(bookingId);
-
-            if (booking.isPresent()) {
-                if (booking.get().getUser() != null && booking.get().getUser().getId().equals(user.getId())) {
-                    if (BookingStatus.CANCELLED.equals(booking.get().getStatus())) {
-                        return ResponseEntity.badRequest().body("Booking is already cancelled");
-                    }
-
-                    Booking cancelledBooking = bookingService.cancelBooking(bookingId);
-                    return ResponseEntity.ok(cancelledBooking);
-                } else {
-                    return ResponseEntity.status(403).body("Access denied to this booking");
+            try {
+                com.example.adminbackend.service.CancellationService.Outcome o = cancellationService.cancel(bookingId, user);
+                java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
+                body.put("success", true);
+                body.put("bookingId", o.bookingId());
+                body.put("refundPercent", o.percent());
+                body.put("refundAmount", o.refunded());
+                body.put("message", o.message());
+                return ResponseEntity.ok(body);
+            } catch (com.example.adminbackend.service.CancellationService.CancelException e) {
+                if (e.status == 400 || e.status == 502) {
+                    return ResponseEntity.status(e.status).body(java.util.Map.of("success", false, "message", e.getMessage()));
                 }
-            } else {
-                return ResponseEntity.status(404).body("Booking not found");
+                return ResponseEntity.status(e.status).body(e.getMessage());
             }
         } catch (Exception e) {
             e.printStackTrace();

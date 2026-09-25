@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { uploadMoviePoster } from "../../utils/movieAPI";
+import TmdbImportPanel from "./TmdbImportPanel";
 import {
   X,
   UploadCloud,
   Plus,
-  Loader2,
   Trash2,
   Clock,
   AlertCircle,
   MapPin,
-  DollarSign,
   Calendar,
 } from "lucide-react";
 
@@ -22,15 +21,10 @@ const PREDEFINED_SHOWTIMES = [
 ];
 
 const Pill = ({ text, onRemove }) => (
-  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-purple-600/20 text-purple-300 border border-purple-500/30">
+  <span className="cb-tag">
     {text}
-    <button
-      type="button"
-      onClick={onRemove}
-      className="flex-shrink-0 ml-2 p-0.5 text-purple-400 hover:bg-purple-500/20 hover:text-purple-200 rounded-full focus:outline-none focus:ring-2 focus:ring-purple-500 transition-colors"
-    >
-      <span className="sr-only">Remove {text}</span>
-      <X size={14} />
+    <button type="button" onClick={onRemove} aria-label={`Remove ${text}`}>
+      <X size={13} />
     </button>
   </span>
 );
@@ -52,6 +46,8 @@ const MovieForm = ({ movie, onClose, onSave }) => {
     format: [],
     certificate: "U",
     status: "Active",
+    tmdbId: null,
+    backdropUrl: "",
     theaters: [],
   });
 
@@ -354,6 +350,8 @@ const MovieForm = ({ movie, onClose, onSave }) => {
         format: movie.format || [],
         certificate: movie.certificate || "U",
         status: movie.status || "Active",
+        tmdbId: movie.tmdbId || null,
+        backdropUrl: movie.backdropUrl || "",
         theaters: [], // We'll populate this separately
       };
 
@@ -412,6 +410,34 @@ const MovieForm = ({ movie, onClose, onSave }) => {
           setLoading(false);
         }
       }
+    }
+  };
+
+  // Fill movie details from TMDB; keep price, formats, theaters and showtimes the admin set
+  const handleTmdbImport = (tmdbMovie) => {
+    setFormData((prev) => ({
+      ...prev,
+      title: tmdbMovie.title || prev.title,
+      genre: tmdbMovie.genre || prev.genre,
+      duration: tmdbMovie.duration || prev.duration,
+      rating: tmdbMovie.rating ?? prev.rating,
+      language: tmdbMovie.language || prev.language,
+      releaseDate: tmdbMovie.releaseDate || prev.releaseDate,
+      price: prev.price || tmdbMovie.price || 0,
+      description: tmdbMovie.description || prev.description,
+      director: tmdbMovie.director || prev.director,
+      cast: tmdbMovie.cast?.length ? tmdbMovie.cast : prev.cast,
+      trailer: tmdbMovie.trailer || prev.trailer,
+      posterUrl: tmdbMovie.posterUrl || prev.posterUrl,
+      format: prev.format.length ? prev.format : tmdbMovie.format || [],
+      certificate: tmdbMovie.certificate || prev.certificate,
+      status: tmdbMovie.status || prev.status,
+      tmdbId: tmdbMovie.tmdbId,
+      backdropUrl: tmdbMovie.backdropUrl || "",
+    }));
+    if (tmdbMovie.posterUrl) {
+      setPosterFile(null);
+      setPosterPreview(`http://localhost:8080${tmdbMovie.posterUrl}`);
     }
   };
 
@@ -831,171 +857,113 @@ const MovieForm = ({ movie, onClose, onSave }) => {
       !formData.theaters.some((selected) => selected.id === availTheater.id)
   );
 
+  const displayDate = (date) => {
+    const [year, month, day] = date.split("-");
+    return new Date(
+      parseInt(year),
+      parseInt(month) - 1,
+      parseInt(day)
+    ).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+  };
+
+  const input = (name, label, props = {}) => (
+    <div className="cb-field">
+      <label htmlFor={`mf-${name}`} className="cb-label">
+        {label}
+      </label>
+      <input
+        id={`mf-${name}`}
+        name={name}
+        value={formData[name]}
+        onChange={handleInputChange}
+        className="cb-input"
+        {...props}
+      />
+    </div>
+  );
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col">
-        {/* Modal Header */}
-        <div className="flex-shrink-0 bg-slate-900/80 backdrop-blur-xl border-b border-slate-700 px-8 py-6 flex items-center justify-between rounded-t-2xl">
-          <h2 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">
-            {movie ? "Edit Movie Details" : "Add a New Movie"}
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-full text-slate-400 hover:bg-slate-700 hover:text-white transition-colors"
-          >
-            <X size={24} />
-          </button>
+    <div className="cb-docket cb-sheet">
+      <header className="cb-sheet__head">
+        <div>
+          <h2 className="cb-h2">{movie ? "Edit film" : "Add a film"}</h2>
+          <p className="cb-muted cb-small">
+            {movie
+              ? "Changes appear on the site as soon as you save."
+              : "Import from TMDB or fill in the details, then schedule shows."}
+          </p>
         </div>
+        <button type="button" className="cb-iconbtn" onClick={onClose} aria-label="Close">
+          <X size={18} />
+        </button>
+      </header>
 
-        <div className="flex-1 overflow-y-auto p-8">
-          {error && (
-            <div className="mb-6 p-4 bg-red-900/50 border border-red-500/50 text-red-300 rounded-lg flex items-center">
-              <AlertCircle className="w-5 h-5 mr-3 flex-shrink-0" />
-              <span>
-                <strong>Error:</strong> {error}
-              </span>
-            </div>
-          )}
+      <div className="cb-sheet__body">
+        {error && (
+          <div className="cb-alert cb-alert--error" style={{ marginBottom: 20 }} role="alert">
+            <AlertCircle size={18} aria-hidden="true" />
+            <span>{error}</span>
+          </div>
+        )}
 
-          {!isAdmin && (
-            <div className="mb-6 p-4 bg-blue-900/50 border border-blue-500/50 text-blue-300 rounded-lg flex items-center">
-              <AlertCircle className="w-5 h-5 mr-3 flex-shrink-0" />
-              <span>
-                <strong>Note:</strong> Only admins can add theaters and create
-                shows. You can add movie details, but theater scheduling is
-                restricted to administrators.
-              </span>
-            </div>
-          )}
+        {!isAdmin && (
+          <div className="cb-alert cb-alert--info" style={{ marginBottom: 20 }}>
+            <AlertCircle size={18} aria-hidden="true" />
+            <span>
+              Only managers can schedule shows. You can still edit the film's
+              details.
+            </span>
+          </div>
+        )}
 
-          {/* Core Details & Poster Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 text-slate-300">
-            <div className="lg:col-span-2 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Title *
-                  </label>
-                  <input
-                    type="text"
-                    name="title"
-                    value={formData.title}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full p-4 bg-slate-700/50 border border-slate-600 rounded-xl text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                    placeholder="Enter movie title"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Genre *
-                  </label>
-                  <input
-                    type="text"
-                    name="genre"
-                    value={formData.genre}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full p-4 bg-slate-700/50 border border-slate-600 rounded-xl text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                    placeholder="Action, Sci-Fi"
-                  />
-                </div>
+        <TmdbImportPanel onImport={handleTmdbImport} defaultOpen={!movie} />
+
+        <section className="cb-sheet__section">
+          <h3 className="cb-h3">Film details</h3>
+          <div className="cb-mf-grid">
+            <div className="cb-form">
+              <div className="cb-form-row">
+                {input("title", "Title", { required: true, placeholder: "Film title" })}
+                {input("genre", "Genre", { required: true, placeholder: "Action, Drama" })}
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Description
+              <div className="cb-field">
+                <label htmlFor="mf-description" className="cb-label">
+                  Story
                 </label>
                 <textarea
+                  id="mf-description"
                   name="description"
                   value={formData.description}
                   onChange={handleInputChange}
                   rows={4}
-                  className="w-full p-4 bg-slate-700/50 border border-slate-600 rounded-xl text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all resize-none"
-                  placeholder="Enter movie description"
+                  className="cb-textarea"
+                  placeholder="One or two lines customers see on the film page"
                 />
               </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Duration *
-                  </label>
-                  <input
-                    type="text"
-                    name="duration"
-                    value={formData.duration}
-                    onChange={handleInputChange}
-                    placeholder="2h 30m"
-                    required
-                    className="w-full p-4 bg-slate-700/50 border border-slate-600 rounded-xl text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Language *
-                  </label>
-                  <input
-                    type="text"
-                    name="language"
-                    value={formData.language}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full p-4 bg-slate-700/50 border border-slate-600 rounded-xl text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                    placeholder="English"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Release Date
-                  </label>
-                  <input
-                    type="date"
-                    name="releaseDate"
-                    value={formData.releaseDate}
-                    onChange={handleInputChange}
-                    className="w-full p-4 bg-slate-700/50 border border-slate-600 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Rating *
-                  </label>
-                  <input
-                    type="number"
-                    name="rating"
-                    value={formData.rating}
-                    onChange={handleInputChange}
-                    min="0"
-                    max="10"
-                    step="0.1"
-                    required
-                    className="w-full p-4 bg-slate-700/50 border border-slate-600 rounded-xl text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                    placeholder="8.5"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Director
-                  </label>
-                  <input
-                    type="text"
-                    name="director"
-                    value={formData.director}
-                    onChange={handleInputChange}
-                    className="w-full p-4 bg-slate-700/50 border border-slate-600 rounded-xl text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                    placeholder="Director name"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
+              <div className="cb-form-row">
+                {input("duration", "Runtime", { required: true, placeholder: "2h 30m" })}
+                {input("language", "Language", { required: true, placeholder: "Telugu" })}
+                {input("releaseDate", "Release date", { type: "date" })}
+              </div>
+              <div className="cb-form-row">
+                {input("rating", "Rating (out of 10)", {
+                  type: "number",
+                  min: "0",
+                  max: "10",
+                  step: "0.1",
+                  required: true,
+                })}
+                {input("director", "Director", { placeholder: "Director's name" })}
+                <div className="cb-field">
+                  <label htmlFor="mf-certificate" className="cb-label">
                     Certificate
                   </label>
                   <select
+                    id="mf-certificate"
                     name="certificate"
                     value={formData.certificate}
                     onChange={handleInputChange}
-                    className="w-full p-4 bg-slate-700/50 border border-slate-600 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                    className="cb-select"
                   >
                     <option value="U">U</option>
                     <option value="UA">U/A</option>
@@ -1006,507 +974,336 @@ const MovieForm = ({ movie, onClose, onSave }) => {
               </div>
             </div>
 
-            {/* Poster Upload and Trailer URL */}
-            <div className="lg:col-span-1 space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-3">
-                  Movie Poster
-                </label>
-                <label className="relative flex flex-col items-center justify-center w-full h-80 border-2 border-slate-600 border-dashed rounded-xl cursor-pointer bg-slate-700/30 hover:bg-slate-700/50 transition-all">
+            <div className="cb-form">
+              <div className="cb-field">
+                <span className="cb-label">Poster</span>
+                <label className="cb-posterdrop">
                   {posterPreview ? (
-                    <img
-                      src={posterPreview}
-                      alt="Poster preview"
-                      className="absolute inset-0 w-full h-full object-cover rounded-xl"
-                    />
+                    <img src={posterPreview} alt="Poster preview" />
                   ) : (
-                    <div className="text-center text-slate-400">
-                      <UploadCloud className="mx-auto h-16 w-16 mb-4" />
-                      <p className="text-lg font-medium">
-                        Click to upload poster
-                      </p>
-                      <p className="text-sm">PNG or JPG</p>
-                    </div>
+                    <span className="cb-posterdrop__empty">
+                      <UploadCloud size={28} aria-hidden="true" />
+                      Upload a poster
+                      <span className="cb-muted cb-small">PNG or JPG, portrait</span>
+                    </span>
                   )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePosterChange}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  />
+                  <input type="file" accept="image/*" onChange={handlePosterChange} />
                 </label>
+                {posterPreview && (
+                  <p className="cb-help">Click the poster to replace it.</p>
+                )}
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Trailer URL
+              <div className="cb-field">
+                <label htmlFor="mf-trailer" className="cb-label">
+                  Trailer link
                 </label>
-                <div className="flex space-x-2">
+                <div className="cb-inline">
                   <input
+                    id="mf-trailer"
                     type="url"
                     name="trailer"
                     value={formData.trailer}
                     onChange={handleInputChange}
-                    placeholder="https://youtube.com/..."
-                    className="flex-1 p-4 bg-slate-700/50 border border-slate-600 rounded-xl text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                    placeholder="https://youtube.com/…"
+                    className="cb-input"
                   />
                   {formData.trailer && (
-                    <button
-                      type="button"
-                      onClick={() => window.open(formData.trailer, "_blank")}
-                      className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors flex items-center space-x-2"
+                    <a
+                      className="cb-btn cb-btn--ghost cb-btn--sm"
+                      href={formData.trailer}
+                      target="_blank"
+                      rel="noreferrer"
                     >
-                      <svg
-                        className="w-4 h-4"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                      >
-                        <path d="M10 12l-6-4h12l-6 4z" />
-                      </svg>
-                      <span>Play</span>
-                    </button>
+                      Test
+                    </a>
                   )}
                 </div>
-                {formData.trailer && (
-                  <p className="text-slate-400 text-xs mt-1">
-                    Click Play to test the trailer link
-                  </p>
-                )}
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Default Ticket Price (₹)
-                </label>
-                <input
-                  type="number"
-                  name="price"
-                  value={formData.price}
-                  onChange={handleInputChange}
-                  min="0"
-                  className="w-full p-4 bg-slate-700/50 border border-slate-600 rounded-xl text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                  placeholder="250"
-                />
-              </div>
+              {input("price", "Default ticket price (₹)", {
+                type: "number",
+                min: "0",
+                placeholder: "250",
+              })}
             </div>
           </div>
+        </section>
 
-          <div className="my-8 border-t border-slate-700"></div>
-
-          {/* Cast & Formats Section */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-3">
-                Cast Members
+        <section className="cb-sheet__section">
+          <h3 className="cb-h3">Cast and formats</h3>
+          <div className="cb-form-row">
+            <div className="cb-field">
+              <label htmlFor="mf-cast" className="cb-label">
+                Cast
               </label>
-              <div className="flex space-x-2 mb-4">
+              <div className="cb-inline">
                 <input
+                  id="mf-cast"
                   type="text"
                   value={castInput}
                   onChange={(e) => setCastInput(e.target.value)}
-                  onKeyPress={(e) =>
+                  onKeyDown={(e) =>
                     e.key === "Enter" && (e.preventDefault(), handleAddCast())
                   }
-                  placeholder="Add member & press Enter"
-                  className="flex-1 p-3 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                  placeholder="Name, then Enter"
+                  className="cb-input"
                 />
-                <button
-                  type="button"
-                  onClick={handleAddCast}
-                  className="px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-                >
+                <button type="button" className="cb-iconbtn" onClick={handleAddCast} aria-label="Add cast member">
                   <Plus size={16} />
                 </button>
               </div>
-              <div className="flex flex-wrap gap-2 min-h-[60px] p-3 bg-slate-800/30 rounded-lg border border-slate-700">
+              <div className="cb-tags">
                 {formData.cast.length > 0 ? (
                   formData.cast.map((member, index) => (
-                    <Pill
-                      key={index}
-                      text={member}
-                      onRemove={() => handleRemoveCast(index)}
-                    />
+                    <Pill key={index} text={member} onRemove={() => handleRemoveCast(index)} />
                   ))
                 ) : (
-                  <span className="text-slate-500 text-sm">
-                    No cast members added
-                  </span>
+                  <span className="cb-muted cb-small">No cast added</span>
                 )}
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-3">
-                Available Formats
+            <div className="cb-field">
+              <label htmlFor="mf-format" className="cb-label">
+                Formats
               </label>
-              <div className="flex space-x-2 mb-4">
+              <div className="cb-inline">
                 <input
+                  id="mf-format"
                   type="text"
                   value={formatInput}
                   onChange={(e) => setFormatInput(e.target.value)}
-                  onKeyPress={(e) =>
+                  onKeyDown={(e) =>
                     e.key === "Enter" && (e.preventDefault(), handleAddFormat())
                   }
-                  placeholder="e.g., 2D, IMAX"
-                  className="flex-1 p-3 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                  placeholder="2D, 3D, IMAX"
+                  className="cb-input"
                 />
-                <button
-                  type="button"
-                  onClick={handleAddFormat}
-                  className="px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-                >
+                <button type="button" className="cb-iconbtn" onClick={handleAddFormat} aria-label="Add format">
                   <Plus size={16} />
                 </button>
               </div>
-              <div className="flex flex-wrap gap-2 min-h-[60px] p-3 bg-slate-800/30 rounded-lg border border-slate-700">
+              <div className="cb-tags">
                 {formData.format.length > 0 ? (
                   formData.format.map((fmt, index) => (
-                    <Pill
-                      key={index}
-                      text={fmt}
-                      onRemove={() => handleRemoveFormat(index)}
-                    />
+                    <Pill key={index} text={fmt} onRemove={() => handleRemoveFormat(index)} />
                   ))
                 ) : (
-                  <span className="text-slate-500 text-sm">
-                    No formats added
-                  </span>
+                  <span className="cb-muted cb-small">No formats added</span>
                 )}
               </div>
             </div>
           </div>
+        </section>
 
-          {/* Admin-only sections */}
-          {isAdmin && (
-            <>
-              <div className="my-8 border-t border-slate-700"></div>
-
-              {/* Show Dates Selection */}
-              <div>
-                <h3 className="text-xl font-semibold text-slate-200 mb-6 flex items-center">
-                  <Calendar size={24} className="mr-3 text-purple-400" />
-                  Show Dates
-                </h3>
-
-                <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700 p-6 mb-6">
-                  <label className="block text-sm font-medium text-slate-300 mb-3">
-                    Add Show Dates
-                  </label>
-                  <div className="flex space-x-3 mb-4">
-                    <input
-                      type="date"
-                      value={dateInput}
-                      onChange={(e) => {
-                        console.log("Date input changed:", e.target.value);
-                        setDateInput(e.target.value);
-                      }}
-                      min={new Date().toISOString().split("T")[0]} // Prevent past dates
-                      className="flex-1 p-4 bg-slate-700/50 border border-slate-600 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        console.log("Add date button clicked");
-                        handleAddDate();
-                      }}
-                      className="px-6 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-                      disabled={!dateInput || dateInput.trim() === ""}
-                    >
-                      <Plus size={20} />
-                    </button>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2 min-h-[40px]">
-                    {showDates.length > 0 ? (
-                      showDates.map((date) => (
-                        <span
-                          key={date}
-                          className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-600/20 text-blue-300 border border-blue-500/30"
-                        >
-                          {(() => {
-                            // Fix timezone display issue by creating date properly
-                            const [year, month, day] = date.split("-");
-                            const displayDate = new Date(
-                              parseInt(year),
-                              parseInt(month) - 1,
-                              parseInt(day)
-                            );
-                            return displayDate.toLocaleDateString("en-US", {
-                              weekday: "short",
-                              month: "short",
-                              day: "numeric",
-                            });
-                          })()}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveDate(date)}
-                            className="flex-shrink-0 ml-2 p-0.5 text-blue-400 hover:bg-blue-500/20 hover:text-blue-200 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-                          >
-                            <X size={14} />
-                          </button>
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-slate-500 text-sm">
-                        No dates selected (will default to next 7 days)
-                      </span>
-                    )}
-                  </div>
-                </div>
+        {isAdmin && (
+          <>
+            <section className="cb-sheet__section">
+              <h3 className="cb-h3">
+                <Calendar size={18} aria-hidden="true" /> Show dates
+              </h3>
+              <p className="cb-muted cb-small" style={{ marginBottom: 12 }}>
+                Leave empty to schedule the next 7 days.
+              </p>
+              <div className="cb-inline" style={{ maxWidth: 360 }}>
+                <input
+                  type="date"
+                  aria-label="Show date"
+                  value={dateInput}
+                  onChange={(e) => setDateInput(e.target.value)}
+                  min={new Date().toISOString().split("T")[0]}
+                  className="cb-input"
+                />
+                <button
+                  type="button"
+                  className="cb-btn cb-btn--pink cb-btn--sm"
+                  onClick={handleAddDate}
+                  disabled={!dateInput || dateInput.trim() === ""}
+                >
+                  Add date
+                </button>
               </div>
+              <div className="cb-tags">
+                {showDates.length > 0 ? (
+                  showDates.map((date) => (
+                    <Pill key={date} text={displayDate(date)} onRemove={() => handleRemoveDate(date)} />
+                  ))
+                ) : (
+                  <span className="cb-muted cb-small">Next 7 days</span>
+                )}
+              </div>
+            </section>
 
-              <div className="my-8 border-t border-slate-700"></div>
-
-              {/* Theaters & Showtimes Section */}
-              <div>
-                <h3 className="text-xl font-semibold text-slate-200 mb-6 flex items-center">
-                  <MapPin size={24} className="mr-3 text-purple-400" />
-                  Theaters & Showtimes
-                </h3>
-
-                <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700 p-6 mb-6">
-                  <label className="block text-sm font-medium text-slate-300 mb-3">
-                    Add Theater to Schedule
-                  </label>
-                  {theaterLoading ? (
-                    <div className="flex items-center text-slate-400 py-4">
-                      <Loader2 className="mr-3 h-5 w-5 animate-spin" />
-                      Loading theaters...
-                    </div>
-                  ) : theaterError ? (
-                    <div className="flex items-center text-red-400 py-4">
-                      <AlertCircle className="mr-3 h-5 w-5" />
-                      {theaterError}
-                    </div>
-                  ) : (
-                    <div className="flex space-x-3">
-                      <select
-                        value={selectedTheaterId}
-                        onChange={(e) => setSelectedTheaterId(e.target.value)}
-                        className="flex-1 p-4 bg-slate-700/50 border border-slate-600 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                        disabled={unselectedTheaters.length === 0}
-                      >
-                        <option value="">
-                          {unselectedTheaters.length === 0
-                            ? "All theaters added"
-                            : "-- Select a Theater --"}
-                        </option>
-                        {unselectedTheaters.map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.name} ({t.city})
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={handleAddTheater}
-                        className="px-6 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={!selectedTheaterId}
-                      >
-                        <Plus size={20} />
-                      </button>
-                    </div>
-                  )}
+            <section className="cb-sheet__section">
+              <h3 className="cb-h3">
+                <MapPin size={18} aria-hidden="true" /> Theaters and showtimes
+              </h3>
+              {theaterLoading ? (
+                <p className="cb-muted">Loading theaters…</p>
+              ) : theaterError ? (
+                <div className="cb-alert cb-alert--error">
+                  <AlertCircle size={18} aria-hidden="true" />
+                  <span>{theaterError}</span>
                 </div>
+              ) : (
+                <div className="cb-inline" style={{ maxWidth: 520, marginBottom: 18 }}>
+                  <select
+                    aria-label="Theater to schedule"
+                    value={selectedTheaterId}
+                    onChange={(e) => setSelectedTheaterId(e.target.value)}
+                    className="cb-select"
+                    disabled={unselectedTheaters.length === 0}
+                  >
+                    <option value="">
+                      {unselectedTheaters.length === 0
+                        ? "Every theater is added"
+                        : "Choose a theater"}
+                    </option>
+                    {unselectedTheaters.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} ({t.city})
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="cb-btn cb-btn--pink cb-btn--sm"
+                    onClick={handleAddTheater}
+                    disabled={!selectedTheaterId}
+                  >
+                    Add theater
+                  </button>
+                </div>
+              )}
 
-                <div className="space-y-6">
-                  {formData.theaters.length > 0 ? (
-                    formData.theaters.map((theater) => (
-                      <div
-                        key={theater.id}
-                        className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700 p-6 transition-all"
-                      >
-                        <div className="flex justify-between items-center mb-6">
-                          <div>
-                            <h4 className="text-lg font-semibold text-slate-200">
-                              {theater.name}
-                            </h4>
-                            <p className="text-sm text-slate-400 flex items-center mt-1">
-                              <MapPin className="w-4 h-4 mr-1" />
-                              {theater.city}
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveTheater(theater.id)}
-                            className="text-red-400 hover:text-red-300 p-2 rounded-full hover:bg-red-500/10 transition-colors"
-                          >
-                            <Trash2 size={18} />
-                          </button>
+              {formData.theaters.length > 0 ? (
+                <div className="cb-stack">
+                  {formData.theaters.map((theater) => (
+                    <div key={theater.id} className="cb-panel cb-mf-theater">
+                      <div className="cb-panel__head">
+                        <div>
+                          <p className="cb-mf-theater__name">{theater.name}</p>
+                          <p className="cb-muted cb-small">{theater.city}</p>
                         </div>
+                        <button
+                          type="button"
+                          className="cb-iconbtn cb-iconbtn--danger"
+                          onClick={() => handleRemoveTheater(theater.id)}
+                          aria-label={`Remove ${theater.name}`}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-                          {PREDEFINED_SHOWTIMES.map((time) => {
-                            const isSelected = theater.showtimes?.some(
-                              (st) => st.time === time
-                            );
-                            const priceKey = `${theater.id}-${time}`;
-                            return (
-                              <div key={time} className="space-y-3">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleToggleShowtime(theater.id, time)
-                                  }
-                                  className={`w-full text-sm font-semibold p-3 rounded-xl transition-all flex items-center justify-center ${
-                                    isSelected
-                                      ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg"
-                                      : "bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 border border-slate-600"
-                                  }`}
-                                >
-                                  <Clock size={14} className="mr-2" /> {time}
-                                </button>
-                                {isSelected && (
-                                  <div className="relative">
-                                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-                                      <DollarSign size={16} />
-                                    </span>
-                                    <input
-                                      type="number"
-                                      placeholder="Price"
-                                      min="0"
-                                      value={
-                                        showtimePrices[priceKey] ||
-                                        formData.price ||
-                                        ""
-                                      }
-                                      onChange={(e) =>
-                                        handlePriceInputChange(
-                                          theater.id,
-                                          time,
-                                          e.target.value
-                                        )
-                                      }
-                                      className="w-full pl-10 pr-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-200 placeholder-slate-400 text-center focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                                    />
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* Custom Showtime Section */}
-                        <div className="mt-6 pt-6 border-t border-slate-600">
-                          <h5 className="text-lg font-medium text-slate-200 mb-4">
-                            Add Custom Showtime
-                          </h5>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                              <label className="block text-sm font-medium text-slate-300 mb-2">
-                                Time (24-hour format)
-                              </label>
-                              <input
-                                type="time"
-                                value={customTimeInput}
-                                onChange={(e) =>
-                                  setCustomTimeInput(e.target.value)
-                                }
-                                className="w-full p-3 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                                placeholder="HH:MM"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-slate-300 mb-2">
-                                Price (₹)
-                              </label>
-                              <input
-                                type="number"
-                                min="0"
-                                value={customPriceInput}
-                                onChange={(e) =>
-                                  setCustomPriceInput(e.target.value)
-                                }
-                                className="w-full p-3 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                                placeholder="Enter price"
-                              />
-                            </div>
-                            <div className="flex items-end">
+                      <p className="cb-label" style={{ marginBottom: 8 }}>
+                        Standard times
+                      </p>
+                      <div className="cb-mf-times">
+                        {PREDEFINED_SHOWTIMES.map((time) => {
+                          const isSelected = theater.showtimes?.some((st) => st.time === time);
+                          const priceKey = `${theater.id}-${time}`;
+                          return (
+                            <div key={time} className="cb-mf-time">
                               <button
                                 type="button"
-                                onClick={() =>
-                                  handleAddCustomShowtime(theater.id)
-                                }
-                                className="w-full px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:opacity-90 transition-opacity font-medium"
+                                className="cb-chip"
+                                aria-pressed={isSelected}
+                                onClick={() => handleToggleShowtime(theater.id, time)}
                               >
-                                Add Custom Time
+                                <Clock size={14} aria-hidden="true" /> {time}
                               </button>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Display Current Showtimes */}
-                        {theater.showtimes && theater.showtimes.length > 0 && (
-                          <div className="mt-6 pt-6 border-t border-slate-600">
-                            <h5 className="text-lg font-medium text-slate-200 mb-4">
-                              Current Showtimes
-                            </h5>
-                            <div className="flex flex-wrap gap-3">
-                              {theater.showtimes.map((showtime, index) => (
-                                <div
-                                  key={index}
-                                  className="inline-flex items-center px-4 py-2 rounded-lg bg-blue-600/20 text-blue-300 border border-blue-500/30"
-                                >
-                                  <Clock size={16} className="mr-2" />
-                                  <span className="font-medium">
-                                    {showtime.time}
-                                  </span>
-                                  <span className="mx-2 text-blue-400">•</span>
-                                  <span>₹{showtime.price}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handleRemoveShowtime(
-                                        theater.id,
-                                        showtime.time
-                                      )
+                              {isSelected && (
+                                <label className="cb-mf-price">
+                                  <span>₹</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    aria-label={`Price for ${time}`}
+                                    value={showtimePrices[priceKey] || formData.price || ""}
+                                    onChange={(e) =>
+                                      handlePriceInputChange(theater.id, time, e.target.value)
                                     }
-                                    className="ml-3 p-1 text-blue-400 hover:text-red-400 hover:bg-red-500/20 rounded-full transition-colors"
-                                  >
-                                    <X size={14} />
-                                  </button>
-                                </div>
-                              ))}
+                                    className="cb-input"
+                                  />
+                                </label>
+                              )}
                             </div>
-                          </div>
-                        )}
+                          );
+                        })}
                       </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-12 border-2 border-dashed border-slate-700 rounded-2xl text-slate-500">
-                      <MapPin className="w-16 h-16 mx-auto mb-4 text-slate-600" />
-                      <p className="text-lg font-medium mb-2">
-                        No theaters scheduled for this movie
-                      </p>
-                      <p className="text-sm">
-                        Use the dropdown above to add theaters and schedule
-                        showtimes
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </>
-          )}
 
-          {/* Form Actions Footer */}
-          <div className="mt-12 pt-6 border-t border-slate-700 flex justify-end space-x-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-8 py-4 border border-slate-600 text-slate-300 rounded-xl hover:bg-slate-700/50 transition-all font-medium"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={loading}
-              className="inline-flex items-center justify-center px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl shadow-lg hover:shadow-purple-500/30 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium"
-            >
-              {loading && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
-              {loading ? "Saving..." : movie ? "Update Movie" : "Add Movie"}
-            </button>
-          </div>
-        </div>
+                      <div className="cb-mf-custom">
+                        <div className="cb-field">
+                          <label className="cb-label" htmlFor={`mf-ct-${theater.id}`}>
+                            Other time
+                          </label>
+                          <input
+                            id={`mf-ct-${theater.id}`}
+                            type="time"
+                            value={customTimeInput}
+                            onChange={(e) => setCustomTimeInput(e.target.value)}
+                            className="cb-input"
+                          />
+                        </div>
+                        <div className="cb-field">
+                          <label className="cb-label" htmlFor={`mf-cp-${theater.id}`}>
+                            Price (₹)
+                          </label>
+                          <input
+                            id={`mf-cp-${theater.id}`}
+                            type="number"
+                            min="0"
+                            value={customPriceInput}
+                            onChange={(e) => setCustomPriceInput(e.target.value)}
+                            className="cb-input"
+                            placeholder="250"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          className="cb-btn cb-btn--ghost"
+                          onClick={() => handleAddCustomShowtime(theater.id)}
+                        >
+                          Add time
+                        </button>
+                      </div>
+
+                      {theater.showtimes && theater.showtimes.length > 0 && (
+                        <div className="cb-tags" style={{ marginTop: 14 }}>
+                          {theater.showtimes.map((showtime, index) => (
+                            <Pill
+                              key={index}
+                              text={`${showtime.time}, ₹${showtime.price}`}
+                              onRemove={() => handleRemoveShowtime(theater.id, showtime.time)}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="cb-muted">
+                  No theaters yet. Choose one above to add showtimes.
+                </p>
+              )}
+            </section>
+          </>
+        )}
       </div>
+
+      <footer className="cb-sheet__foot">
+        <button type="button" className="cb-btn cb-btn--ghost" onClick={onClose}>
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="cb-btn cb-btn--stamp"
+          onClick={handleSubmit}
+          disabled={loading}
+        >
+          {loading && <span className="cb-spinner cb-spinner--sm" />}
+          {loading ? "Saving…" : movie ? "Save changes" : "Add film"}
+        </button>
+      </footer>
     </div>
   );
 };

@@ -302,6 +302,8 @@ public class MovieController {
         existing.setFormat(movie.getFormat());
         existing.setCertificate(movie.getCertificate());
         existing.setStatus(movie.getStatus());
+        existing.setTmdbId(movie.getTmdbId());
+        existing.setBackdropUrl(movie.getBackdropUrl());
 
         Movie updated = service.save(existing);
         return ResponseEntity.ok(new ApiResponse<>(true, "Movie updated", updated));

@@ -1,0 +1,416 @@
+/* Customer account: "My CineBook". Builds on src/theme/cinebook.css. */
+
+.cb-dash {
+  max-width: 1040px;
+}
+.cb-dash__tabs {
+  display: inline-flex;
+  max-width: 100%;
+  margin-bottom: 28px;
+}
+
+.cb-dash-hello {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+.cb-dash-hello .cb-display {
+  font-size: clamp(2.4rem, 5vw, 3.6rem);
+}
+
+.cb-avatar {
+  position: relative;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--pink);
+  background-image: var(--paper-grain);
+  color: var(--ink);
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 1.8rem;
+  overflow: hidden;
+}
+.cb-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cb-avatar__edit {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: var(--stamp);
+  color: var(--paper);
+  cursor: pointer;
+}
+.cb-avatar__edit input {
+  display: none;
+}
+
+/* Bookings drawn as a stack of ticket stubs */
+.cb-stubs {
+  list-style: none;
+  display: grid;
+  gap: 14px;
+}
+.cb-stubcard {
+  --tear: calc(100% - 200px);
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 200px;
+  color: var(--ink);
+  background-color: var(--pink);
+  background-image: var(--paper-grain);
+  border-radius: 8px;
+  -webkit-mask:
+    radial-gradient(circle 11px at var(--tear) 0, #0000 96%, #000),
+    radial-gradient(circle 11px at var(--tear) 100%, #0000 96%, #000);
+  -webkit-mask-composite: source-in;
+  mask:
+    radial-gradient(circle 11px at var(--tear) 0, #0000 96%, #000),
+    radial-gradient(circle 11px at var(--tear) 100%, #0000 96%, #000);
+  mask-composite: intersect;
+}
+.cb-stubcard__main {
+  position: relative;
+  padding: 20px 22px;
+  min-width: 0;
+}
+.cb-stubcard__film {
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 1.7rem;
+  line-height: 0.95;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+.cb-stubcard .cb-fields {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+.cb-stubcard__note {
+  margin-top: 12px;
+  font-size: 0.86rem;
+  color: #8a1c27;
+}
+.cb-stubcard__stub {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px;
+  border-left: 2px dashed rgba(42, 22, 48, 0.35);
+}
+.cb-stubcard__amount {
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 2rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.cb-stubcard .cb-badge--ok {
+  color: #1f6b47;
+}
+.cb-stubcard .cb-badge--warn {
+  color: #8a5a00;
+}
+.cb-stubcard .cb-badge--bad {
+  color: var(--stamp);
+}
+.cb-stubcard .cb-stamp {
+  right: 16px;
+  bottom: 14px;
+}
+.cb-stubcard[data-state="past"] {
+  background-color: #d9c5d2;
+}
+.cb-stubcard[data-state="cancelled"] {
+  background-color: #d4c9d4;
+  color: rgba(42, 22, 48, 0.7);
+}
+@media (max-width: 640px) {
+  .cb-stubcard {
+    grid-template-columns: minmax(0, 1fr);
+    -webkit-mask: none;
+    mask: none;
+  }
+  .cb-stubcard__stub {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    border-left: 0;
+    border-top: 2px dashed rgba(42, 22, 48, 0.35);
+  }
+}
+
+/* Saved cards */
+.cb-cards {
+  list-style: none;
+  display: grid;
+  gap: 12px;
+}
+.cb-card {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.cb-card__num {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+/* ─── Ticket wallet (overview) ────────────────────────────────────────── */
+
+.cb-wallet {
+  display: grid;
+  gap: 36px;
+}
+.cb-wallet__hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 400px);
+  align-items: end;
+  gap: 24px 40px;
+}
+.cb-wallet__hello {
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: clamp(3.6rem, 10vw, 7.5rem);
+  line-height: 0.85;
+  text-transform: uppercase;
+  text-shadow: 0 6px 30px rgba(12, 8, 26, 0.6);
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  .cb-wallet__hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* CineBook Club card: plum pass, marquee bulbs, gold print */
+.cb-member {
+  position: relative;
+  display: grid;
+  gap: 16px;
+  padding: 26px 22px 20px;
+  border-radius: 18px;
+  color: var(--paper);
+  background:
+    radial-gradient(circle at 85% 0%, rgba(255, 201, 74, 0.25), transparent 45%),
+    radial-gradient(circle at 0% 100%, rgba(217, 43, 58, 0.35), transparent 50%),
+    linear-gradient(135deg, #3a2468, #231644 60%, #2d1a4f);
+  border: 1.5px solid rgba(255, 201, 74, 0.55);
+  box-shadow: 0 30px 60px -25px rgba(4, 2, 12, 0.9), inset 0 1px 0 rgba(255, 246, 233, 0.15);
+  transform: rotate(1.5deg);
+}
+.cb-member::before {
+  /* marquee bulbs along the top edge */
+  content: "";
+  position: absolute;
+  top: 9px;
+  left: 18px;
+  right: 18px;
+  height: 6px;
+  background: radial-gradient(circle, var(--gold) 45%, transparent 55%) 0 0 / 14px 6px repeat-x;
+  opacity: 0.8;
+}
+.cb-member__hole {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  width: 34px;
+  height: 8px;
+  margin-left: -17px;
+  border-radius: 999px;
+  background: var(--night);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+.cb-member__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 10px;
+}
+.cb-member__club {
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 1.2rem;
+  color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.cb-member__top span[lang="te"] {
+  font-family: var(--telugu);
+  color: var(--mist);
+  font-size: 0.85rem;
+}
+.cb-member__body {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+.cb-member .cb-avatar {
+  box-shadow: 0 0 0 3px rgba(255, 201, 74, 0.7);
+}
+.cb-member__who {
+  min-width: 0;
+}
+.cb-member__name {
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 1.9rem;
+  line-height: 0.95;
+  text-transform: uppercase;
+}
+.cb-member__mail {
+  color: var(--mist);
+  font-size: 0.86rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cb-member__meta {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(255, 201, 74, 0.4);
+}
+.cb-member__meta dt {
+  color: var(--mist);
+  font-size: 0.72rem;
+}
+.cb-member__meta dd {
+  margin: 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cb-member__meta div:first-child dd {
+  font-family: var(--stencil);
+  color: var(--gold);
+  letter-spacing: 0.06em;
+}
+
+/* next show: a spotlit strip */
+.cb-nextshow {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 24px;
+  padding: 22px;
+  border-radius: 18px;
+  background:
+    radial-gradient(ellipse at 15% 50%, rgba(246, 196, 208, 0.18), transparent 60%),
+    rgba(38, 29, 71, 0.78);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(246, 196, 208, 0.3);
+}
+.cb-nextshow__poster {
+  width: 110px;
+}
+.cb-nextshow__when {
+  display: inline-block;
+  padding: 3px 12px;
+  margin-bottom: 8px;
+  border-radius: 999px;
+  background: var(--stamp);
+  font-weight: 700;
+  font-size: 0.86rem;
+}
+.cb-nextshow__film {
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 0.92;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+.cb-nextshow .cb-fields dt {
+  color: var(--mist);
+  opacity: 1;
+}
+@media (max-width: 760px) {
+  .cb-nextshow {
+    grid-template-columns: 80px minmax(0, 1fr);
+  }
+  .cb-nextshow__poster {
+    width: 80px;
+  }
+  .cb-nextshow .cb-btn {
+    grid-column: 1 / -1;
+  }
+}
+
+.cb-wallet__empty {
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+  border-radius: 18px;
+  background: rgba(38, 29, 71, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--line);
+}
+.cb-wallet__rail {
+  list-style: none;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 128px;
+  gap: 14px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+.cb-wallet__rail button {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cb-wallet__rail .cb-thumb {
+  margin-bottom: 6px;
+}
+.cb-wallet__rail button:hover .cb-thumb {
+  box-shadow: 0 0 0 3px var(--pink);
+}
+.cb-wallet__rtitle {
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+/* profile header: the card beside the explanation */
+.cb-profile-head {
+  display: grid;
+  grid-template-columns: minmax(280px, 400px) minmax(0, 1fr);
+  align-items: center;
+  gap: 32px;
+}
+.cb-profile-head__side {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+@media (max-width: 760px) {
+  .cb-profile-head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.cb-dash__tabs {
+  background: rgba(28, 21, 53, 0.7);
+  backdrop-filter: blur(10px);
+}

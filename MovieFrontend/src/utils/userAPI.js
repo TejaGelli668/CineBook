@@ -242,19 +242,35 @@ export const getBookingHistory = async () => {
             booking.theaterLocation ||
             booking.show?.theater?.location ||
             "Unknown Location",
-          bookingDate:
-            booking.bookingDate ||
-            (booking.bookingTime
-              ? new Date(booking.bookingTime).toLocaleDateString()
-              : new Date().toLocaleDateString()),
+          // The date of the show (not when it was booked): the dashboard pairs
+          // this with showTime for display, "show passed" and cancellation checks
+          bookingDate: (() => {
+            const iso = booking.show?.showTime || booking.showTime;
+            if (typeof iso === "string" && /^\d{4}-\d{2}-\d{2}/.test(iso)) {
+              const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+              return new Date(y, m - 1, d).toLocaleDateString();
+            }
+            return (
+              booking.bookingDate ||
+              (booking.bookingTime
+                ? new Date(booking.bookingTime).toLocaleDateString()
+                : new Date().toLocaleDateString())
+            );
+          })(),
           showTime: formattedShowTime, // FIXED: Use timezone-safe formatted time
           showDate:
             booking.showDate ||
             booking.show?.formattedShowDate ||
             booking.show?.date ||
             "Unknown Date",
+          // stored on the booking itself, so past and cancelled bookings keep them
           seatNumbers:
-            booking.seatNumbers ||
+            (booking.seatNumbers &&
+              String(booking.seatNumbers)
+                .split(",")
+                .map((n) => n.trim())
+                .filter(Boolean)
+                .join(", ")) ||
             (Array.isArray(booking.seats) && booking.seats.length > 0
               ? booking.seats
                   .map((seat) => {
@@ -272,6 +288,7 @@ export const getBookingHistory = async () => {
           status: booking.status ? booking.status.toLowerCase() : "confirmed",
           numberOfSeats:
             booking.numberOfSeats ||
+            (booking.seatNumbers ? String(booking.seatNumbers).split(",").filter((n) => n.trim()).length : 0) ||
             (Array.isArray(booking.seats) ? booking.seats.length : 1),
           // Keep original booking object for debugging
           originalBooking: booking,
@@ -368,9 +385,9 @@ export const cancelBooking = async (bookingId) => {
 
     if (response.ok) {
       const data = await response.json();
-      return { success: true, data, message: "Booking cancelled successfully" };
+      return { success: true, data, message: data.message || "Booking cancelled" };
     } else {
-      const errorData = await response.json();
+      const errorData = await response.json().catch(() => ({}));
       return {
         success: false,
         message: errorData.message || errorData || "Failed to cancel booking",

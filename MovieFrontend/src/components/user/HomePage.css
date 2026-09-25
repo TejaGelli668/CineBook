@@ -1,0 +1,1037 @@
+/* CineBook landing — "the box office counter"
+   One bold element (the printed ticket); everything else stays quiet. */
+
+.cb {
+  background: var(--night);
+  color: var(--paper);
+  font-family: var(--body);
+  font-size: 1rem;
+  line-height: 1.55;
+  min-height: 100vh;
+  overflow-x: clip;
+}
+
+/* ─── Header ──────────────────────────────────────────────────────────── */
+
+.cb-nav {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 22px var(--gutter);
+}
+
+.cb-nav .cb-logo {
+  margin-right: auto;
+}
+
+.cb-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: min(360px, 32vw);
+  color: var(--mist);
+}
+.cb-search svg {
+  position: absolute;
+  left: 16px;
+  z-index: 1;
+  pointer-events: none;
+}
+.cb-search input {
+  width: 100%;
+  padding: 11px 16px 11px 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(184, 176, 214, 0.35);
+  background: rgba(28, 21, 53, 0.55);
+  backdrop-filter: blur(10px);
+  color: var(--paper);
+  font: inherit;
+  font-size: 0.95rem;
+}
+.cb-search input::placeholder {
+  color: var(--mist);
+}
+.cb-search input:focus {
+  outline: none;
+  border-color: var(--gold);
+}
+
+.cb-city {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--mist);
+  font-size: 0.95rem;
+}
+.cb-city select {
+  background: transparent;
+  border: 0;
+  color: var(--paper);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cb-city option {
+  color: var(--ink);
+}
+
+.cb-auth {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* ─── Hero ────────────────────────────────────────────────────────────── */
+
+.cb-hero {
+  position: relative;
+  min-height: min(100vh, 940px);
+  display: flex;
+  align-items: flex-end;
+  isolation: isolate;
+}
+
+.cb-hero__backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 25%;
+  z-index: -2;
+  animation: cb-fade 0.6s ease both;
+}
+
+/* Night falls over the image from the left and the bottom */
+.cb-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(90deg, var(--night) 0%, rgba(28, 21, 53, 0.88) 34%, rgba(28, 21, 53, 0.25) 72%, rgba(28, 21, 53, 0.45) 100%),
+    linear-gradient(0deg, var(--night) 0%, rgba(28, 21, 53, 0) 42%),
+    linear-gradient(180deg, rgba(28, 21, 53, 0.7) 0%, rgba(28, 21, 53, 0) 22%);
+}
+
+.cb-hero__inner {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  align-items: end;
+  gap: clamp(24px, 5vw, 80px);
+  padding: 140px var(--gutter) clamp(40px, 7vh, 88px);
+}
+
+.cb-hero__copy {
+  max-width: 44rem;
+}
+
+.cb-hero__where {
+  color: var(--mist);
+  font-size: 1rem;
+  margin-bottom: 10px;
+}
+
+.cb-hero__title {
+  overflow-wrap: anywhere;
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: clamp(3.1rem, 11vw, 10.5rem);
+  line-height: 0.84;
+  letter-spacing: -0.005em;
+  text-transform: uppercase;
+  color: var(--paper);
+  text-wrap: balance;
+}
+.cb-hero__title--long {
+  font-size: clamp(2.5rem, 7.6vw, 7.4rem);
+}
+.cb-hero__title span {
+  display: block;
+  margin-top: 0.14em;
+  font-weight: 600;
+  font-size: 0.42em;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--pink);
+}
+
+.cb-hero__story {
+  margin-top: 22px;
+  max-width: 34rem;
+  color: #e3dcf5;
+  font-size: 1.06rem;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cb-hero__copy--empty {
+  grid-column: 1 / -1;
+  padding-bottom: 8vh;
+}
+
+/* Film switcher: a strip of little posters */
+.cb-reel {
+  display: flex;
+  gap: 10px;
+  margin-top: 30px;
+  overflow-x: auto;
+  padding: 6px 4px 10px;
+  scrollbar-width: none;
+}
+.cb-reel::-webkit-scrollbar {
+  display: none;
+}
+
+.cb-reel__item {
+  flex: 0 0 auto;
+  width: 54px;
+  aspect-ratio: 2 / 3;
+  border-radius: 4px;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: var(--night-2);
+  cursor: pointer;
+  opacity: 0.55;
+  transform: translateY(0);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.cb-reel__item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cb-reel__item span {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 1.5rem;
+}
+.cb-reel__item:hover {
+  opacity: 0.9;
+}
+.cb-reel__item[aria-pressed="true"] {
+  opacity: 1;
+  transform: translateY(-5px);
+  box-shadow: 0 0 0 2px var(--night), 0 0 0 4px var(--gold);
+}
+
+/* ─── The ticket ──────────────────────────────────────────────────────── */
+
+/* The box-office printer mouth the ticket feeds out of */
+.cb-slot {
+  position: relative;
+  justify-self: end;
+  width: 100%;
+  max-width: 500px;
+  padding: 0 14px 30px;
+  overflow: hidden;
+}
+.cb-slot::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 10px;
+  z-index: 2;
+  border-radius: 999px;
+  background: #0c0818;
+  box-shadow: inset 0 -2px 0 rgba(255, 201, 74, 0.55), 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+/* In the hero the ticket feeds out of the slot, tilted, then gets stamped */
+.cb-slot .cb-ticket {
+  margin-top: 5px;
+  transform: rotate(-1.4deg);
+  transform-origin: top center;
+  animation: cb-print 1.15s steps(16, end) 0.25s both;
+}
+.cb-slot .cb-stamp {
+  animation: cb-stamp 0.32s cubic-bezier(0.3, 1.6, 0.5, 1) 1.5s both;
+}
+
+/* ─── Motion ──────────────────────────────────────────────────────────── */
+
+@keyframes cb-print {
+  from {
+    transform: translateY(-104%) rotate(0deg);
+  }
+  85% {
+    transform: translateY(0) rotate(0deg);
+  }
+  to {
+    transform: translateY(0) rotate(-1.4deg);
+  }
+}
+
+@keyframes cb-stamp {
+  from {
+    opacity: 0;
+    transform: rotate(-11deg) scale(1.8);
+  }
+  to {
+    opacity: 0.85;
+    transform: rotate(-11deg) scale(1);
+  }
+}
+
+@keyframes cb-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cb-slot .cb-ticket,
+  .cb-slot .cb-stamp,
+  .cb-hero__backdrop {
+    animation: none;
+  }
+  .cb-reel__item,
+  .cb-tile {
+    transition: none;
+  }
+}
+
+/* ─── Small screens ───────────────────────────────────────────────────── */
+
+@media (max-width: 960px) {
+  .cb-hero__inner {
+    grid-template-columns: minmax(0, 1fr);
+    padding-top: 190px;
+  }
+  .cb-slot {
+    justify-self: start;
+  }
+  .cb-hero::after {
+    background:
+      linear-gradient(0deg, var(--night) 0%, rgba(28, 21, 53, 0.82) 55%, rgba(28, 21, 53, 0.35) 100%),
+      linear-gradient(180deg, rgba(28, 21, 53, 0.75) 0%, rgba(28, 21, 53, 0) 30%);
+  }
+}
+
+@media (max-width: 720px) {
+  .cb-nav {
+    flex-wrap: wrap;
+    gap: 14px 16px;
+    padding-top: 16px;
+  }
+  .cb-search {
+    order: 3;
+    width: 100%;
+  }
+  .cb-city {
+    display: none;
+  }
+  .cb-hero__inner {
+    padding-top: 150px;
+  }
+  .cb-ticket {
+    --tear: calc(100% - 56px);
+    grid-template-columns: minmax(0, 1fr) 56px;
+  }
+  .cb-ticket__main {
+    padding: 20px 18px 20px 20px;
+  }
+  .cb-stamp {
+    bottom: -26px;
+    right: -10px;
+    font-size: 0.8rem;
+  }
+  .cb-slot {
+    padding-inline: 6px;
+  }
+  .cb-ticket__actions .cb-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 380px) {
+  .cb-ticket {
+    --tear: calc(100% - 44px);
+    grid-template-columns: minmax(0, 1fr) 44px;
+  }
+  .cb-ticket__serial,
+  .cb-ticket__city {
+    font-size: 0.85rem;
+  }
+  .cb-ticket__te {
+    display: none;
+  }
+}
+
+/* ─── Footer ──────────────────────────────────────────────────────────── */
+
+.cb-footer {
+  margin-top: clamp(64px, 10vw, 128px);
+  padding: 0 var(--gutter) 36px;
+  border-top: 1px solid var(--line);
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 0%, rgba(217, 43, 58, 0.14), transparent 60%),
+    linear-gradient(180deg, var(--night) 0%, #150f29 100%);
+  color: var(--mist);
+  overflow: hidden;
+}
+.cb-footer__marquee {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.2em;
+  margin: 0 0 clamp(28px, 5vw, 56px);
+  padding-top: clamp(24px, 4vw, 40px);
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: clamp(4.5rem, 21vw, 19rem);
+  line-height: 0.78;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: transparent;
+  -webkit-text-stroke: 2px rgba(246, 196, 208, 0.45);
+  user-select: none;
+}
+.cb-footer__marquee span[lang="te"] {
+  font-family: var(--telugu);
+  font-weight: 400;
+  font-size: 0.22em;
+  line-height: 1.2;
+  color: var(--gold);
+  -webkit-text-stroke: 0;
+  padding-bottom: 0.2em;
+}
+.cb-footer__cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr)) minmax(0, 1.5fr);
+  gap: 32px 28px;
+  padding-bottom: 36px;
+  border-bottom: 1px solid var(--line);
+}
+@media (max-width: 1080px) {
+  .cb-footer__cols {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+}
+.cb-footer__about .cb-logo {
+  font-size: 2rem;
+  margin-bottom: 10px;
+  cursor: default;
+}
+.cb-footer__about p:last-child {
+  max-width: 30rem;
+  line-height: 1.6;
+}
+.cb-footer h3 {
+  margin-bottom: 12px;
+  color: var(--paper);
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.cb-footer ul {
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+.cb-footer a,
+.cb-footer nav button {
+  display: grid;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--mist);
+  font: inherit;
+  font-size: 0.93rem;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.cb-footer a span {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+.cb-footer a:hover,
+.cb-footer nav button:hover {
+  color: var(--pink);
+}
+.cb-footer__help dl {
+  display: grid;
+  gap: 12px;
+}
+.cb-footer__help dt {
+  color: var(--gold);
+  font-weight: 650;
+  font-size: 0.86rem;
+}
+.cb-footer__help dd {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.cb-footer__base {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 28px;
+  padding-top: 20px;
+  font-size: 0.82rem;
+}
+.cb-footer__base a {
+  display: inline;
+  color: var(--paper);
+  font-size: inherit;
+  text-decoration: underline;
+}
+.cb-footer__base p:last-child {
+  max-width: 34rem;
+}
+
+/* ═══ Below the hero: the cinema's own signage ═══════════════════════ */
+
+.cb-below {
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(ellipse 55% 35% at 8% 2%, rgba(217, 43, 58, 0.13), transparent 70%),
+    radial-gradient(ellipse 45% 30% at 95% 38%, rgba(255, 201, 74, 0.08), transparent 70%),
+    radial-gradient(ellipse 60% 35% at 25% 88%, rgba(246, 196, 208, 0.08), transparent 70%);
+}
+.cb-below::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: var(--paper-grain);
+  opacity: 0.55;
+  mix-blend-mode: soft-light;
+  pointer-events: none;
+}
+
+/* ─── The showtime board ──────────────────────────────────────────────── */
+
+.cb-boardwrap {
+  padding: clamp(56px, 8vw, 110px) calc(var(--gutter) + 11px) 0;
+  scroll-margin-top: 16px;
+}
+.cb-board {
+  position: relative;
+  padding: clamp(28px, 4vw, 52px) clamp(18px, 4vw, 48px) 26px;
+  border-radius: 20px;
+  background:
+    repeating-linear-gradient(180deg, transparent 0 46px, rgba(0, 0, 0, 0.35) 46px 48px, rgba(255, 255, 255, 0.035) 48px 49px),
+    linear-gradient(180deg, #17102d, #110b21);
+  border: 3px solid #3b2a66;
+  box-shadow:
+    0 0 0 11px #22183f,
+    0 0 0 12px rgba(255, 201, 74, 0.35),
+    0 50px 90px -30px rgba(0, 0, 0, 0.85),
+    inset 0 0 80px rgba(0, 0, 0, 0.55);
+}
+/* bulbs set into the frame */
+.cb-board__bulbs {
+  position: absolute;
+  inset: -14px;
+  padding: 10px;
+  border-radius: 30px;
+  pointer-events: none;
+  background: radial-gradient(circle, #fff1c4 0 2.4px, rgba(255, 201, 74, 0.75) 3.4px, transparent 5.5px) 0 0 / 22px 22px;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  filter: drop-shadow(0 0 4px rgba(255, 201, 74, 0.9));
+}
+.cb-board__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 18px 32px;
+}
+.cb-board__te {
+  font-family: var(--telugu);
+  color: var(--gold);
+  font-size: 1.05rem;
+}
+.cb-board__title {
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: clamp(3.2rem, 8vw, 6.4rem);
+  line-height: 0.85;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: var(--paper);
+  text-shadow: 0 0 28px rgba(255, 246, 233, 0.18);
+}
+.cb-board__days {
+  display: flex;
+  gap: 8px;
+}
+.cb-board__days button {
+  display: grid;
+  justify-items: center;
+  min-width: 70px;
+  padding: 6px 10px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(255, 246, 233, 0.08);
+  color: var(--mist);
+  font: inherit;
+  cursor: pointer;
+  border-top: 4px solid rgba(255, 246, 233, 0.18);
+}
+.cb-board__days span {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.cb-board__days strong {
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 1.9rem;
+  line-height: 1;
+  color: var(--paper);
+}
+.cb-board__days button:hover {
+  background: rgba(255, 246, 233, 0.14);
+}
+.cb-board__days button[aria-pressed="true"] {
+  background: var(--pink) var(--paper-grain);
+  border-top-color: var(--stamp);
+  color: var(--stamp);
+}
+.cb-board__days button[aria-pressed="true"] strong {
+  color: var(--ink);
+}
+
+.cb-board__langs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  margin: 26px 0 8px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid rgba(255, 201, 74, 0.25);
+}
+.cb-board__langs button {
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--mist);
+  font: inherit;
+  font-weight: 650;
+  font-size: 0.95rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.cb-board__langs button:hover {
+  color: var(--paper);
+}
+.cb-board__langs button[aria-pressed="true"] {
+  color: var(--gold);
+  border-bottom-color: var(--gold);
+}
+
+.cb-board__rows {
+  list-style: none;
+}
+.cb-brow {
+  display: grid;
+  grid-template-columns: 84px minmax(170px, 0.9fr) minmax(0, 2fr);
+  align-items: start;
+  gap: 18px 26px;
+  padding: 22px 0;
+  border-bottom: 1px dashed rgba(184, 176, 214, 0.2);
+}
+.cb-brow__poster {
+  display: block;
+  width: 84px;
+  aspect-ratio: 2 / 3;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--night-3);
+  cursor: pointer;
+  box-shadow: 0 14px 24px -12px rgba(0, 0, 0, 0.9);
+}
+.cb-brow__poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cb-brow__poster:hover {
+  box-shadow: 0 0 0 3px var(--pink);
+}
+.cb-brow__film h3 {
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: clamp(1.6rem, 2.4vw, 2.1rem);
+  line-height: 0.95;
+  text-transform: uppercase;
+  color: var(--paper);
+}
+.cb-brow__film p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: 8px;
+  color: var(--mist);
+  font-size: 0.9rem;
+}
+.cb-brow__film .cb-cert {
+  color: var(--paper);
+}
+.cb-brow__genre {
+  margin-top: 4px !important;
+  font-size: 0.84rem !important;
+}
+.cb-brow__times {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.cb-brow__cinema {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px 14px;
+}
+.cb-brow__cname {
+  color: var(--mist);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+.cb-brow__tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+/* cream letter tiles, like the ones slotted into a board by hand */
+.cb-tile {
+  padding: 7px 12px 5px;
+  border: 0;
+  border-radius: 3px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 1.3rem;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  box-shadow: inset 0 -3px 0 rgba(42, 22, 48, 0.18), 0 3px 0 rgba(0, 0, 0, 0.45);
+  transition: background-color 0.12s ease, transform 0.12s ease;
+}
+.cb-tile:hover:not(:disabled) {
+  background: var(--gold);
+  transform: translateY(-2px);
+}
+.cb-tile:disabled {
+  opacity: 0.25;
+  text-decoration: line-through;
+  cursor: not-allowed;
+}
+.cb-brow__none {
+  color: var(--mist);
+  font-size: 0.92rem;
+  padding-top: 6px;
+}
+.cb-brow__none button,
+.cb-board__empty button {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--gold);
+  font: inherit;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.cb-board__empty {
+  padding: 36px 0;
+  color: var(--mist);
+  font-size: 1.05rem;
+}
+.cb-board__foot {
+  margin-top: 16px;
+  color: rgba(184, 176, 214, 0.7);
+  font-size: 0.82rem;
+}
+@media (max-width: 860px) {
+  .cb-brow {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+  .cb-brow__poster {
+    width: 64px;
+  }
+  .cb-brow__times {
+    grid-column: 1 / -1;
+  }
+  .cb-brow__cinema {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ─── Coming soon: a notice board ─────────────────────────────────────── */
+
+.cb-notice {
+  padding: clamp(64px, 9vw, 120px) var(--gutter) 0;
+  scroll-margin-top: 16px;
+}
+.cb-notice__banner {
+  display: inline-grid;
+  margin-left: 6px;
+  padding: 12px 26px 10px;
+  background: var(--pink) var(--paper-grain);
+  color: var(--ink);
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: clamp(2.6rem, 6vw, 4.4rem);
+  line-height: 0.85;
+  text-transform: uppercase;
+  transform: rotate(-2deg);
+  box-shadow: 0 18px 30px -16px rgba(0, 0, 0, 0.8);
+}
+.cb-notice__banner span {
+  margin-top: 6px;
+  font-family: var(--body);
+  font-weight: 600;
+  font-size: 0.9rem;
+  line-height: 1.2;
+  text-transform: none;
+  color: rgba(42, 22, 48, 0.7);
+}
+.cb-notice__board {
+  list-style: none;
+  display: flex;
+  gap: 48px;
+  overflow-x: auto;
+  margin: 26px calc(var(--gutter) * -1) 0;
+  padding: 24px var(--gutter) 28px;
+  scroll-padding-inline: var(--gutter);
+  scroll-snap-type: x proximity;
+}
+.cb-notice__day {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 22px;
+  scroll-snap-align: start;
+}
+/* tear-off calendar leaf */
+.cb-notice__leaf {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  width: 92px;
+  padding: 0 0 10px;
+  border-radius: 4px 4px 8px 8px;
+  background: var(--paper) var(--paper-grain);
+  color: var(--ink);
+  box-shadow: 0 16px 26px -14px rgba(0, 0, 0, 0.8);
+  overflow: hidden;
+  transform: rotate(-3deg);
+}
+.cb-notice__leaf span:first-child {
+  width: 100%;
+  padding: 5px 0 4px;
+  background: var(--stamp);
+  color: var(--paper);
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.cb-notice__leaf strong {
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 3.4rem;
+  line-height: 1;
+  margin-top: 4px;
+}
+.cb-notice__leaf span:last-child {
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.cb-notice__posters {
+  list-style: none;
+  display: flex;
+  gap: 20px;
+}
+.cb-notice__posters li {
+  position: relative;
+  width: 138px;
+  transform: rotate(var(--tilt, 0deg));
+}
+.cb-notice__posters img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 2px;
+  box-shadow: 0 18px 28px -14px rgba(0, 0, 0, 0.9);
+}
+.cb-notice__tape {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  z-index: 1;
+  width: 64px;
+  height: 20px;
+  margin-left: -32px;
+  background: rgba(255, 246, 233, 0.55);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transform: rotate(-4deg);
+}
+.cb-notice__title {
+  margin-top: 10px;
+  font-weight: 650;
+  font-size: 0.92rem;
+  line-height: 1.25;
+}
+.cb-notice__lang {
+  color: var(--mist);
+  font-size: 0.82rem;
+}
+
+/* ─── Where to watch: lit cinema signs ────────────────────────────────── */
+
+.cb-halls {
+  padding: clamp(64px, 9vw, 120px) var(--gutter) 0;
+  scroll-margin-top: 16px;
+}
+.cb-halls__title {
+  display: grid;
+  margin-bottom: 26px;
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: clamp(2.6rem, 6vw, 4.4rem);
+  line-height: 0.9;
+  text-transform: uppercase;
+}
+.cb-halls__title span {
+  margin-top: 8px;
+  font-family: var(--body);
+  font-weight: 500;
+  font-size: 1rem;
+  text-transform: none;
+  color: var(--mist);
+}
+.cb-halls__list {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr));
+  gap: 22px;
+}
+.cb-hall {
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--night-2);
+  border: 1px solid var(--line);
+}
+.cb-hall__sign {
+  position: relative;
+  padding: 26px 24px;
+  text-align: center;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(217, 43, 58, 0.35), transparent 70%),
+    #140d26;
+  border-bottom: 3px solid #3b2a66;
+}
+.cb-hall__bulbs {
+  position: absolute;
+  inset: 8px;
+  padding: 7px;
+  border-radius: 10px;
+  pointer-events: none;
+  background: radial-gradient(circle, #fff1c4 0 2px, rgba(255, 201, 74, 0.7) 3px, transparent 4.5px) 0 0 / 18px 18px;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  filter: drop-shadow(0 0 3px rgba(255, 201, 74, 0.9));
+}
+.cb-hall__sign h3 {
+  position: relative;
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: clamp(1.9rem, 3vw, 2.5rem);
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--pink);
+  text-shadow: 0 0 18px rgba(246, 196, 208, 0.55);
+}
+.cb-hall__body {
+  display: grid;
+  gap: 10px;
+  padding: 20px 24px 24px;
+}
+.cb-hall__where {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+.cb-hall__facilities {
+  color: var(--mist);
+  font-size: 0.88rem;
+}
+.cb-hall__today {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--line-strong);
+}
+.cb-hall__today > p {
+  display: grid;
+  color: var(--mist);
+  font-size: 0.8rem;
+}
+.cb-hall__today strong {
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 2.2rem;
+  line-height: 1;
+  color: var(--gold);
+}
+.cb-hall__today span {
+  color: var(--paper);
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+.cb-hall__closed {
+  font-size: 0.95rem !important;
+}
+.cb-hall__films {
+  list-style: none;
+  display: flex;
+  gap: 6px;
+}
+.cb-hall__films button {
+  display: block;
+  width: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  overflow: hidden;
+  cursor: pointer;
+}
+.cb-hall__films img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+}
+.cb-hall__films button:hover {
+  box-shadow: 0 0 0 2px var(--pink);
+}

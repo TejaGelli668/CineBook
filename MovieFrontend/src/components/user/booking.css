@@ -1,0 +1,805 @@
+/* Booking flow: showtimes → seats → snacks → payment → ticket.
+   Builds on src/theme/cinebook.css. */
+
+/* ─── Film band (showtimes) ───────────────────────────────────────────── */
+
+.cb-filmband {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+/* the sharp film image fades into the blurred page backdrop */
+.cb-filmband__bg {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 30%;
+  -webkit-mask-image: linear-gradient(180deg, #000 45%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 45%, transparent 100%);
+}
+.cb-filmband::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(90deg, rgba(28, 21, 53, 0.92) 0%, rgba(28, 21, 53, 0.72) 45%, rgba(28, 21, 53, 0.25) 100%);
+}
+.cb-filmband__inner {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  gap: clamp(20px, 3vw, 40px);
+  align-items: end;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: clamp(28px, 5vw, 56px) var(--gutter) clamp(28px, 4vw, 44px);
+}
+.cb-filmband__poster {
+  width: 170px;
+}
+.cb-filmband__copy {
+  max-width: 44rem;
+}
+.cb-filmband__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  margin-top: 14px;
+  color: var(--mist);
+}
+.cb-filmband__meta .cb-cert {
+  color: var(--paper);
+}
+.cb-filmband__story {
+  margin-top: 14px;
+  color: #e3dcf5;
+  max-width: 40rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cb-filmband__credits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 32px;
+  margin: 16px 0 18px;
+  font-size: 0.92rem;
+}
+.cb-filmband__credits dt {
+  color: var(--mist);
+  font-size: 0.8rem;
+}
+.cb-filmband__credits dd {
+  margin: 0;
+  font-weight: 600;
+}
+@media (max-width: 640px) {
+  .cb-filmband__inner {
+    grid-template-columns: 96px minmax(0, 1fr);
+    align-items: start;
+  }
+  .cb-filmband__poster {
+    width: 96px;
+  }
+  .cb-filmband .cb-display {
+    font-size: 2.2rem;
+  }
+  .cb-filmband__story,
+  .cb-filmband__credits {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ─── Date strip: tear-off calendar leaves ────────────────────────────── */
+
+.cb-datestrip {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 4px 2px 18px;
+  margin-bottom: 18px;
+  scrollbar-width: none;
+}
+.cb-datestrip::-webkit-scrollbar {
+  display: none;
+}
+.cb-leaf {
+  flex: 0 0 auto;
+  display: grid;
+  justify-items: center;
+  width: 78px;
+  padding: 10px 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--night-2);
+  color: var(--paper);
+  font: inherit;
+  cursor: pointer;
+  border-top: 5px solid var(--night-3);
+}
+.cb-leaf:hover {
+  border-color: var(--line-strong);
+  border-top-color: var(--mist);
+}
+.cb-leaf__wd {
+  font-size: 0.8rem;
+  color: var(--mist);
+}
+.cb-leaf__day {
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 2.3rem;
+  line-height: 1;
+  margin: 2px 0;
+}
+.cb-leaf__mo {
+  font-size: 0.8rem;
+}
+.cb-leaf[aria-pressed="true"] {
+  background: var(--pink);
+  background-image: var(--paper-grain);
+  border-color: var(--pink);
+  border-top-color: var(--stamp);
+  color: var(--ink);
+}
+.cb-leaf[aria-pressed="true"] .cb-leaf__wd {
+  color: var(--stamp);
+  font-weight: 700;
+}
+
+/* ─── Venues and showtimes ────────────────────────────────────────────── */
+
+.cb-venues {
+  list-style: none;
+  display: grid;
+  gap: 0;
+}
+.cb-venue {
+  display: grid;
+  grid-template-columns: minmax(200px, 300px) minmax(0, 1fr);
+  gap: 16px 32px;
+  padding: 26px 0;
+  border-top: 1px solid var(--line);
+}
+.cb-venue:last-child {
+  border-bottom: 1px solid var(--line);
+}
+.cb-venue__head p {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.cb-times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.cb-time {
+  display: grid;
+  justify-items: start;
+  min-width: 112px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1.5px solid var(--line-strong);
+  background: transparent;
+  color: var(--paper);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cb-time:hover:not(:disabled) {
+  border-color: var(--pink);
+}
+.cb-time__at {
+  font-weight: 700;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+.cb-time__sub {
+  font-size: 0.82rem;
+  color: var(--mist);
+}
+.cb-time[aria-pressed="true"] {
+  background: var(--pink);
+  border-color: var(--pink);
+  color: var(--ink);
+}
+.cb-time[aria-pressed="true"] .cb-time__sub {
+  color: rgba(42, 22, 48, 0.72);
+}
+.cb-time:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+@media (max-width: 720px) {
+  .cb-venue {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ─── Bottom action bar ───────────────────────────────────────────────── */
+
+.cb-actionbar {
+  position: sticky;
+  bottom: 0;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px var(--gutter);
+  padding-right: calc(var(--gutter) + 72px); /* leave room for the chat button */
+  background: rgba(38, 29, 71, 0.96);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--line-strong);
+  animation: cb-rise 0.2s ease both;
+}
+.cb-actionbar__text {
+  display: grid;
+  min-width: 0;
+  margin-right: auto;
+}
+.cb-actionbar__text strong {
+  font-size: 1.05rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cb-actionbar__warn {
+  color: #ffc2c7;
+}
+@media (max-width: 520px) {
+  .cb-actionbar {
+    flex-wrap: wrap;
+  }
+  .cb-actionbar .cb-btn {
+    width: 100%;
+  }
+}
+
+/* ─── Seat map ────────────────────────────────────────────────────────── */
+
+.cb-hall {
+  min-width: 0;
+}
+
+/* the screen: a band of light the seats face */
+.cb-screen {
+  position: relative;
+  width: min(86%, 620px);
+  height: 46px;
+  margin: 8px auto 6px;
+  border-top: 5px solid var(--pink);
+  border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+  box-shadow: 0 -14px 34px -10px rgba(246, 196, 208, 0.55);
+  background: linear-gradient(180deg, rgba(246, 196, 208, 0.12), transparent 70%);
+}
+.cb-screen span {
+  position: absolute;
+  top: 12px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: var(--mist);
+  font-size: 0.85rem;
+}
+
+.cb-legend {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 20px;
+  margin: 8px 0 26px;
+  color: var(--mist);
+  font-size: 0.86rem;
+}
+.cb-legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cb-hall__scroll {
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+.cb-hall__note {
+  margin-top: 18px;
+  text-align: center;
+}
+
+.cb-tier {
+  width: max-content;
+  min-width: 100%;
+  margin-bottom: 22px;
+}
+.cb-tier__label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  font-weight: 650;
+  font-size: 0.92rem;
+}
+.cb-tier__label::before,
+.cb-tier__label::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.cb-tier__label span + span {
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.cb-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 7px;
+}
+.cb-row__id {
+  width: 18px;
+  text-align: center;
+  color: var(--mist);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+.cb-row__seats {
+  display: flex;
+  gap: 6px;
+}
+
+.cb-seat,
+.cb-seat-key {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  padding: 0;
+  border-radius: 8px 8px 4px 4px;
+  border: 1.5px solid rgba(184, 176, 214, 0.55);
+  background: transparent;
+  color: var(--mist);
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.cb-seat-key {
+  width: 18px;
+  height: 18px;
+  cursor: default;
+}
+.cb-seat[data-state="free"]:hover {
+  border-color: var(--pink);
+  color: var(--paper);
+}
+.cb-seat[data-state="selected"],
+.cb-seat-key[data-state="selected"] {
+  background: var(--pink);
+  border-color: var(--pink);
+  color: var(--ink);
+}
+.cb-seat[data-state="held"],
+.cb-seat-key[data-state="held"] {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: var(--ink);
+}
+.cb-seat[data-state="taken"],
+.cb-seat-key[data-state="taken"] {
+  border-color: transparent;
+  color: transparent;
+  background: repeating-linear-gradient(135deg, rgba(184, 176, 214, 0.35) 0 3px, transparent 3px 7px);
+  cursor: not-allowed;
+}
+.cb-seat[data-state="booked"],
+.cb-seat-key[data-state="booked"] {
+  border-color: transparent;
+  color: transparent;
+  background: rgba(184, 176, 214, 0.16);
+  cursor: not-allowed;
+}
+.cb-seat[data-wheel="true"],
+.cb-seat-key[data-wheel="true"] {
+  box-shadow: inset 0 -4px 0 var(--mint);
+}
+.cb-seat:disabled {
+  opacity: 1;
+}
+
+@media (max-width: 520px) {
+  .cb-seat {
+    width: 26px;
+    height: 26px;
+    font-size: 0.64rem;
+  }
+  .cb-row__seats {
+    gap: 4px;
+  }
+}
+
+/* ─── Receipt (ticket paper) ──────────────────────────────────────────── */
+
+.cb-receipt__label {
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.cb-receipt__seats {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.cb-receipt__seats li {
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1.5px solid var(--ink);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.cb-receipt__empty {
+  color: rgba(42, 22, 48, 0.72);
+}
+.cb-receipt__actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+/* ─── Canteen menu ────────────────────────────────────────────────────── */
+
+.cb-menu__title {
+  margin-bottom: 8px;
+}
+.cb-menu__section {
+  margin-top: 30px;
+}
+.cb-menu__section h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+  color: var(--gold);
+}
+.cb-menu__section ul {
+  list-style: none;
+}
+
+.cb-dish {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+.cb-dish:has(.cb-dish__img) {
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+}
+.cb-dish__img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.cb-dish__line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.cb-dish__name {
+  font-weight: 650;
+  font-size: 1.05rem;
+}
+.cb-dish__dots {
+  flex: 1;
+  min-width: 20px;
+  border-bottom: 2px dotted rgba(184, 176, 214, 0.45);
+  transform: translateY(-4px);
+}
+.cb-dish__price {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cb-dish__desc {
+  margin-top: 2px;
+  color: var(--mist);
+  font-size: 0.9rem;
+}
+.cb-dish[data-picked="true"] .cb-dish__name {
+  color: var(--pink);
+}
+
+.cb-stepper {
+  display: inline-flex;
+  align-items: center;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 999px;
+}
+.cb-stepper button {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--paper);
+  cursor: pointer;
+}
+.cb-stepper button:hover:not(:disabled) {
+  background: var(--night-3);
+}
+.cb-stepper button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.cb-stepper span {
+  min-width: 22px;
+  text-align: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cb-dish[data-picked="true"] .cb-stepper {
+  border-color: var(--pink);
+}
+
+/* ─── Payment ─────────────────────────────────────────────────────────── */
+
+.cb-pay__lede {
+  margin: 8px 0 22px;
+}
+.cb-pay__secure {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* ─── Payment ─────────────────────────────────────────────────────────── */
+
+.cb-pay__lede {
+  margin: 8px 0 22px;
+}
+.cb-pay__secure {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* ─── Confirmation: the issued ticket ─────────────────────────────────── */
+
+.cb-confirm {
+  max-width: 900px;
+}
+.cb-confirm__slot {
+  max-width: 820px;
+  margin: 26px 0 8px;
+  padding-bottom: 36px;
+}
+.cb-ticket--issued {
+  --tear: calc(100% - 190px);
+  grid-template-columns: minmax(0, 1fr) 190px;
+}
+.cb-ticket--issued .cb-ticket__film {
+  font-size: clamp(2.2rem, 4.4vw, 3.4rem);
+}
+.cb-ticket--issued .cb-stamp {
+  font-size: 1.5rem;
+  right: 6px;
+  bottom: 2px;
+}
+.cb-confirm__stub {
+  writing-mode: horizontal-tb;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px 20px;
+}
+.cb-confirm__stub img {
+  width: 140px;
+  height: 140px;
+  border-radius: 6px;
+}
+.cb-confirm__stub .cb-ticket__serial {
+  font-size: 0.95rem;
+  text-align: center;
+  word-break: break-all;
+}
+.cb-confirm__snacks {
+  padding-top: 14px;
+  border-top: 1.5px solid var(--ink-line);
+  font-size: 0.92rem;
+}
+.cb-confirm__snacks p {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.cb-confirm__snacks ul {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+}
+.cb-confirm__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.cb-confirm__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 32px;
+  margin: 22px 0 18px;
+}
+.cb-confirm__meta dd {
+  margin: 0;
+  color: var(--paper);
+  word-break: break-all;
+}
+@media (max-width: 640px) {
+  .cb-ticket--issued {
+    --tear: 100%;
+    grid-template-columns: minmax(0, 1fr);
+    -webkit-mask: none;
+    mask: none;
+  }
+  .cb-confirm__stub {
+    border-left: 0;
+    border-top: 2px dashed rgba(42, 22, 48, 0.35);
+    flex-direction: row;
+    justify-content: flex-start;
+  }
+  .cb-confirm__stub img {
+    width: 110px;
+    height: 110px;
+  }
+}
+
+/* over a film backdrop, give free seats a solid base so numbers stay legible */
+.cb-app--film .cb-seat[data-state="free"] {
+  background: rgba(28, 21, 53, 0.6);
+  border-color: rgba(184, 176, 214, 0.75);
+  color: var(--paper);
+}
+.cb-app--film .cb-legend,
+.cb-app--film .cb-tier__label,
+.cb-app--film .cb-hall__note {
+  text-shadow: 0 1px 10px rgba(12, 8, 26, 0.8);
+}
+
+/* ─── Canteen cards ───────────────────────────────────────────────────── */
+
+.cb-snacks {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 16px;
+  margin-top: 14px;
+}
+.cb-snack {
+  --tint: 255, 201, 74;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(38, 29, 71, 0.8);
+  backdrop-filter: blur(10px);
+  border: 1.5px solid var(--line);
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.cb-snack[data-tint="mint"] {
+  --tint: 143, 216, 180;
+}
+.cb-snack[data-tint="pink"] {
+  --tint: 246, 196, 208;
+}
+.cb-snack[data-picked="true"] {
+  border-color: var(--pink);
+  box-shadow: 0 18px 36px -18px rgba(246, 196, 208, 0.45);
+}
+.cb-snack__art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  background:
+    radial-gradient(circle at 50% 40%, rgba(var(--tint), 0.42), rgba(var(--tint), 0.08) 62%, transparent 75%),
+    rgba(28, 21, 53, 0.55);
+  border-bottom: 2px dashed rgba(184, 176, 214, 0.25);
+}
+.cb-snack__art img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cb-snackart {
+  width: 78%;
+  height: auto;
+  filter: drop-shadow(0 10px 12px rgba(8, 4, 20, 0.5));
+}
+.cb-snack__count {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--stamp);
+  color: var(--paper);
+  font-weight: 800;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+.cb-snack__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 4px;
+  padding: 14px 16px 16px;
+}
+.cb-snack__name {
+  font-weight: 700;
+  font-size: 1.05rem;
+  line-height: 1.25;
+}
+.cb-snack[data-picked="true"] .cb-snack__name {
+  color: var(--pink);
+}
+.cb-snack__desc {
+  color: var(--mist);
+  font-size: 0.88rem;
+}
+.cb-snack__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 12px;
+}
+.cb-snack__price {
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+.cb-snack .cb-stepper {
+  border-color: var(--pink);
+}
+.cb-snack .cb-stepper button {
+  width: 32px;
+  height: 32px;
+}
+
+/* seat prices by row category, as charged at checkout */
+.cb-venue__prices {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 6px;
+  color: var(--mist);
+  font-size: 0.8rem;
+}
+.cb-venue__prices strong {
+  color: var(--paper);
+  font-weight: 700;
+}

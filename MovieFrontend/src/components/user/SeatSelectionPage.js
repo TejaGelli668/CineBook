@@ -1632,18 +1632,10 @@
 import React, { useState, useEffect, useCallback } from "react";
 import SockJS from "sockjs-client";
 import { Stomp } from "@stomp/stompjs";
-import {
-  ChevronLeft,
-  CreditCard,
-  AlertCircle,
-  Loader,
-  Plus,
-  Minus,
-  Coffee,
-  ShoppingCart,
-  Cookie,
-  IceCream,
-} from "lucide-react";
+import { Plus, Minus, Coffee, Cookie, IceCream } from "lucide-react";
+import { TopBar, BookingSteps, Loading, HoldTimer, FilmBackdrop } from "../ui/Chrome";
+import SnackArt, { TINT } from "../ui/SnackArt";
+import "./booking.css";
 
 const API_BASE = "http://localhost:8080";
 
@@ -1653,6 +1645,7 @@ export default function SeatSelectionPage({
   onCheckout,
   isUserLoggedIn,
   currentUser,
+  onLogin,
 }) {
   const showId =
     bookingData.showId !== undefined
@@ -1866,8 +1859,9 @@ export default function SeatSelectionPage({
         // Filter by theater if needed and we have all items
         let finalItems = availableItems;
         if (theaterId) {
+          // Items without a theater are sold at every cinema
           finalItems = availableItems.filter(
-            (item) => item.theaterId === theaterId
+            (item) => !item.theaterId || item.theaterId === theaterId
           );
           console.log(
             `🏢 Filtered to theater ${theaterId}: ${finalItems.length} items`
@@ -2257,26 +2251,32 @@ export default function SeatSelectionPage({
     return () => clearTimeout(timeoutId);
   }, [selectedSeats, lockedSeats, lockSeats, unlockSeats]);
 
-  // 7. Auto-unlock seats on unmount
+  // 7. Release held seats when the customer leaves the seat page, but NOT when
+  //    they move on to payment: the payment page keeps those holds alive.
+  //    (Refs keep this a true unmount-only cleanup; with lockedSeats as a
+  //    dependency it used to fire on every change and race the payment page.)
+  const lockedSeatsRef = React.useRef(lockedSeats);
+  const checkingOutRef = React.useRef(false);
+  const unlockArgsRef = React.useRef({ showId, token });
+  useEffect(() => {
+    lockedSeatsRef.current = lockedSeats;
+    unlockArgsRef.current = { showId, token };
+  }, [lockedSeats, showId, token]);
   useEffect(() => {
     return () => {
-      if (lockedSeats.length > 0) {
-        fetch(`${API_BASE}/api/seats/unlock`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            showId,
-            seatNumbers: lockedSeats,
-          }),
-        }).catch((err) =>
-          console.error("Failed to unlock seats on unmount:", err)
-        );
-      }
+      const held = lockedSeatsRef.current;
+      if (checkingOutRef.current || held.length === 0) return;
+      const { showId: sid, token: tk } = unlockArgsRef.current;
+      fetch(`${API_BASE}/api/seats/unlock`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${tk}`,
+        },
+        body: JSON.stringify({ showId: sid, seatNumbers: held }),
+      }).catch((err) => console.error("Failed to unlock seats on unmount:", err));
     };
-  }, [lockedSeats, showId, token]);
+  }, []);
 
   // Beverage functions
   const updateBeverageQuantity = (itemId, change) => {
@@ -2357,6 +2357,7 @@ export default function SeatSelectionPage({
     console.log("Going to payment without beverages");
 
     // 🔥 GO TO PAYMENT (DON'T CREATE BOOKING YET)
+    checkingOutRef.current = true; // keep the seat holds for the payment page
     onCheckout({
       ...bookingData,
       seats: selectedSeats,
@@ -2392,10 +2393,12 @@ export default function SeatSelectionPage({
     console.log("Going to payment with beverages:", selectedBeverages);
 
     // 🔥 GO TO PAYMENT (DON'T CREATE BOOKING YET)
+    checkingOutRef.current = true; // keep the seat holds for the payment page
     onCheckout({
       ...bookingData,
       seats: selectedSeats,
       beverages: selectedBeverages, // Include selected beverages
+      foodItems, // live menu, so later steps can show names and prices
       ticketPrice: subtotal,
       beveragePrice: beverageSubtotal,
       totalPrice: total,
@@ -2403,14 +2406,51 @@ export default function SeatSelectionPage({
     });
   };
 
+  const showTimeLabel = bookingData.showTime || bookingData.showtime || "";
+  const topSub = [
+    bookingData.movie?.title,
+    bookingData.theater?.name,
+    showTimeLabel,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
   // Loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-        <div className="text-center">
-          <Loader className="w-12 h-12 text-white animate-spin mx-auto mb-4" />
-          <p className="text-white text-lg">Loading seats...</p>
-        </div>
+      <div className="cb-app cb-app--film">
+        <FilmBackdrop movie={bookingData.movie} />
+        <Loading label="Opening the seat map" page />
+      </div>
+    );
+  }
+
+  // Signed-out visitors: seats are held per customer, so ask them to sign in first
+  if (error && !token) {
+    return (
+      <div className="cb-app cb-app--film">
+        <FilmBackdrop movie={bookingData.movie} />
+        <TopBar onBack={onBack} backLabel="Back to showtimes" title="Choose seats" sub={topSub} />
+        <BookingSteps current="Seats" />
+        <main className="cb-main cb-main--narrow">
+          <div className="cb-empty">
+            <h2 className="cb-h2">Sign in to choose seats</h2>
+            <p>
+              We hold the seats you pick for 10 minutes while you pay, so we
+              need to know who they're for. Your show is saved.
+            </p>
+            <div className="cb-chips">
+              {onLogin && (
+                <button type="button" className="cb-btn cb-btn--stamp" onClick={onLogin}>
+                  Sign in or create account
+                </button>
+              )}
+              <button type="button" className="cb-btn cb-btn--ghost" onClick={onBack}>
+                Back to showtimes
+              </button>
+            </div>
+          </div>
+        </main>
       </div>
     );
   }
@@ -2418,31 +2458,30 @@ export default function SeatSelectionPage({
   // Error state
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-        <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-6 max-w-md text-center">
-          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <h3 className="text-red-400 text-lg font-semibold mb-2">
-            Error Loading Seats
-          </h3>
-          <p className="text-red-300 mb-4">{error}</p>
-          <div className="flex gap-3">
-            <button
-              onClick={onBack}
-              className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
-            >
-              Go Back
-            </button>
-            <button
-              onClick={() => {
-                setError(null);
-                loadSeats();
-              }}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              Retry
-            </button>
+      <div className="cb-app cb-app--film">
+        <FilmBackdrop movie={bookingData.movie} />
+        <TopBar onBack={onBack} backLabel="Back to showtimes" title="Choose seats" sub={topSub} />
+        <main className="cb-main cb-main--narrow">
+          <div className="cb-empty">
+            <h2 className="cb-h2">The seat map didn't load</h2>
+            <p>{error}</p>
+            <div className="cb-chips">
+              <button
+                type="button"
+                className="cb-btn cb-btn--pink"
+                onClick={() => {
+                  setError(null);
+                  loadSeats();
+                }}
+              >
+                Try again
+              </button>
+              <button type="button" className="cb-btn cb-btn--ghost" onClick={onBack}>
+                Pick another show
+              </button>
+            </div>
           </div>
-        </div>
+        </main>
       </div>
     );
   }
@@ -2476,57 +2515,30 @@ export default function SeatSelectionPage({
     });
   };
 
-  const getSeatIcon = (category) => {
-    switch (category) {
-      case "Royal Recliner":
-        return "👑";
-      case "Royal":
-        return "⭐";
-      case "Club":
-        return "👥";
-      case "Executive":
-        return "🪑";
-      default:
-        return null;
+  // Visual state of a seat for the map (drives data-state in booking.css)
+  const getSeatState = (seatId) => {
+    const status = getSeatStatus(seatId);
+    if (status === "BOOKED") return "booked";
+    if (status === "LOCKED") {
+      return lockedSeats.includes(seatId) ? "held" : "taken";
     }
+    return selectedSeats.includes(seatId) ? "selected" : "free";
   };
 
-  const getSeatColor = (seatId, category) => {
-    const status = getSeatStatus(seatId);
-    const isWheel = seatMap[seatId]?.wheelchairAccessible;
+  const seatLabel = {
+    free: "available",
+    selected: "selected",
+    held: "held for you",
+    taken: "held by someone else",
+    booked: "sold",
+  };
 
-    if (status === "BOOKED") {
-      return "bg-red-400 border-red-300 cursor-not-allowed opacity-60";
-    }
-
-    if (status === "LOCKED") {
-      const isLockedByMe = lockedSeats.includes(seatId);
-      if (isLockedByMe) {
-        return "bg-yellow-400 border-yellow-300 cursor-pointer opacity-80";
-      } else {
-        return "bg-gray-400 border-gray-300 cursor-not-allowed opacity-60";
-      }
-    }
-
-    if (selectedSeats.includes(seatId)) {
-      return "bg-emerald-500 border-emerald-400 text-white shadow-lg scale-105 cursor-pointer hover:bg-emerald-600";
-    }
-
-    const categoryColors = {
-      "Royal Recliner":
-        "bg-purple-100 border-purple-300 hover:bg-purple-200 text-purple-800",
-      Royal: "bg-blue-100 border-blue-300 hover:bg-blue-200 text-blue-800",
-      Club: "bg-orange-100 border-orange-300 hover:bg-orange-200 text-orange-800",
-      Executive:
-        "bg-green-100 border-green-300 hover:bg-green-200 text-green-800",
-    };
-
-    return `${
-      categoryColors[category] ||
-      "bg-gray-100 border-gray-300 hover:bg-gray-200 text-gray-800"
-    } cursor-pointer transition-all duration-200 hover:scale-105 ${
-      isWheel ? "ring-2 ring-blue-400" : ""
-    }`;
+  const priceForSeat = (seatId) => {
+    const row = seatId[0];
+    const catEntry = Object.entries(theaterLayout).find(([_, d]) =>
+      d.rows?.some((r) => r.row === row)
+    );
+    return catEntry ? { category: catEntry[0], price: catEntry[1].price } : { category: "", price: 0 };
   };
 
   // Calculate totals
@@ -2541,614 +2553,305 @@ export default function SeatSelectionPage({
   const beverageSubtotal = getBeverageTotal();
   const fee = Math.round((subtotal + beverageSubtotal) * 0.02);
   const total = subtotal + beverageSubtotal + fee;
+  const holdExpired = timeRemaining === "Expired";
 
-  // Render beverages step
+  const selectedSnacks = Object.entries(selectedBeverages)
+    .map(([itemId, quantity]) => ({
+      item: foodItems.find((f) => f.id === parseInt(itemId)),
+      quantity,
+    }))
+    .filter((x) => x.item && x.quantity > 0);
+
+  // The running bill, printed on ticket paper
+  const renderReceipt = (withSnacks, children) => (
+    <div className="cb-paper cb-receipt">
+      <div className="cb-paper__brand">
+        CineBook
+        <span lang="te">బిల్లు</span>
+      </div>
+      <p className="cb-paper__title">{bookingData.movie?.title || "Your booking"}</p>
+      <p className="cb-muted cb-small" style={{ marginTop: 6 }}>
+        {bookingData.theater?.name}
+        {showTimeLabel && `, ${showTimeLabel}`}
+      </p>
+
+      <div className="cb-tear" />
+
+      {selectedSeats.length === 0 ? (
+        <p className="cb-receipt__empty">
+          Tap a seat on the map to add it here.
+        </p>
+      ) : (
+        <>
+          <p className="cb-receipt__label">
+            {selectedSeats.length} {selectedSeats.length === 1 ? "seat" : "seats"}
+          </p>
+          <ul className="cb-receipt__seats">
+            {selectedSeats.map((seatId) => (
+              <li key={seatId}>{seatId}</li>
+            ))}
+          </ul>
+          <dl className="cb-kv">
+            {selectedSeats.map((seatId) => {
+              const { category, price } = priceForSeat(seatId);
+              return (
+                <div key={seatId}>
+                  <dt>
+                    {seatId} {category && `(${category})`}
+                  </dt>
+                  <dd>₹{price}</dd>
+                </div>
+              );
+            })}
+            {withSnacks &&
+              selectedSnacks.map(({ item, quantity }) => (
+                <div key={item.id}>
+                  <dt>
+                    {item.name} × {quantity}
+                  </dt>
+                  <dd>₹{(item.price * quantity).toFixed(0)}</dd>
+                </div>
+              ))}
+            <div>
+              <dt>Convenience fee (2%)</dt>
+              <dd>₹{withSnacks ? fee : Math.round(subtotal * 0.02)}</dd>
+            </div>
+            <div className="cb-kv__total">
+              <dt>Total</dt>
+              <dd>
+                ₹{withSnacks ? total : subtotal + Math.round(subtotal * 0.02)}
+              </dd>
+            </div>
+          </dl>
+        </>
+      )}
+      {children && <div className="cb-receipt__actions">{children}</div>}
+    </div>
+  );
+
+  // Render snacks step
   if (showBeveragesStep) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-        {/* Header */}
-        <header className="bg-black/20 backdrop-blur-md border-b border-white/10">
-          <div className="max-w-7xl mx-auto px-6 py-4 flex items-center space-x-4">
-            <button
-              onClick={() => setShowBeveragesStep(false)}
-              className="p-2 hover:bg-white/10 rounded-full transition-colors"
-            >
-              <ChevronLeft className="w-6 h-6 text-white" />
-            </button>
-            <div>
-              <h1 className="text-2xl font-bold text-white">
-                Add Food & Beverages
-              </h1>
-              <p className="text-slate-300 text-sm">
-                {bookingData.movie?.title || "Movie"} • {selectedSeats.length}{" "}
-                seats selected
-              </p>
-            </div>
-            <div className="ml-auto text-right">
-              {lockExpiresAt && timeRemaining && (
-                <p className="text-yellow-300 text-sm font-medium">
-                  🔒 Seats locked: {timeRemaining}
-                </p>
-              )}
-            </div>
-          </div>
-        </header>
+      <div className="cb-app cb-app--film">
+        <FilmBackdrop movie={bookingData.movie} />
+        <TopBar
+          onBack={() => setShowBeveragesStep(false)}
+          backLabel="Back to seats"
+          title="Add snacks"
+          sub={`${selectedSeats.length} ${selectedSeats.length === 1 ? "seat" : "seats"} held, snacks are optional`}
+        >
+          {lockExpiresAt && <HoldTimer time={timeRemaining} />}
+        </TopBar>
+        <BookingSteps current="Snacks" />
 
-        <div className="max-w-7xl mx-auto px-6 py-8 grid grid-cols-1 xl:grid-cols-4 gap-8">
-          {/* Food Items Section */}
-          <div className="xl:col-span-3 space-y-6">
-            <div className="bg-white/5 border border-white/10 backdrop-blur-sm rounded-2xl p-6">
-              <div className="text-center mb-6">
-                <h2 className="text-2xl font-bold text-white mb-2">
-                  Enhance Your Experience
-                </h2>
-                <p className="text-slate-300">
-                  Add delicious snacks and beverages (Optional)
-                </p>
-                {/* Show data source indicator */}
-                {foodItems.length > 0 && (
-                  <div className="mt-2 text-xs">
-                    {foodItems[0].id <= 6 ? (
-                      <div className="text-yellow-400 bg-yellow-400/10 border border-yellow-400/20 rounded-lg px-3 py-1 inline-block">
-                        ⚠️ Demo menu - API temporarily unavailable
-                      </div>
-                    ) : (
-                      <div className="text-green-400 bg-green-400/10 border border-green-400/20 rounded-lg px-3 py-1 inline-block">
-                        ✅ Live menu from API
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
+        <main className="cb-main">
+          <div className="cb-split">
+            <section aria-label="Concession menu">
               {foodItemsLoading ? (
-                <div className="text-center py-8">
-                  <Loader className="w-8 h-8 text-white animate-spin mx-auto mb-4" />
-                  <p className="text-white">Loading menu...</p>
-                </div>
+                <Loading label="Fetching the menu" />
               ) : Object.keys(groupedFoodItems).length === 0 ? (
-                <div className="text-center py-8">
-                  <Coffee className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-slate-400 mb-2">
-                    No food items available
-                  </h3>
-                  <p className="text-slate-500 mb-4">
-                    The concession stand menu is currently unavailable.
+                <div className="cb-empty">
+                  <h2 className="cb-h2">The counter is closed</h2>
+                  <p>
+                    Snacks can't be ordered online for this show right now. You
+                    can still buy them at the cinema.
                   </p>
-                  <div className="flex gap-3 justify-center">
-                    <button
-                      onClick={loadFoodItems}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors"
-                    >
-                      Try Again
+                  <div className="cb-chips">
+                    <button type="button" className="cb-btn cb-btn--ghost" onClick={loadFoodItems}>
+                      Check again
                     </button>
-                    <button
-                      onClick={async () => {
-                        console.log("🔍 Starting API diagnosis...");
-                        console.log("API Base:", API_BASE);
-                        console.log("Token exists:", !!token);
-                        console.log(
-                          "Theater ID:",
-                          bookingData.theater?.id || bookingData.theaterId
-                        );
-
-                        // Test basic connectivity
-                        try {
-                          const response = await fetch(
-                            `${API_BASE}/api/food-items`
-                          );
-                          console.log(
-                            "Basic API test status:",
-                            response.status
-                          );
-                          console.log("Basic API test headers:", [
-                            ...response.headers.entries(),
-                          ]);
-                          const text = await response.text();
-                          console.log("Basic API response:", text);
-                        } catch (error) {
-                          console.log("Basic API test failed:", error);
-                        }
-                      }}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-                    >
-                      Test API
+                    <button type="button" className="cb-btn cb-btn--pink" onClick={handleProceedToPayment} disabled={holdExpired}>
+                      Continue to payment
                     </button>
                   </div>
                 </div>
               ) : (
-                Object.entries(groupedFoodItems).map(([category, items]) => {
-                  const CategoryIcon = getCategoryIcon(category);
-
-                  return (
-                    <div key={category} className="mb-8">
-                      <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                        <CategoryIcon className="w-6 h-6" />
+                <div className="cb-menu">
+                  <h2 className="cb-display cb-menu__title">Canteen</h2>
+                  <p className="cb-muted">
+                    Collect your order at the counter before the show. Show your
+                    ticket.
+                  </p>
+                  {Object.entries(groupedFoodItems).map(([category, items]) => {
+                    const CategoryIcon = getCategoryIcon(category);
+                    return (
+                    <section key={category} className="cb-menu__section">
+                      <h3 className="cb-h3">
+                        <CategoryIcon size={20} aria-hidden="true" />
                         {getCategoryDisplayName(category)}
                       </h3>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <ul className="cb-snacks">
                         {items.map((item) => {
                           const quantity = selectedBeverages[item.id] || 0;
-
                           return (
-                            <div
-                              key={item.id}
-                              className="bg-white/5 border border-white/10 rounded-xl p-4 hover:bg-white/10 transition-all"
-                            >
-                              {/* Item Image */}
-                              <div className="h-24 bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg mb-3 flex items-center justify-center overflow-hidden">
+                            <li key={item.id} className="cb-snack" data-picked={quantity > 0} data-tint={TINT[item.category] || "gold"}>
+                              <div className="cb-snack__art">
                                 {item.imageUrl ? (
                                   <img
                                     src={item.imageUrl}
-                                    alt={item.name}
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => {
-                                      e.target.style.display = "none";
-                                      e.target.nextElementSibling.style.display =
-                                        "flex";
-                                    }}
+                                    alt=""
+                                    onError={(e) => (e.target.style.display = "none")}
                                   />
-                                ) : null}
-                                <div
-                                  className={`flex items-center justify-center w-full h-full ${
-                                    item.imageUrl ? "hidden" : "flex"
-                                  }`}
-                                >
-                                  <CategoryIcon className="w-8 h-8 text-slate-400" />
+                                ) : (
+                                  <SnackArt name={item.name} category={item.category} />
+                                )}
+                                {quantity > 0 && <span className="cb-snack__count">× {quantity}</span>}
+                              </div>
+                              <div className="cb-snack__body">
+                                <p className="cb-snack__name">{item.name}</p>
+                                {item.description && <p className="cb-snack__desc">{item.description}</p>}
+                                <div className="cb-snack__foot">
+                                  <span className="cb-snack__price">₹{item.price}</span>
+                                  {quantity === 0 ? (
+                                    <button
+                                      type="button"
+                                      className="cb-btn cb-btn--pink cb-btn--sm"
+                                      onClick={() => updateBeverageQuantity(item.id, 1)}
+                                      aria-label={`Add ${item.name}`}
+                                    >
+                                      <Plus size={15} aria-hidden="true" /> Add
+                                    </button>
+                                  ) : (
+                                    <div className="cb-stepper" role="group" aria-label={`Quantity of ${item.name}`}>
+                                      <button type="button" onClick={() => updateBeverageQuantity(item.id, -1)} aria-label={`Remove one ${item.name}`}>
+                                        <Minus size={16} aria-hidden="true" />
+                                      </button>
+                                      <span aria-live="polite">{quantity}</span>
+                                      <button type="button" onClick={() => updateBeverageQuantity(item.id, 1)} aria-label={`Add one ${item.name}`}>
+                                        <Plus size={16} aria-hidden="true" />
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
-
-                              <div className="mb-3">
-                                <h4 className="text-white font-medium">
-                                  {item.name}
-                                </h4>
-                                {item.description && (
-                                  <p className="text-slate-400 text-sm line-clamp-2">
-                                    {item.description}
-                                  </p>
-                                )}
-                                <p className="text-emerald-400 font-semibold text-lg">
-                                  ₹{item.price}
-                                </p>
-                              </div>
-
-                              {/* Quantity Controls */}
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-3">
-                                  <button
-                                    onClick={() =>
-                                      updateBeverageQuantity(item.id, -1)
-                                    }
-                                    disabled={quantity === 0}
-                                    className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
-                                  >
-                                    <Minus className="w-4 h-4 text-white" />
-                                  </button>
-
-                                  <span className="text-white font-medium min-w-[2rem] text-center">
-                                    {quantity}
-                                  </span>
-
-                                  <button
-                                    onClick={() =>
-                                      updateBeverageQuantity(item.id, 1)
-                                    }
-                                    className="w-8 h-8 rounded-full bg-emerald-600 hover:bg-emerald-700 flex items-center justify-center transition-colors"
-                                  >
-                                    <Plus className="w-4 h-4 text-white" />
-                                  </button>
-                                </div>
-
-                                {quantity > 0 && (
-                                  <div className="text-right">
-                                    <p className="text-emerald-400 font-semibold">
-                                      ₹{(item.price * quantity).toFixed(2)}
-                                    </p>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
+                            </li>
                           );
                         })}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-
-          {/* Order Summary Sidebar */}
-          <div className="xl:col-span-1">
-            <div className="bg-white/5 border border-white/10 backdrop-blur-sm rounded-2xl p-6 sticky top-8">
-              <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                <ShoppingCart className="w-5 h-5" />
-                Order Summary
-              </h3>
-
-              {/* Selected Seats */}
-              <div className="mb-6">
-                <h4 className="text-white font-medium mb-2">Selected Seats</h4>
-                <div className="space-y-1">
-                  {selectedSeats.map((seatId) => {
-                    const row = seatId[0];
-                    const catEntry = Object.entries(theaterLayout).find(
-                      ([_, d]) => d.rows.some((r) => r.row === row)
-                    );
-                    const price = catEntry ? catEntry[1].price : 0;
-
-                    return (
-                      <div
-                        key={seatId}
-                        className="flex justify-between text-sm"
-                      >
-                        <span className="text-slate-300">Seat {seatId}</span>
-                        <span className="text-white">₹{price}</span>
-                      </div>
+                      </ul>
+                    </section>
                     );
                   })}
                 </div>
-              </div>
-
-              {/* Selected Food Items */}
-              {Object.keys(selectedBeverages).length > 0 && (
-                <div className="mb-6">
-                  <h4 className="text-white font-medium mb-2">
-                    Food & Beverages
-                  </h4>
-                  <div className="space-y-1">
-                    {Object.entries(selectedBeverages).map(
-                      ([itemId, quantity]) => {
-                        const item = foodItems.find(
-                          (item) => item.id === parseInt(itemId)
-                        );
-                        if (!item) return null;
-
-                        return (
-                          <div
-                            key={itemId}
-                            className="flex justify-between text-sm"
-                          >
-                            <span className="text-slate-300">
-                              {item.name} x{quantity}
-                            </span>
-                            <span className="text-white">
-                              ₹{(item.price * quantity).toFixed(2)}
-                            </span>
-                          </div>
-                        );
-                      }
-                    )}
-                  </div>
-                </div>
               )}
+            </section>
 
-              {/* Price Breakdown */}
-              <div className="border-t border-white/10 pt-4 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-300">Ticket Subtotal</span>
-                  <span className="text-white">₹{subtotal.toFixed(2)}</span>
-                </div>
-
-                {beverageSubtotal > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-300">Food & Beverages</span>
-                    <span className="text-white">
-                      ₹{beverageSubtotal.toFixed(2)}
-                    </span>
-                  </div>
-                )}
-
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-300">Convenience Fee (2%)</span>
-                  <span className="text-white">₹{fee.toFixed(2)}</span>
-                </div>
-
-                <div className="border-t border-white/10 pt-2">
-                  <div className="flex justify-between font-semibold">
-                    <span className="text-white">Total</span>
-                    <span className="text-emerald-400">
-                      ₹{total.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* ✅ FIXED Action Buttons - Removed isLocking dependency */}
-              <div className="mt-6 space-y-3">
+            <aside>
+              {renderReceipt(true, <>
                 <button
+                  type="button"
+                  className="cb-btn cb-btn--stamp cb-btn--block"
                   onClick={handleConfirmWithBeverages}
-                  disabled={timeRemaining === "Expired"}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                  disabled={holdExpired}
                 >
-                  <CreditCard className="w-4 h-4" />
-                  Proceed to Payment
+                  Continue to payment
                 </button>
-
-                <button
-                  onClick={handleProceedToPayment}
-                  disabled={timeRemaining === "Expired"}
-                  className="w-full bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white font-medium py-3 px-4 rounded-lg transition-colors"
-                >
-                  Skip & Continue
-                </button>
-              </div>
-            </div>
+                {selectedSnacks.length > 0 ? null : (
+                  <p className="cb-muted cb-small" style={{ textAlign: "center" }}>
+                    No snacks added. That's fine too.
+                  </p>
+                )}
+              </>)}
+            </aside>
           </div>
-        </div>
+        </main>
       </div>
     );
   }
 
   // Main seat selection view
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      {/* Header */}
-      <header className="bg-black/20 backdrop-blur-md border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center space-x-4">
-          <button
-            onClick={onBack}
-            className="p-2 hover:bg-white/10 rounded-full transition-colors"
-          >
-            <ChevronLeft className="w-6 h-6 text-white" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-white">Select Seats</h1>
-            <p className="text-slate-300 text-sm">
-              {bookingData.movie?.title || "Movie"} •{" "}
-              {bookingData.showtime || "Showtime"}
-            </p>
-          </div>
-          <div className="ml-auto text-right">
-            {lockExpiresAt && timeRemaining && (
-              <p className="text-yellow-300 text-sm font-medium">
-                🔒 Seats locked: {timeRemaining}
-              </p>
-            )}
-          </div>
-        </div>
-      </header>
+    <div className="cb-app cb-app--film">
+        <FilmBackdrop movie={bookingData.movie} />
+      <TopBar onBack={onBack} backLabel="Back to showtimes" title="Choose seats" sub={topSub}>
+        {lockExpiresAt && <HoldTimer time={timeRemaining} />}
+      </TopBar>
+      <BookingSteps current="Seats" />
 
-      <div className="max-w-7xl mx-auto px-6 py-8 grid grid-cols-1 xl:grid-cols-4 gap-8">
-        {/* Theater Layout */}
-        <div className="xl:col-span-3">
-          <div className="bg-white/5 border border-white/10 backdrop-blur-sm rounded-2xl p-6">
-            {/* Screen */}
-            <div className="text-center mb-8">
-              <div className="w-full h-4 bg-gradient-to-r from-transparent via-white/20 to-transparent rounded-full mb-2"></div>
-              <p className="text-white font-medium">SCREEN</p>
+      <main className="cb-main">
+        <div className="cb-split">
+          <section className="cb-hall" aria-label="Seat map">
+            <div className="cb-screen" aria-hidden="true">
+              <span>Screen</span>
             </div>
 
-            {/* Legend */}
-            <div className="flex flex-wrap justify-center gap-4 mb-8 text-sm">
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-gray-100 border border-gray-300 rounded"></div>
-                <span className="text-slate-300">Available</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-emerald-500 border border-emerald-400 rounded"></div>
-                <span className="text-slate-300">Selected</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-yellow-400 border border-yellow-300 rounded"></div>
-                <span className="text-slate-300">Locked by You</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-red-400 border border-red-300 rounded"></div>
-                <span className="text-slate-300">Booked</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-gray-400 border border-gray-300 rounded"></div>
-                <span className="text-slate-300">Locked by Others</span>
-              </div>
-            </div>
+            <ul className="cb-legend" aria-label="Seat key">
+              <li><span className="cb-seat-key" data-state="free" />Available</li>
+              <li><span className="cb-seat-key" data-state="selected" />Your pick</li>
+              <li><span className="cb-seat-key" data-state="held" />Held for you</li>
+              <li><span className="cb-seat-key" data-state="taken" />Someone else is booking</li>
+              <li><span className="cb-seat-key" data-state="booked" />Sold</li>
+              <li><span className="cb-seat-key" data-state="free" data-wheel="true" />Wheelchair space</li>
+            </ul>
 
-            {/* Seat Layout */}
-            <div className="space-y-6">
+            <div className="cb-hall__scroll">
               {Object.entries(theaterLayout).map(([category, categoryData]) => (
-                <div key={category} className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                      {getSeatIcon(category)} {category} - ₹{categoryData.price}
-                    </h3>
-                  </div>
-
-                  <div className="space-y-2">
-                    {categoryData.rows?.map((rowData) => (
-                      <div
-                        key={rowData.row}
-                        className="flex items-center justify-center gap-2"
-                      >
-                        <span className="text-slate-400 text-sm font-medium w-8">
-                          {rowData.row}
-                        </span>
-
-                        <div className="flex gap-1">
-                          {rowData.seats?.map((seatNum) => {
-                            const seatId = `${rowData.row}${seatNum}`;
-                            const isWheelchair =
-                              seatMap[seatId]?.wheelchairAccessible;
-
-                            return (
-                              <button
-                                key={seatId}
-                                onClick={() => toggleSeat(seatId)}
-                                disabled={
-                                  getSeatStatus(seatId) === "BOOKED" ||
-                                  (getSeatStatus(seatId) === "LOCKED" &&
-                                    !lockedSeats.includes(seatId)) ||
-                                  isLocking
-                                }
-                                className={`w-8 h-8 rounded text-xs font-medium border transition-all duration-200 relative ${getSeatColor(
-                                  seatId,
-                                  category
-                                )}`}
-                                title={`Seat ${seatId}${
-                                  isWheelchair ? " (Wheelchair Accessible)" : ""
-                                } - ${getSeatStatus(seatId)}`}
-                              >
-                                {seatNum}
-                                {isWheelchair && (
-                                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full"></div>
-                                )}
-                              </button>
-                            );
-                          })}
-                        </div>
-
-                        <span className="text-slate-400 text-sm font-medium w-8 text-right">
-                          {rowData.row}
-                        </span>
+                <div key={category} className="cb-tier">
+                  <p className="cb-tier__label">
+                    <span>{category}</span>
+                    <span>₹{categoryData.price}</span>
+                  </p>
+                  {categoryData.rows?.map((rowData) => (
+                    <div key={rowData.row} className="cb-row">
+                      <span className="cb-row__id" aria-hidden="true">{rowData.row}</span>
+                      <div className="cb-row__seats">
+                        {rowData.seats?.map((seatNum) => {
+                          const seatId = `${rowData.row}${seatNum}`;
+                          const state = getSeatState(seatId);
+                          const isWheelchair = seatMap[seatId]?.wheelchairAccessible;
+                          return (
+                            <button
+                              key={seatId}
+                              type="button"
+                              className="cb-seat"
+                              data-state={state}
+                              data-wheel={isWheelchair ? "true" : undefined}
+                              aria-pressed={state === "selected"}
+                              onClick={() => toggleSeat(seatId)}
+                              disabled={state === "booked" || state === "taken" || isLocking}
+                              aria-label={`Seat ${seatId}, ${category}, ₹${categoryData.price}, ${seatLabel[state]}${isWheelchair ? ", wheelchair space" : ""}`}
+                              title={`${seatId}, ${seatLabel[state]}`}
+                            >
+                              {seatNum}
+                            </button>
+                          );
+                        })}
                       </div>
-                    ))}
-                  </div>
+                      <span className="cb-row__id" aria-hidden="true">{rowData.row}</span>
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>
-          </div>
-        </div>
+            <p className="cb-muted cb-small cb-hall__note">
+              Seats you pick are held for 10 minutes while you finish booking.
+            </p>
+          </section>
 
-        {/* Booking Summary Sidebar */}
-        <div className="xl:col-span-1">
-          <div className="bg-white/5 border border-white/10 backdrop-blur-sm rounded-2xl p-6 sticky top-8">
-            <h3 className="text-xl font-bold text-white mb-4">
-              Booking Summary
-            </h3>
-
-            {/* Movie Details */}
-            <div className="mb-6">
-              <h4 className="text-white font-medium mb-2">Movie Details</h4>
-              <div className="space-y-1 text-sm">
-                <p className="text-slate-300">
-                  {bookingData.movie?.title || "Movie Title"}
-                </p>
-                <p className="text-slate-400">
-                  {bookingData.showtime || "Showtime"}
-                </p>
-                <p className="text-slate-400">
-                  {bookingData.theater?.name || "Theater"}
-                </p>
-              </div>
-            </div>
-
-            {/* Selected Seats */}
-            {selectedSeats.length > 0 && (
-              <div className="mb-6">
-                <h4 className="text-white font-medium mb-2">
-                  Selected Seats ({selectedSeats.length})
-                </h4>
-                <div className="flex flex-wrap gap-1">
-                  {selectedSeats.map((seatId) => (
-                    <span
-                      key={seatId}
-                      className="bg-emerald-600 text-white text-xs px-2 py-1 rounded"
-                    >
-                      {seatId}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Price Breakdown */}
-            {selectedSeats.length > 0 && (
-              <div className="mb-6">
-                <h4 className="text-white font-medium mb-2">Price Breakdown</h4>
-                <div className="space-y-2 text-sm">
-                  {selectedSeats.map((seatId) => {
-                    const row = seatId[0];
-                    const catEntry = Object.entries(theaterLayout).find(
-                      ([_, d]) => d.rows?.some((r) => r.row === row)
-                    );
-                    const price = catEntry ? catEntry[1].price : 0;
-                    const category = catEntry ? catEntry[0] : "Unknown";
-
-                    return (
-                      <div key={seatId} className="flex justify-between">
-                        <span className="text-slate-300">
-                          {seatId} ({category})
-                        </span>
-                        <span className="text-white">₹{price}</span>
-                      </div>
-                    );
-                  })}
-
-                  <div className="border-t border-white/10 pt-2">
-                    <div className="flex justify-between">
-                      <span className="text-slate-300">Subtotal</span>
-                      <span className="text-white">₹{subtotal.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-300">
-                        Convenience Fee (2%)
-                      </span>
-                      <span className="text-white">
-                        ₹{Math.round(subtotal * 0.02).toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between font-semibold mt-1">
-                      <span className="text-white">Total</span>
-                      <span className="text-emerald-400">
-                        ₹{(subtotal + Math.round(subtotal * 0.02)).toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="space-y-3">
-              {selectedSeats.length > 0 ? (
+          <aside>
+            {renderReceipt(false, selectedSeats.length > 0 && (
                 <>
                   <button
+                    type="button"
+                    className="cb-btn cb-btn--stamp cb-btn--block"
                     onClick={handleProceedToBeverages}
-                    disabled={isLocking || timeRemaining === "Expired"}
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                    disabled={isLocking || holdExpired}
                   >
-                    {isLocking ? (
-                      <Loader className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Coffee className="w-4 h-4" />
-                    )}
-                    Add Food & Beverages
+                    {isLocking && <span className="cb-spinner cb-spinner--sm" />}
+                    Add snacks
                   </button>
-
                   <button
+                    type="button"
+                    className="cb-btn cb-btn--ink cb-btn--block"
                     onClick={handleProceedToPayment}
-                    disabled={isLocking || timeRemaining === "Expired"}
-                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                    disabled={isLocking || holdExpired}
                   >
-                    {isLocking ? (
-                      <Loader className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <CreditCard className="w-4 h-4" />
-                    )}
-                    Proceed to Payment
+                    Skip to payment
                   </button>
                 </>
-              ) : (
-                <div className="text-center py-4">
-                  <p className="text-slate-400 text-sm mb-2">
-                    Please select at least one seat to continue
-                  </p>
-                  <div className="text-slate-500 text-xs">
-                    Click on available seats to select them
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Help Text */}
-            <div className="mt-6 text-xs text-slate-500 space-y-1">
-              <p>• Seats are automatically locked when selected</p>
-              <p>• Lock expires in 10 minutes if not booked</p>
-              <p>• Blue dot indicates wheelchair accessible seats</p>
-            </div>
-          </div>
+              ))}
+          </aside>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

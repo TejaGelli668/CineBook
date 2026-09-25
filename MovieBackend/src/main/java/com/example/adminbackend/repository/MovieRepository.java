@@ -9,9 +9,13 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface MovieRepository extends JpaRepository<Movie, Long> {
+
+    // Find a movie imported from TMDB
+    Optional<Movie> findByTmdbId(Long tmdbId);
 
     // Find movies by status
     List<Movie> findByStatus(String status);
@@ -60,7 +64,7 @@ public interface MovieRepository extends JpaRepository<Movie, Long> {
     );
 
     // Find movies released this year
-    @Query("SELECT m FROM Movie m WHERE YEAR(m.releaseDate) = YEAR(CURRENT_DATE)")
+    @Query("SELECT m FROM Movie m WHERE extract(year from m.releaseDate) = extract(year from CURRENT_DATE)")
     List<Movie> findMoviesReleasedThisYear();
 
     // Find top rated movies

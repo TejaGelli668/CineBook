@@ -295,45 +295,13 @@ public class ShowService {
         try {
             logger.info("Generating seats for show ID: {} in theater ID: {}", show.getId(), show.getTheater().getId());
 
-            // FIXED: Double-check that seats don't already exist
-            List<ShowSeat> existingSeats = showSeatRepository.findByShowId(show.getId());
-            if (!existingSeats.isEmpty()) {
-                logger.warn("Seats already exist for show {}. Skipping generation.", show.getId());
-                return;
-            }
-
-            // Get all seats for this theater
-            List<Seat> theaterSeats = seatRepository.findByTheaterId(show.getTheater().getId());
-            logger.info("Found {} seats in theater {}", theaterSeats.size(), show.getTheater().getId());
-
-            if (theaterSeats.isEmpty()) {
+            // One INSERT ... SELECT for the whole seat map; it skips seats the show already has
+            int created = showSeatRepository.insertMissingSeatsForShow(show.getId(), show.getTheater().getId());
+            if (created == 0 && seatRepository.findByTheaterId(show.getTheater().getId()).isEmpty()) {
                 logger.warn("No seats found for theater {}. Cannot create show seats.", show.getTheater().getId());
                 return;
             }
-
-            // Create ShowSeat for each theater seat
-            List<ShowSeat> showSeats = new ArrayList<>();
-            for (Seat seat : theaterSeats) {
-                // FIXED: Check if this exact show-seat combination already exists
-                boolean exists = showSeatRepository.existsByShowIdAndSeatId(show.getId(), seat.getId());
-                if (!exists) {
-                    ShowSeat showSeat = new ShowSeat();
-                    showSeat.setShow(show);
-                    showSeat.setSeat(seat);
-                    showSeat.setStatus(SeatStatus.AVAILABLE);
-                    showSeats.add(showSeat);
-                } else {
-                    logger.warn("ShowSeat already exists for show {} and seat {}", show.getId(), seat.getId());
-                }
-            }
-
-            // Save all show seats in batch
-            if (!showSeats.isEmpty()) {
-                List<ShowSeat> savedShowSeats = showSeatRepository.saveAll(showSeats);
-                logger.info("Successfully created {} show seats for show {}", savedShowSeats.size(), show.getId());
-            } else {
-                logger.info("No new show seats to create for show {}", show.getId());
-            }
+            logger.info("Created {} show seats for show {}", created, show.getId());
 
         } catch (Exception e) {
             logger.error("Failed to generate seats for show {}: {}", show.getId(), e.getMessage(), e);

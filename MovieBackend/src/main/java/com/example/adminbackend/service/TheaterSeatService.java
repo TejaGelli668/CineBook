@@ -24,6 +24,9 @@ public class TheaterSeatService {
     private SeatRepository seatRepository;
 
     @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    @Autowired
     private ShowSeatRepository showSeatRepository;
 
     @Autowired
@@ -77,12 +80,24 @@ public class TheaterSeatService {
             }
         }
 
-        // Batch save all seats
-        List<Seat> savedSeats = seatRepository.saveAll(seatsToCreate);
-        logger.info("Created {} seats for theater ID: {}", savedSeats.size(), theaterId);
+        // One JDBC batch (sent as a single multi-row insert thanks to reWriteBatchedInserts
+        // on the connection URL). Saving through JPA would be one round trip per seat.
+        jdbcTemplate.batchUpdate(
+                "INSERT INTO seats (theater_id, seat_number, row_letter, seat_position, category, price, is_wheelchair_accessible) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                seatsToCreate, 200, (ps, seat) -> {
+                    ps.setLong(1, theaterId);
+                    ps.setString(2, seat.getSeatNumber());
+                    ps.setString(3, seat.getRowLetter());
+                    ps.setInt(4, seat.getSeatPosition());
+                    ps.setString(5, seat.getCategory());
+                    ps.setDouble(6, seat.getPrice());
+                    ps.setBoolean(7, seat.isWheelchairAccessible());
+                });
+        logger.info("Created {} seats for theater ID: {}", seatsToCreate.size(), theaterId);
 
         // Generate show_seats for all existing shows in this theater
-        generateShowSeatsForTheater(theaterId, savedSeats);
+        generateShowSeatsForTheater(theaterId, List.of());
     }
 
     /**
@@ -90,25 +105,8 @@ public class TheaterSeatService {
      */
     @Transactional
     public void generateShowSeatsForTheater(Long theaterId, List<Seat> seats) {
-        List<Show> shows = showRepository.findByTheaterId(theaterId);
-        logger.info("Generating show_seats for {} shows in theater {}", shows.size(), theaterId);
-
-        List<ShowSeat> showSeatsToCreate = new ArrayList<>();
-
-        for (Show show : shows) {
-            for (Seat seat : seats) {
-                ShowSeat showSeat = new ShowSeat();
-                showSeat.setShow(show);
-                showSeat.setSeat(seat);
-                showSeat.setStatus(SeatStatus.AVAILABLE);
-                showSeatsToCreate.add(showSeat);
-            }
-        }
-
-        if (!showSeatsToCreate.isEmpty()) {
-            showSeatRepository.saveAll(showSeatsToCreate);
-            logger.info("Created {} show_seat records", showSeatsToCreate.size());
-        }
+        int created = showSeatRepository.insertMissingSeatsForTheaterShows(theaterId);
+        logger.info("Created {} show_seat records for shows in theater {}", created, theaterId);
     }
 
     /**
@@ -116,30 +114,12 @@ public class TheaterSeatService {
      */
     @Transactional
     public void generateShowSeatsForNewShow(Long showId, Long theaterId) {
-        logger.info("Generating show_seats for show ID: {} in theater ID: {}", showId, theaterId);
-
-        // Get all seats from the show's theater
-        List<Seat> theaterSeats = seatRepository.findByTheaterId(theaterId);
-
-        if (theaterSeats.isEmpty()) {
+        int created = showSeatRepository.insertMissingSeatsForShow(showId, theaterId);
+        if (created == 0 && seatRepository.findByTheaterId(theaterId).isEmpty()) {
             logger.warn("No seats found for theater {}. This theater needs seat layout setup.", theaterId);
             return;
         }
-
-        List<ShowSeat> showSeatsToCreate = new ArrayList<>();
-        Show show = new Show();
-        show.setId(showId);
-
-        for (Seat seat : theaterSeats) {
-            ShowSeat showSeat = new ShowSeat();
-            showSeat.setShow(show);
-            showSeat.setSeat(seat);
-            showSeat.setStatus(SeatStatus.AVAILABLE);
-            showSeatsToCreate.add(showSeat);
-        }
-
-        showSeatRepository.saveAll(showSeatsToCreate);
-        logger.info("Created {} show_seat records for show ID: {}", showSeatsToCreate.size(), showId);
+        logger.info("Created {} show_seat records for show ID: {}", created, showId);
     }
 
     /**

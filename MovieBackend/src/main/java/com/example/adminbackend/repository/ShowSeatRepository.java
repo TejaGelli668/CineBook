@@ -15,6 +15,38 @@ import java.util.List;
 @Repository
 public interface ShowSeatRepository extends JpaRepository<ShowSeat, Long> {
 
+    // Seat maps in one statement each (row-by-row inserts are far too slow against a remote database).
+    // Both skip seats a show already has, so re-running them never creates duplicates.
+    @Modifying
+    @Query(value = "INSERT INTO show_seats (show_id, seat_id, status) "
+            + "SELECT :showId, s.id, 'AVAILABLE' FROM seats s WHERE s.theater_id = :theaterId "
+            + "AND NOT EXISTS (SELECT 1 FROM show_seats ss WHERE ss.show_id = :showId AND ss.seat_id = s.id)",
+            nativeQuery = true)
+    int insertMissingSeatsForShow(@Param("showId") Long showId, @Param("theaterId") Long theaterId);
+
+    @Modifying
+    @Query(value = "INSERT INTO show_seats (show_id, seat_id, status) "
+            + "SELECT sh.id, s.id, 'AVAILABLE' FROM shows sh JOIN seats s ON s.theater_id = sh.theater_id "
+            + "WHERE sh.theater_id = :theaterId "
+            + "AND NOT EXISTS (SELECT 1 FROM show_seats ss WHERE ss.show_id = sh.id AND ss.seat_id = s.id)",
+            nativeQuery = true)
+    int insertMissingSeatsForTheaterShows(@Param("theaterId") Long theaterId);
+
+    // Seat status rows for shows before the cutoff (bookings keep their own copy of seat numbers)
+    // Copies seat numbers onto bookings that don't have them yet, for shows about to be cleaned up
+    @Modifying
+    @Query(value = "UPDATE bookings SET seat_numbers = (SELECT string_agg(s.seat_number, ',' ORDER BY s.row_letter, s.seat_position) "
+            + "FROM show_seats ss JOIN seats s ON s.id = ss.seat_id WHERE ss.booking_id = bookings.id) "
+            + "WHERE (seat_numbers IS NULL OR seat_numbers = '') AND id IN (SELECT ss.booking_id FROM show_seats ss "
+            + "JOIN shows sh ON sh.id = ss.show_id WHERE sh.show_time < :cutoff AND ss.booking_id IS NOT NULL)",
+            nativeQuery = true)
+    int copySeatNumbersToBookingsBefore(@Param("cutoff") LocalDateTime cutoff);
+
+    @Modifying
+    @Query(value = "DELETE FROM show_seats WHERE show_id IN (SELECT id FROM shows WHERE show_time < :cutoff)",
+            nativeQuery = true)
+    int deleteSeatsForShowsBefore(@Param("cutoff") LocalDateTime cutoff);
+
     // FIXED: Find all seats for a specific show with seat details in one query (N+1 fix)
     @Query("SELECT ss FROM ShowSeat ss LEFT JOIN FETCH ss.seat s WHERE ss.show.id = :showId ORDER BY s.rowLetter, s.seatPosition")
     List<ShowSeat> findByShowId(@Param("showId") Long showId);
@@ -58,6 +90,10 @@ public interface ShowSeatRepository extends JpaRepository<ShowSeat, Long> {
     @Query("SELECT COUNT(ss) FROM ShowSeat ss WHERE ss.show.id = :showId AND ss.status = 'AVAILABLE'")
     long countAvailableSeatsForShow(@Param("showId") Long showId);
 
+    // Seats still free for several shows in one query: rows of [showId, count]
+    @Query("SELECT ss.show.id, COUNT(ss) FROM ShowSeat ss WHERE ss.show.id IN :showIds AND ss.status = 'AVAILABLE' GROUP BY ss.show.id")
+    List<Object[]> countAvailableSeatsForShows(@Param("showIds") List<Long> showIds);
+
     // Count booked seats for a show
     @Query("SELECT COUNT(ss) FROM ShowSeat ss WHERE ss.show.id = :showId AND ss.status = 'BOOKED'")
     long countBookedSeatsForShow(@Param("showId") Long showId);
@@ -99,5 +135,10 @@ public interface ShowSeatRepository extends JpaRepository<ShowSeat, Long> {
     // NEW METHOD: Check if a specific show-seat combination exists
     @Query("SELECT CASE WHEN COUNT(ss) > 0 THEN true ELSE false END FROM ShowSeat ss WHERE ss.show.id = :showId AND ss.seat.id = :seatId")
     boolean existsByShowIdAndSeatId(@Param("showId") Long showId, @Param("seatId") Long seatId);
+
+
+    // Seat counts per show and status in one query: rows of [showId, status, count]
+    @Query("SELECT ss.show.id, ss.status, COUNT(ss) FROM ShowSeat ss WHERE ss.show.id IN :showIds GROUP BY ss.show.id, ss.status")
+    List<Object[]> countSeatsByStatusForShows(@Param("showIds") List<Long> showIds);
 
 }

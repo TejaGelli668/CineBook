@@ -1,27 +1,20 @@
 import React, { useState, useEffect } from "react";
 import {
   User,
-  Mail,
-  Phone,
-  Calendar,
   CreditCard,
   Camera,
   Edit3,
   Save,
   X,
-  ArrowLeft,
-  Star,
-  Clock,
-  MapPin,
   Eye,
   EyeOff,
-  Loader,
   Home,
-  BookOpen,
+  Ticket,
   RefreshCw,
-  AlertCircle,
-  AlertTriangle,
 } from "lucide-react";
+import { TopBar, Alert, Loading, FilmBackdrop } from "../ui/Chrome";
+import { getMovies, formatMovieData } from "../../utils/movieAPI";
+import "./dashboard.css";
 
 // Import API functions
 import {
@@ -37,7 +30,8 @@ import {
   cancelBooking,
 } from "../../utils/userAPI";
 
-const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
+const UserDashboard = ({ currentUser, onBackToMovies, onLogout, onMovieSelect }) => {
+  const [movies, setMovies] = useState([]);
   const [activeTab, setActiveTab] = useState("overview");
   const [isEditing, setIsEditing] = useState(false);
   const [showPasswordFields, setShowPasswordFields] = useState(false);
@@ -311,6 +305,7 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
   // Load user data on component mount
   useEffect(() => {
     loadUserData();
+    getMovies().then((raw) => setMovies(raw.map(formatMovieData)));
   }, []);
 
   // Clear messages after 5 seconds
@@ -436,7 +431,7 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
     try {
       const result = await cancelBooking(bookingId);
       if (result.success) {
-        setSuccess("Booking cancelled successfully!");
+        setSuccess(result.data?.message || "Booking cancelled.");
         await loadBookingHistory(); // Reload bookings
       } else {
         setError(result.message || "Failed to cancel booking");
@@ -547,10 +542,6 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
     }
   };
 
-  const handleAddPaymentMethod = () => {
-    alert("Add Payment Method form would open here.");
-  };
-
   const handleRemovePaymentMethod = async (id) => {
     if (!window.confirm("Remove this payment method?")) return;
     setLoading(true);
@@ -577,730 +568,587 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
     }).format(amount || 0);
   };
 
-  // FIXED: Dashboard Overview Tab
-  const renderOverview = () => (
-    <div className="space-y-6">
-      {/* Welcome Section */}
-      <div className="bg-white bg-opacity-10 backdrop-blur-xl rounded-lg border border-white border-opacity-20 p-6">
-        <div className="flex items-center space-x-6">
-          <div className="w-20 h-20 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold overflow-hidden">
-            {userProfile.profilePicture ? (
-              <img
-                src={getProfilePictureUrl(userProfile.profilePicture)}
-                alt="Profile"
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.target.style.display = "none";
-                  e.target.nextSibling.style.display = "flex";
-                }}
-              />
-            ) : null}
-            <span
-              className={`${
-                userProfile.profilePicture ? "hidden" : "flex"
-              } items-center justify-center w-full h-full`}
-            >
-              {`${userProfile.firstName?.[0] || "U"}${
-                userProfile.lastName?.[0] || "U"
-              }`}
-            </span>
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-white">
-              Welcome back, {userProfile.firstName || "User"}! 🎬
-            </h2>
-            <p className="text-white text-opacity-75">{userProfile.email}</p>
-            <span className="inline-block mt-2 px-3 py-1 bg-green-500 bg-opacity-20 text-green-300 rounded-full text-sm">
-              {userProfile.accountStatus}
-            </span>
-          </div>
-        </div>
-      </div>
+  const initials = `${userProfile.firstName?.[0] || ""}${
+    userProfile.lastName?.[0] || ""
+  }`.toUpperCase() || "CB";
+  const totalSpent = bookingHistory.reduce(
+    (sum, booking) => sum + (booking.totalAmount || 0),
+    0
+  );
+  const statusTone = (status) =>
+    status === "confirmed" ? "ok" : status === "cancelled" ? "bad" : "warn";
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white bg-opacity-10 backdrop-blur-xl rounded-lg border border-white border-opacity-20 p-6 text-center">
-          <BookOpen size={32} className="text-blue-400 mx-auto mb-3" />
-          <h3 className="text-2xl font-bold text-white">
-            {bookingHistory.length}
-          </h3>
-          <p className="text-white text-opacity-75">Total Bookings</p>
-        </div>
-        <div className="bg-white bg-opacity-10 backdrop-blur-xl rounded-lg border border-white border-opacity-20 p-6 text-center">
-          <CreditCard size={32} className="text-green-400 mx-auto mb-3" />
-          <h3 className="text-2xl font-bold text-white">
-            {formatCurrency(
-              bookingHistory.reduce(
-                (sum, booking) => sum + (booking.totalAmount || 0),
-                0
-              )
+  const Avatar = ({ size = 72, editable = false }) => (
+    <div className="cb-avatar" style={{ width: size, height: size }}>
+      {userProfile.profilePicture ? (
+        <img
+          src={getProfilePictureUrl(userProfile.profilePicture)}
+          alt=""
+          onError={(e) => (e.target.style.display = "none")}
+        />
+      ) : (
+        <span>{initials}</span>
+      )}
+      {editable && (
+        <label className="cb-avatar__edit" title="Change photo">
+          <Camera size={15} aria-hidden="true" />
+          <span className="cb-sr">Change profile photo</span>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleImageUpload}
+            disabled={loading}
+          />
+        </label>
+      )}
+    </div>
+  );
+
+  // One booking, drawn as a ticket stub
+  const renderStub = (booking, { compact = false } = {}) => {
+    const formattedTime = parseTimeWithoutTimezone(booking.showTime);
+    const isPastShow = hasShowTimePassed(booking.bookingDate, booking.showTime);
+    const canCancel = canCancelBooking(booking.bookingDate, booking.showTime);
+    const cancellationDeadline = getCancellationDeadline(
+      booking.bookingDate,
+      booking.showTime
+    );
+    const cancelled = booking.status === "cancelled";
+
+    return (
+      <li
+        key={booking.id}
+        className="cb-stubcard"
+        data-state={cancelled ? "cancelled" : isPastShow ? "past" : "upcoming"}
+      >
+        <div className="cb-stubcard__main">
+          <p className="cb-stubcard__film">{booking.movieTitle}</p>
+          <dl className="cb-fields">
+            <div>
+              <dt>Cinema</dt>
+              <dd>{booking.theaterName}</dd>
+            </div>
+            <div>
+              <dt>Show</dt>
+              <dd>
+                {(() => {
+                  const d = getCancellationDeadline(booking.bookingDate, booking.showTime);
+                  return d
+                    ? new Date(d.getTime() + 2 * 60 * 60 * 1000).toLocaleDateString("en-IN", {
+                        weekday: "short",
+                        day: "numeric",
+                        month: "short",
+                      })
+                    : booking.bookingDate;
+                })()}
+                , {formattedTime}
+              </dd>
+            </div>
+            <div>
+              <dt>Seats</dt>
+              <dd>{booking.seatNumbers}</dd>
+            </div>
+            {!compact && booking.theaterLocation && (
+              <div>
+                <dt>Where</dt>
+                <dd>{booking.theaterLocation}</dd>
+              </div>
             )}
-          </h3>
-          <p className="text-white text-opacity-75">Total Spent</p>
+          </dl>
+          {!compact &&
+            booking.status === "confirmed" &&
+            !isPastShow &&
+            !canCancel &&
+            cancellationDeadline && (
+              <p className="cb-stubcard__note">
+                Free cancellation ended {cancellationDeadline.toLocaleString("en-IN")}.
+                Cancelling now refunds 50%.
+              </p>
+            )}
+          {cancelled && (
+            <span className="cb-stamp" aria-hidden="true">
+              Cancelled
+            </span>
+          )}
         </div>
-        <div className="bg-white bg-opacity-10 backdrop-blur-xl rounded-lg border border-white border-opacity-20 p-6 text-center">
-          <Star size={32} className="text-yellow-400 mx-auto mb-3" />
-          <h3 className="text-2xl font-bold text-white">
-            {userProfile.memberSince
-              ? new Date(userProfile.memberSince).getFullYear()
-              : new Date().getFullYear()}
-          </h3>
-          <p className="text-white text-opacity-75">Member Since</p>
+        <div className="cb-stubcard__stub">
+          <p className="cb-stubcard__amount">{formatCurrency(booking.totalAmount)}</p>
+          <span className={`cb-badge cb-badge--${statusTone(booking.status)}`}>
+            {booking.status === "confirmed" && isPastShow ? "Watched" : booking.status}
+          </span>
+          {!compact && booking.status === "confirmed" && !isPastShow && (
+            <button
+              type="button"
+              className="cb-btn cb-btn--ink cb-btn--sm"
+              onClick={() =>
+                handleCancelBooking(booking.id, booking.bookingDate, booking.showTime)
+              }
+              disabled={loading}
+            >
+              {canCancel ? "Cancel booking" : "Cancel for 50% refund"}
+            </button>
+          )}
+        </div>
+      </li>
+    );
+  };
+
+  const noBookings = (
+    <div className="cb-empty">
+      <h2 className="cb-h2">No tickets yet</h2>
+      <p>When you book a show, your tickets land here, ready for the door.</p>
+      <button type="button" className="cb-btn cb-btn--stamp" onClick={onBackToMovies}>
+        See what's playing
+      </button>
+    </div>
+  );
+
+  // ─── Derived data for the wallet ─────────────────────────────────────────
+  const movieFor = (title) => movies.find((m) => m.title === title);
+  const showStart = (b) => {
+    const deadline = getCancellationDeadline(b.bookingDate, b.showTime);
+    return deadline ? new Date(deadline.getTime() + 2 * 60 * 60 * 1000) : null;
+  };
+  const upcoming = bookingHistory
+    .filter(
+      (b) =>
+        b.status === "confirmed" && !hasShowTimePassed(b.bookingDate, b.showTime)
+    )
+    .map((b) => ({ ...b, start: showStart(b) }))
+    .filter((b) => b.start)
+    .sort((a, b) => a.start - b.start);
+  const nextShow = upcoming[0];
+  const nowShowing = movies.filter(
+    (m) => !["inactive", "coming soon"].includes((m.status || "").toLowerCase())
+  );
+  const heroMovie = (nextShow && movieFor(nextShow.movieTitle)) || nowShowing[0];
+
+  const countdown = (start) => {
+    const mins = Math.round((start - new Date()) / 60000);
+    if (mins < 60) return `Starts in ${Math.max(mins, 0)} min`;
+    const hours = Math.round(mins / 60);
+    if (hours < 24) return `Starts in ${hours} ${hours === 1 ? "hour" : "hours"}`;
+    const days = Math.round(hours / 24);
+    return days === 1 ? "Tomorrow" : `In ${days} days`;
+  };
+  const memberNo = `CB-${String(
+    Math.abs(
+      [...(userProfile.email || "cinebook")].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7)
+    ) % 1000000
+  ).padStart(6, "0")}`;
+
+  // The CineBook Club card: the member's identity, printed like a pass
+  const renderMemberCard = (editable = false) => (
+    <div className="cb-member">
+      <div className="cb-member__top">
+        <span className="cb-member__club">CineBook Club</span>
+        <span lang="te">సభ్యత్వ కార్డు</span>
+      </div>
+      <div className="cb-member__body">
+        <Avatar size={78} editable={editable} />
+        <div className="cb-member__who">
+          <p className="cb-member__name">
+            {userProfile.firstName || "Member"} {userProfile.lastName}
+          </p>
+          <p className="cb-member__mail">{userProfile.email}</p>
         </div>
       </div>
+      <dl className="cb-member__meta">
+        <div>
+          <dt>Member no.</dt>
+          <dd>{memberNo}</dd>
+        </div>
+        <div>
+          <dt>Since</dt>
+          <dd>
+            {userProfile.memberSince
+              ? new Date(userProfile.memberSince).toLocaleDateString("en-IN", {
+                  month: "short",
+                  year: "numeric",
+                })
+              : new Date().getFullYear()}
+          </dd>
+        </div>
+        <div>
+          <dt>Films booked</dt>
+          <dd>{bookingHistory.filter((b) => b.status !== "cancelled").length}</dd>
+        </div>
+      </dl>
+      <span className="cb-member__hole" aria-hidden="true" />
+    </div>
+  );
 
-      {/* Recent Bookings - FIXED */}
-      <div className="bg-white bg-opacity-10 backdrop-blur-xl rounded-lg border border-white border-opacity-20 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xl font-bold text-white">Recent Bookings</h3>
-          <div className="flex items-center space-x-2">
+  const renderOverview = () => (
+    <div className="cb-wallet">
+      <section className="cb-wallet__hero">
+        <div>
+          <p className="cb-muted">
+            {new Date().getHours() < 12
+              ? "Good morning"
+              : new Date().getHours() < 17
+              ? "Good afternoon"
+              : "Good evening"}
+          </p>
+          <h2 className="cb-wallet__hello">{userProfile.firstName || "Welcome"}</h2>
+        </div>
+        {renderMemberCard()}
+      </section>
+
+      {nextShow ? (
+        <section className="cb-nextshow" aria-label="Your next show">
+          {movieFor(nextShow.movieTitle)?.poster && (
+            <span className="cb-thumb cb-nextshow__poster">
+              <img src={movieFor(nextShow.movieTitle).poster} alt="" />
+            </span>
+          )}
+          <div className="cb-nextshow__text">
+            <p className="cb-nextshow__when">{countdown(nextShow.start)}</p>
+            <h3 className="cb-nextshow__film">{nextShow.movieTitle}</h3>
+            <dl className="cb-fields">
+              <div>
+                <dt>Cinema</dt>
+                <dd>{nextShow.theaterName}</dd>
+              </div>
+              <div>
+                <dt>Show</dt>
+                <dd>
+                  {nextShow.start.toLocaleDateString("en-IN", {
+                    weekday: "short",
+                    day: "numeric",
+                    month: "short",
+                  })}
+                  , {parseTimeWithoutTimezone(nextShow.showTime)}
+                </dd>
+              </div>
+              <div>
+                <dt>Seats</dt>
+                <dd>{nextShow.seatNumbers}</dd>
+              </div>
+            </dl>
+          </div>
+          <button type="button" className="cb-btn cb-btn--stamp" onClick={() => setActiveTab("bookings")}>
+            <Ticket size={16} aria-hidden="true" /> Show my ticket
+          </button>
+        </section>
+      ) : (
+        <section className="cb-wallet__empty">
+          <div>
+            <h3 className="cb-h2">Nothing booked yet</h3>
+            <p className="cb-muted">
+              Here's what's playing in Hyderabad. Pick a film to see showtimes.
+            </p>
+          </div>
+          <ul className="cb-wallet__rail">
+            {nowShowing.slice(0, 8).map((m) => (
+              <li key={m.id}>
+                <button type="button" onClick={() => (onMovieSelect ? onMovieSelect(m) : onBackToMovies())}>
+                  <span className="cb-thumb">
+                    <img src={m.poster} alt="" />
+                  </span>
+                  <span className="cb-wallet__rtitle">{m.title}</span>
+                  <span className="cb-muted cb-small">{m.language}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <section>
+        <div className="cb-panel__head">
+          <div>
+            <h3 className="cb-h2">Ticket wallet</h3>
+            <p className="cb-muted cb-small">
+              {bookingHistory.length} {bookingHistory.length === 1 ? "booking" : "bookings"},{" "}
+              {formatCurrency(totalSpent)} spent on films
+            </p>
+          </div>
+          <div className="cb-chips">
             <button
+              type="button"
+              className="cb-btn cb-btn--ghost cb-btn--sm"
               onClick={loadBookingHistory}
               disabled={bookingsLoading}
-              className="text-blue-400 hover:text-blue-300 text-sm flex items-center space-x-1"
             >
-              <RefreshCw
-                size={16}
-                className={bookingsLoading ? "animate-spin" : ""}
-              />
-              <span>Refresh</span>
+              <RefreshCw size={14} className={bookingsLoading ? "cb-spin" : ""} aria-hidden="true" />
+              Refresh
             </button>
-            <button
-              onClick={() => setActiveTab("bookings")}
-              className="text-blue-400 hover:text-blue-300 text-sm"
-            >
-              View All
-            </button>
+            {bookingHistory.length > 3 && (
+              <button type="button" className="cb-link" onClick={() => setActiveTab("bookings")}>
+                See all {bookingHistory.length}
+              </button>
+            )}
           </div>
         </div>
-        <div className="space-y-3">
-          {bookingsLoading ? (
-            <div className="text-center py-8">
-              <Loader size={32} className="animate-spin text-white mx-auto" />
-              <p className="text-white text-opacity-60 mt-2">
-                Loading bookings...
-              </p>
-            </div>
-          ) : bookingHistory.slice(0, 3).length > 0 ? (
-            bookingHistory.slice(0, 3).map((booking) => {
-              // FIXED: Use parseTimeWithoutTimezone for correct display
-              const formattedTime = parseTimeWithoutTimezone(booking.showTime);
-              const isPastShow = hasShowTimePassed(
-                booking.bookingDate,
-                booking.showTime
-              );
+        {bookingsLoading ? (
+          <Loading label="Fetching your tickets" />
+        ) : bookingHistory.length > 0 ? (
+          <ul className="cb-stubs">
+            {bookingHistory.slice(0, 3).map((b) => renderStub(b, { compact: true }))}
+          </ul>
+        ) : (
+          <p className="cb-muted">Your tickets will be kept here, ready to show at the door.</p>
+        )}
+      </section>
+    </div>
+  );
 
-              return (
-                <div
-                  key={booking.id}
-                  className="flex items-center justify-between p-4 bg-white bg-opacity-5 rounded-lg"
-                >
-                  <div>
-                    <h4 className="text-white font-semibold">
-                      {booking.movieTitle}
-                    </h4>
-                    <p className="text-white text-opacity-60 text-sm">
-                      {booking.bookingDate} • {formattedTime}
-                    </p>
-                    <p className="text-white text-opacity-50 text-xs">
-                      {booking.theaterName} • Seats: {booking.seatNumbers}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-white font-bold">
-                      {formatCurrency(booking.totalAmount)}
-                    </p>
-                    <span
-                      className={`text-sm capitalize px-2 py-1 rounded-full ${
-                        booking.status === "confirmed"
-                          ? "text-green-400 bg-green-500 bg-opacity-20"
-                          : booking.status === "cancelled"
-                          ? "text-red-400 bg-red-500 bg-opacity-20"
-                          : "text-yellow-400 bg-yellow-500 bg-opacity-20"
-                      }`}
-                    >
-                      {booking.status}
-                    </span>
-                    {isPastShow && booking.status === "confirmed" && (
-                      <div className="mt-1">
-                        <span className="text-xs text-orange-400">
-                          Show completed
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })
-          ) : (
-            <div className="text-center py-8 text-white text-opacity-60">
-              <BookOpen
-                size={48}
-                className="mx-auto mb-4 text-white text-opacity-30"
-              />
-              <p>No bookings yet. Start by booking a movie!</p>
+  const renderBookings = () => (
+    <div className="cb-stack">
+      <div className="cb-panel__head">
+        <div>
+          <h2 className="cb-h2">My tickets</h2>
+          <p className="cb-muted">
+            {bookingHistory.length} {bookingHistory.length === 1 ? "booking" : "bookings"},{" "}
+            {formatCurrency(totalSpent)} in total
+          </p>
+        </div>
+        <button
+          type="button"
+          className="cb-btn cb-btn--ghost cb-btn--sm"
+          onClick={loadBookingHistory}
+          disabled={bookingsLoading}
+        >
+          <RefreshCw size={14} className={bookingsLoading ? "cb-spin" : ""} aria-hidden="true" />
+          Refresh
+        </button>
+      </div>
+      <p className="cb-muted cb-small">
+        Free cancellation until the deadline before each show. After that,
+        cancelling refunds half the price.
+      </p>
+      {bookingsLoading ? (
+        <Loading label="Fetching your tickets" />
+      ) : bookingHistory.length > 0 ? (
+        <ul className="cb-stubs">{bookingHistory.map((b) => renderStub(b))}</ul>
+      ) : (
+        noBookings
+      )}
+    </div>
+  );
+
+  const field = (id, label, props) => (
+    <div className="cb-field">
+      <label htmlFor={id} className="cb-label">
+        {label}
+      </label>
+      <input id={id} className="cb-input" {...props} />
+    </div>
+  );
+
+  const renderProfile = () => (
+    <div className="cb-stack">
+      <section className="cb-profile-head">
+        {renderMemberCard(isEditing)}
+        <div className="cb-profile-head__side">
+          <h2 className="cb-h2">Your details</h2>
+          <p className="cb-muted">
+            {isEditing
+              ? "Change anything below, then save. Tap the camera on your card to change the photo."
+              : "What we print on your tickets and use to reach you."}
+          </p>
+          <button
+            type="button"
+            className="cb-btn cb-btn--ghost cb-btn--sm"
+            onClick={() => setIsEditing((e) => !e)}
+            disabled={loading}
+          >
+            {isEditing ? <X size={14} aria-hidden="true" /> : <Edit3 size={14} aria-hidden="true" />}
+            {isEditing ? "Stop editing" : "Edit profile"}
+          </button>
+        </div>
+      </section>
+
+      <section className="cb-panel">
+        <h3 className="cb-h3" style={{ marginBottom: 18 }}>
+          Personal details
+        </h3>
+        <div className="cb-form">
+          <div className="cb-form-row">
+            {field("pf-first", "First name", {
+              value: userProfile.firstName,
+              onChange: (e) => setUserProfile((p) => ({ ...p, firstName: e.target.value })),
+              disabled: !isEditing || loading,
+              autoComplete: "given-name",
+            })}
+            {field("pf-last", "Last name", {
+              value: userProfile.lastName,
+              onChange: (e) => setUserProfile((p) => ({ ...p, lastName: e.target.value })),
+              disabled: !isEditing || loading,
+              autoComplete: "family-name",
+            })}
+          </div>
+          <div className="cb-form-row">
+            {field("pf-email", "Email", {
+              type: "email",
+              value: userProfile.email,
+              onChange: (e) => setUserProfile((p) => ({ ...p, email: e.target.value })),
+              disabled: !isEditing || loading,
+              autoComplete: "email",
+            })}
+            {field("pf-phone", "Phone", {
+              type: "tel",
+              value: userProfile.phone || "",
+              onChange: (e) => setUserProfile((p) => ({ ...p, phone: e.target.value })),
+              disabled: !isEditing || loading,
+              placeholder: "+91",
+              autoComplete: "tel",
+            })}
+          </div>
+          <div className="cb-form-row">
+            {field("pf-dob", "Date of birth", {
+              type: "date",
+              value: userProfile.dateOfBirth || "",
+              onChange: (e) => setUserProfile((p) => ({ ...p, dateOfBirth: e.target.value })),
+              disabled: !isEditing || loading,
+            })}
+            {field("pf-since", "Member since", {
+              value: userProfile.memberSince,
+              disabled: true,
+              readOnly: true,
+            })}
+          </div>
+          {isEditing && (
+            <div>
               <button
-                onClick={onBackToMovies}
-                className="mt-4 px-6 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700"
+                type="button"
+                className="cb-btn cb-btn--stamp"
+                onClick={handleProfileSave}
+                disabled={loading}
               >
-                Browse Movies
+                {loading ? <span className="cb-spinner cb-spinner--sm" /> : <Save size={16} aria-hidden="true" />}
+                {loading ? "Saving…" : "Save changes"}
               </button>
             </div>
           )}
         </div>
-      </div>
-    </div>
-  );
+      </section>
 
-  // FIXED: renderBookings function
-  const renderBookings = () => (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-2xl font-bold text-white">Booking History</h3>
-        <div className="flex items-center space-x-4">
+      <section className="cb-panel">
+        <div className="cb-panel__head" style={{ marginBottom: showPasswordFields ? 18 : 0 }}>
+          <div>
+            <h3 className="cb-h3">Password</h3>
+            <p className="cb-muted cb-small">Use at least 6 characters.</p>
+          </div>
           <button
-            onClick={loadBookingHistory}
-            disabled={bookingsLoading}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-500 bg-opacity-20 text-blue-300 rounded-lg hover:bg-opacity-30 disabled:opacity-50"
-          >
-            <RefreshCw
-              size={16}
-              className={bookingsLoading ? "animate-spin" : ""}
-            />
-            <span>Refresh</span>
-          </button>
-          <div className="text-center">
-            <p className="text-2xl font-bold text-white">
-              {bookingHistory.length}
-            </p>
-            <p className="text-white text-opacity-60 text-sm">Total Bookings</p>
-          </div>
-          <div className="text-center">
-            <p className="text-2xl font-bold text-white">
-              {formatCurrency(
-                bookingHistory.reduce(
-                  (sum, booking) => sum + (booking.totalAmount || 0),
-                  0
-                )
-              )}
-            </p>
-            <p className="text-white text-opacity-60 text-sm">Total Spent</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        {bookingsLoading ? (
-          <div className="text-center py-12">
-            <Loader size={48} className="animate-spin text-white mx-auto" />
-            <p className="text-white text-opacity-60 mt-4">
-              Loading your bookings...
-            </p>
-          </div>
-        ) : bookingHistory.length > 0 ? (
-          bookingHistory.map((booking) => {
-            // FIXED: Use parseTimeWithoutTimezone for correct display
-            const formattedTime = parseTimeWithoutTimezone(booking.showTime);
-            const isPastShow = hasShowTimePassed(
-              booking.bookingDate,
-              booking.showTime
-            );
-            const canCancel = canCancelBooking(
-              booking.bookingDate,
-              booking.showTime
-            );
-            const cancellationDeadline = getCancellationDeadline(
-              booking.bookingDate,
-              booking.showTime
-            );
-
-            return (
-              <div
-                key={booking.id}
-                className="bg-white bg-opacity-10 backdrop-blur-xl rounded-lg border border-white border-opacity-20 p-6"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <h4 className="text-lg font-semibold text-white">
-                      {booking.movieTitle}
-                    </h4>
-                    <div className="flex items-center space-x-4 mt-2 text-white text-opacity-75">
-                      <div className="flex items-center space-x-1">
-                        <MapPin size={16} />
-                        <span>{booking.theaterName}</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <Calendar size={16} />
-                        <span>{booking.bookingDate}</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <Clock size={16} />
-                        <span>{formattedTime}</span>
-                      </div>
-                    </div>
-                    <p className="text-white text-opacity-60 mt-1">
-                      Seats: {booking.seatNumbers}
-                    </p>
-                    {booking.theaterLocation && (
-                      <p className="text-white text-opacity-50 text-sm">
-                        Location: {booking.theaterLocation}
-                      </p>
-                    )}
-                    {booking.status === "confirmed" &&
-                      !isPastShow &&
-                      !canCancel &&
-                      cancellationDeadline && (
-                        <div className="mt-2 flex items-center space-x-2 text-orange-400 text-sm">
-                          <AlertTriangle size={16} />
-                          <span>
-                            Cancellation deadline was{" "}
-                            {cancellationDeadline.toLocaleString()}
-                          </span>
-                        </div>
-                      )}
-                  </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-white">
-                      {formatCurrency(booking.totalAmount)}
-                    </p>
-                    <span
-                      className={`inline-block px-3 py-1 rounded-full text-sm capitalize mb-2 ${
-                        booking.status === "confirmed"
-                          ? "text-green-300 bg-green-500 bg-opacity-20"
-                          : booking.status === "cancelled"
-                          ? "text-red-300 bg-red-500 bg-opacity-20"
-                          : "text-yellow-300 bg-yellow-500 bg-opacity-20"
-                      }`}
-                    >
-                      {booking.status}
-                    </span>
-                    {booking.status === "confirmed" && (
-                      <div className="mt-2">
-                        {isPastShow ? (
-                          <button
-                            disabled
-                            className="px-3 py-1 bg-gray-500 bg-opacity-20 text-gray-400 rounded text-sm cursor-not-allowed"
-                            title="Cannot cancel - show time has passed"
-                          >
-                            Show Completed
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() =>
-                              handleCancelBooking(
-                                booking.id,
-                                booking.bookingDate,
-                                booking.showTime
-                              )
-                            }
-                            disabled={loading}
-                            className={`px-3 py-1 rounded text-sm transition-colors disabled:opacity-50 ${
-                              canCancel
-                                ? "bg-red-500 bg-opacity-20 text-red-300 hover:bg-opacity-30"
-                                : "bg-orange-500 bg-opacity-20 text-orange-300 hover:bg-opacity-30"
-                            }`}
-                            title={
-                              canCancel
-                                ? "Cancel booking"
-                                : "Cancel with partial refund"
-                            }
-                          >
-                            {canCancel ? "Cancel" : "Cancel (50% refund)"}
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })
-        ) : (
-          <div className="text-center py-12">
-            <Calendar
-              size={64}
-              className="text-white text-opacity-30 mx-auto mb-4"
-            />
-            <h3 className="text-xl font-semibold text-white mb-2">
-              No bookings found
-            </h3>
-            <p className="text-white text-opacity-60 mb-6">
-              You haven't made any movie bookings yet. Start exploring movies!
-            </p>
-            <button
-              onClick={onBackToMovies}
-              className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700"
-            >
-              Browse Movies
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
-  // Keep existing renderProfile function unchanged
-  const renderProfile = () => (
-    <div className="space-y-6">
-      {/* Profile Header */}
-      <div className="bg-white bg-opacity-10 backdrop-blur-xl rounded-lg border border-white border-opacity-20 p-6">
-        <div className="flex items-center space-x-6">
-          <div className="relative">
-            <div className="w-24 h-24 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold overflow-hidden">
-              {userProfile.profilePicture ? (
-                <>
-                  <img
-                    src={getProfilePictureUrl(userProfile.profilePicture)}
-                    alt="Profile"
-                    className="w-full h-full object-cover"
-                    onError={(e) => (e.target.style.display = "none")}
-                  />
-                  <span
-                    className="absolute inset-0 flex items-center justify-center"
-                    style={{ display: "none" }}
-                  >
-                    {`${userProfile.firstName?.[0] || "U"}${
-                      userProfile.lastName?.[0] || "U"
-                    }`}
-                  </span>
-                </>
-              ) : (
-                `${userProfile.firstName?.[0] || "U"}${
-                  userProfile.lastName?.[0] || "U"
-                }`
-              )}
-            </div>
-            {isEditing && (
-              <label className="absolute bottom-0 right-0 bg-blue-500 rounded-full p-2 cursor-pointer hover:bg-blue-600">
-                <Camera size={16} className="text-white" />
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="hidden"
-                  disabled={loading}
-                />
-              </label>
-            )}
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-white">
-                  {userProfile.firstName} {userProfile.lastName}
-                </h2>
-                <p className="text-white text-opacity-75">
-                  {userProfile.email}
-                </p>
-                <span className="inline-block mt-2 px-3 py-1 bg-green-500 bg-opacity-20 text-green-300 rounded-full text-sm">
-                  {userProfile.accountStatus}
-                </span>
-              </div>
-              <button
-                onClick={() => setIsEditing((e) => !e)}
-                disabled={loading}
-                className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 flex items-center space-x-2 disabled:opacity-50"
-              >
-                {loading ? (
-                  <Loader size={16} className="animate-spin" />
-                ) : isEditing ? (
-                  <X size={16} />
-                ) : (
-                  <Edit3 size={16} />
-                )}
-                <span>{isEditing ? "Cancel" : "Edit Profile"}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Profile Form */}
-      <div className="bg-white bg-opacity-10 backdrop-blur-xl rounded-lg border border-white border-opacity-20 p-6">
-        <h3 className="text-xl font-bold text-white mb-4">
-          Personal Information
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* First Name */}
-          <div>
-            <label className="block text-white text-opacity-75 mb-2">
-              First Name
-            </label>
-            <input
-              type="text"
-              value={userProfile.firstName}
-              onChange={(e) =>
-                setUserProfile((p) => ({ ...p, firstName: e.target.value }))
-              }
-              disabled={!isEditing || loading}
-              className="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-60 border border-white border-opacity-30 focus:outline-none focus:border-opacity-50 disabled:opacity-50"
-            />
-          </div>
-          {/* Last Name */}
-          <div>
-            <label className="block text-white text-opacity-75 mb-2">
-              Last Name
-            </label>
-            <input
-              type="text"
-              value={userProfile.lastName}
-              onChange={(e) =>
-                setUserProfile((p) => ({ ...p, lastName: e.target.value }))
-              }
-              disabled={!isEditing || loading}
-              className="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-60 border border-white border-opacity-30 focus:outline-none focus:border-opacity-50 disabled:opacity-50"
-            />
-          </div>
-          {/* Email */}
-          <div>
-            <label className="block text-white text-opacity-75 mb-2">
-              Email
-            </label>
-            <input
-              type="email"
-              value={userProfile.email}
-              onChange={(e) =>
-                setUserProfile((p) => ({ ...p, email: e.target.value }))
-              }
-              disabled={!isEditing || loading}
-              className="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-60 border border-white border-opacity-30 focus:outline-none focus:border-opacity-50 disabled:opacity-50"
-            />
-          </div>
-          {/* Phone */}
-          <div>
-            <label className="block text-white text-opacity-75 mb-2">
-              Phone Number
-            </label>
-            <input
-              type="tel"
-              value={userProfile.phone}
-              onChange={(e) =>
-                setUserProfile((p) => ({ ...p, phone: e.target.value }))
-              }
-              disabled={!isEditing || loading}
-              placeholder="Enter phone number"
-              className="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-60 border border-white border-opacity-30 focus:outline-none focus:border-opacity-50 disabled:opacity-50"
-            />
-          </div>
-          {/* Date of Birth */}
-          <div>
-            <label className="block text-white text-opacity-75 mb-2">
-              Date of Birth
-            </label>
-            <input
-              type="date"
-              value={userProfile.dateOfBirth || ""}
-              onChange={(e) => {
-                setUserProfile((p) => ({ ...p, dateOfBirth: e.target.value }));
-              }}
-              disabled={!isEditing || loading}
-              className="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-60 border border-white border-opacity-30 focus:outline-none focus:border-opacity-50 disabled:opacity-50"
-            />
-          </div>
-          {/* Member Since */}
-          <div>
-            <label className="block text-white text-opacity-75 mb-2">
-              Member Since
-            </label>
-            <input
-              type="text"
-              value={userProfile.memberSince}
-              disabled
-              className="w-full p-3 rounded-lg bg-white bg-opacity-10 text-white text-opacity-50 border border-white border-opacity-20"
-            />
-          </div>
-        </div>
-
-        {isEditing && (
-          <div className="mt-6 flex space-x-4">
-            <button
-              onClick={handleProfileSave}
-              disabled={loading}
-              className="px-6 py-2 bg-gradient-to-r from-green-500 to-blue-600 text-white rounded-lg hover:from-green-600 hover:to-blue-700 flex items-center space-x-2 disabled:opacity-50"
-            >
-              {loading ? (
-                <Loader size={16} className="animate-spin" />
-              ) : (
-                <Save size={16} />
-              )}
-              <span>{loading ? "Saving..." : "Save Changes"}</span>
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Security / Password */}
-      <div className="bg-white bg-opacity-10 backdrop-blur-xl rounded-lg border border-white border-opacity-20 p-6 mt-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xl font-bold text-white">Security</h3>
-          <button
+            type="button"
+            className="cb-btn cb-btn--ghost cb-btn--sm"
             onClick={() => setShowPasswordFields((s) => !s)}
             disabled={loading}
-            className="px-4 py-2 bg-gradient-to-r from-yellow-500 to-orange-600 text-white rounded-lg hover:from-yellow-600 hover:to-orange-700 disabled:opacity-50"
           >
-            Change Password
+            {showPasswordFields ? "Close" : "Change password"}
           </button>
         </div>
         {showPasswordFields && (
-          <div className="space-y-4">
-            {/* Current Password */}
-            <div>
-              <label className="block text-white text-opacity-75 mb-2">
-                Current Password
-              </label>
-              <div className="relative">
+          <div className="cb-form" style={{ maxWidth: 420 }}>
+            <div className="cb-field">
+              <label htmlFor="pw-current" className="cb-label">Current password</label>
+              <div className="cb-input-wrap">
                 <input
+                  id="pw-current"
+                  className="cb-input"
                   type={showCurrentPassword ? "text" : "password"}
+                  autoComplete="current-password"
                   value={passwordData.currentPassword}
-                  onChange={(e) =>
-                    setPasswordData((p) => ({
-                      ...p,
-                      currentPassword: e.target.value,
-                    }))
-                  }
-                  placeholder="Enter current password"
+                  onChange={(e) => setPasswordData((p) => ({ ...p, currentPassword: e.target.value }))}
                   disabled={loading}
-                  className="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-60 border border-white border-opacity-30 focus:outline-none disabled:opacity-50"
                 />
                 <button
                   type="button"
+                  className="cb-input-wrap__btn"
                   onClick={() => setShowCurrentPassword((s) => !s)}
-                  disabled={loading}
-                  className="absolute inset-y-0 right-3 flex items-center text-white disabled:opacity-50"
+                  aria-label={showCurrentPassword ? "Hide password" : "Show password"}
                 >
-                  {showCurrentPassword ? (
-                    <EyeOff size={20} />
-                  ) : (
-                    <Eye size={20} />
-                  )}
+                  {showCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
-            {/* New Password */}
-            <div>
-              <label className="block text-white text-opacity-75 mb-2">
-                New Password
-              </label>
-              <div className="relative">
+            <div className="cb-field">
+              <label htmlFor="pw-new" className="cb-label">New password</label>
+              <div className="cb-input-wrap">
                 <input
+                  id="pw-new"
+                  className="cb-input"
                   type={showNewPassword ? "text" : "password"}
+                  autoComplete="new-password"
                   value={passwordData.newPassword}
-                  onChange={(e) =>
-                    setPasswordData((p) => ({
-                      ...p,
-                      newPassword: e.target.value,
-                    }))
-                  }
-                  placeholder="Enter new password"
+                  onChange={(e) => setPasswordData((p) => ({ ...p, newPassword: e.target.value }))}
                   disabled={loading}
-                  className="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-60 border border-white border-opacity-30 focus:outline-none disabled:opacity-50"
                 />
                 <button
                   type="button"
+                  className="cb-input-wrap__btn"
                   onClick={() => setShowNewPassword((s) => !s)}
-                  disabled={loading}
-                  className="absolute inset-y-0 right-3 flex items-center text-white disabled:opacity-50"
+                  aria-label={showNewPassword ? "Hide password" : "Show password"}
                 >
-                  {showNewPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
-            {/* Confirm Password */}
+            {field("pw-confirm", "Repeat new password", {
+              type: "password",
+              autoComplete: "new-password",
+              value: passwordData.confirmPassword,
+              onChange: (e) => setPasswordData((p) => ({ ...p, confirmPassword: e.target.value })),
+              disabled: loading,
+            })}
             <div>
-              <label className="block text-white text-opacity-75 mb-2">
-                Confirm New Password
-              </label>
-              <input
-                type="password"
-                value={passwordData.confirmPassword}
-                onChange={(e) =>
-                  setPasswordData((p) => ({
-                    ...p,
-                    confirmPassword: e.target.value,
-                  }))
-                }
-                placeholder="Confirm new password"
+              <button
+                type="button"
+                className="cb-btn cb-btn--stamp"
+                onClick={handlePasswordChange}
                 disabled={loading}
-                className="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-60 border border-white border-opacity-30 focus:outline-none disabled:opacity-50"
-              />
+              >
+                {loading && <span className="cb-spinner cb-spinner--sm" />}
+                {loading ? "Updating…" : "Update password"}
+              </button>
             </div>
-            <button
-              onClick={handlePasswordChange}
-              disabled={loading}
-              className="px-6 py-2 bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-lg hover:from-red-600 hover:to-pink-700 flex items-center space-x-2 disabled:opacity-50"
-            >
-              {loading && <Loader size={16} className="animate-spin" />}
-              <span>{loading ? "Updating..." : "Update Password"}</span>
-            </button>
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 
   const renderPayments = () => (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-2xl font-bold text-white">Payment Methods</h3>
-        <button
-          onClick={handleAddPaymentMethod}
-          disabled={loading}
-          className="px-4 py-2 bg-gradient-to-r from-green-500 to-blue-600 text-white rounded-lg hover:from-green-600 hover:to-blue-700 disabled:opacity-50"
-        >
-          Add New Card
-        </button>
+    <div className="cb-stack">
+      <div className="cb-panel__head">
+        <div>
+          <h2 className="cb-h2">Saved cards</h2>
+          <p className="cb-muted">
+            Cards you save with Stripe at checkout appear here.
+          </p>
+        </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {paymentMethods.map((method) => (
-          <div
-            key={method.id}
-            className="bg-white bg-opacity-10 backdrop-blur-xl rounded-lg border border-white border-opacity-20 p-6"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-3">
-                <CreditCard size={24} className="text-blue-400" />
-                <div>
-                  <p className="text-white font-semibold">
-                    {method.cardNumber || method.maskedCardNumber}
-                  </p>
-                  <p className="text-white text-opacity-60 text-sm">
-                    Expires {method.expiryDate}
-                  </p>
-                </div>
+      {paymentMethods.length > 0 ? (
+        <ul className="cb-cards">
+          {paymentMethods.map((method) => (
+            <li key={method.id} className="cb-panel cb-card">
+              <CreditCard size={22} aria-hidden="true" />
+              <div style={{ flex: 1 }}>
+                <p className="cb-card__num">
+                  {method.cardNumber || method.maskedCardNumber}
+                </p>
+                <p className="cb-muted cb-small">
+                  {method.cardHolder}
+                  {method.expiryDate && `, expires ${method.expiryDate}`}
+                </p>
               </div>
-              {method.isDefault && (
-                <span className="px-2 py-1 bg-green-500 bg-opacity-20 text-green-300 rounded-full text-xs">
-                  Default
-                </span>
-              )}
-            </div>
-            <p className="text-white text-opacity-75 mb-4">
-              Card Holder: {method.cardHolder}
-            </p>
-            <div className="flex space-x-2">
-              <button className="flex-1 px-3 py-2 bg-blue-500 bg-opacity-20 text-blue-300 rounded-lg hover:bg-opacity-30 transition-colors">
-                Edit
-              </button>
+              {method.isDefault && <span className="cb-badge cb-badge--ok">Default</span>}
               <button
+                type="button"
+                className="cb-btn cb-btn--danger cb-btn--sm"
                 onClick={() => handleRemovePaymentMethod(method.id)}
                 disabled={loading}
-                className="flex-1 px-3 py-2 bg-red-500 bg-opacity-20 text-red-300 rounded-lg hover:bg-opacity-30 disabled:opacity-50 transition-colors"
               >
                 Remove
               </button>
-            </div>
-          </div>
-        ))}
-      </div>
-      {paymentMethods.length === 0 && (
-        <div className="text-center py-8">
-          <CreditCard
-            size={48}
-            className="text-white text-opacity-30 mx-auto mb-4"
-          />
-          <p className="text-white text-opacity-60">
-            No payment methods added yet
-          </p>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="cb-empty">
+          <h3 className="cb-h2">No saved cards</h3>
+          <p>You pay securely with Stripe each time you book. Nothing is stored here yet.</p>
         </div>
       )}
     </div>
@@ -1321,123 +1169,56 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout }) => {
     }
   };
 
+  const TABS = [
+    { id: "overview", label: "Overview", icon: Home },
+    { id: "bookings", label: "My tickets", icon: Ticket },
+    { id: "profile", label: "Profile", icon: User },
+    { id: "payments", label: "Saved cards", icon: CreditCard },
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
-      {/* Header */}
-      <header className="relative z-10 bg-black bg-opacity-20 backdrop-blur-lg border-b border-white border-opacity-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={onBackToMovies}
-                className="flex items-center space-x-2 px-4 py-2 bg-white bg-opacity-10 text-white rounded-lg hover:bg-opacity-20 transition"
-              >
-                <ArrowLeft size={16} />
-                <span>Back to Movies</span>
-              </button>
-              <h1 className="text-2xl font-bold text-white">User Dashboard</h1>
-            </div>
+    <div className="cb-app cb-app--film">
+      <FilmBackdrop movie={heroMovie} />
+      <TopBar
+        onBack={onBackToMovies}
+        backLabel="Back to films"
+        title="My CineBook"
+        sub={userProfile.email || undefined}
+      >
+        <button type="button" className="cb-btn cb-btn--ghost cb-btn--sm" onClick={onLogout}>
+          Sign out
+        </button>
+      </TopBar>
+
+      <main className="cb-main cb-dash">
+        <div className="cb-tabs cb-dash__tabs" role="tablist" aria-label="Account sections">
+          {TABS.map(({ id, label, icon: Icon }) => (
             <button
-              onClick={onLogout}
-              className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition"
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === id}
+              onClick={() => setActiveTab(id)}
             >
-              Logout
+              <Icon size={16} aria-hidden="true" />
+              {label}
             </button>
-          </div>
+          ))}
         </div>
-      </header>
 
-      {/* Error/Success Messages */}
-      {(error || success) && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
-          {error && (
-            <div className="bg-red-500 bg-opacity-20 border border-red-500 border-opacity-50 text-red-200 px-4 py-3 rounded-lg mb-4 flex items-center space-x-2">
-              <AlertCircle size={20} />
-              <span>{error}</span>
-            </div>
-          )}
-          {success && (
-            <div className="bg-green-500 bg-opacity-20 border border-green-500 border-opacity-50 text-green-200 px-4 py-3 rounded-lg mb-4">
-              {success}
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex flex-col lg:flex-row gap-8">
-          {/* Sidebar Navigation */}
-          <div className="lg:w-64">
-            <nav className="bg-white bg-opacity-10 backdrop-blur-xl rounded-lg border border-white border-opacity-20 p-4">
-              <ul className="space-y-2">
-                <li>
-                  <button
-                    onClick={() => setActiveTab("overview")}
-                    className={`w-full text-left px-4 py-3 rounded-lg flex items-center space-x-3 transition ${
-                      activeTab === "overview"
-                        ? "bg-blue-500 bg-opacity-20 text-blue-300 border border-blue-500 border-opacity-30"
-                        : "text-white text-opacity-75 hover:bg-white hover:bg-opacity-10"
-                    }`}
-                  >
-                    <Home size={20} />
-                    <span>Overview</span>
-                  </button>
-                </li>
-                <li>
-                  <button
-                    onClick={() => setActiveTab("bookings")}
-                    className={`w-full text-left px-4 py-3 rounded-lg flex items-center space-x-3 transition ${
-                      activeTab === "bookings"
-                        ? "bg-blue-500 bg-opacity-20 text-blue-300 border border-blue-500 border-opacity-30"
-                        : "text-white text-opacity-75 hover:bg-white hover:bg-opacity-10"
-                    }`}
-                  >
-                    <BookOpen size={20} />
-                    <span>My Bookings</span>
-                  </button>
-                </li>
-                <li>
-                  <button
-                    onClick={() => setActiveTab("profile")}
-                    className={`w-full text-left px-4 py-3 rounded-lg flex items-center space-x-3 transition ${
-                      activeTab === "profile"
-                        ? "bg-blue-500 bg-opacity-20 text-blue-300 border border-blue-500 border-opacity-30"
-                        : "text-white text-opacity-75 hover:bg-white hover:bg-opacity-10"
-                    }`}
-                  >
-                    <User size={20} />
-                    <span>Profile</span>
-                  </button>
-                </li>
-                <li>
-                  <button
-                    onClick={() => setActiveTab("payments")}
-                    className={`w-full text-left px-4 py-3 rounded-lg flex items-center space-x-3 transition ${
-                      activeTab === "payments"
-                        ? "bg-blue-500 bg-opacity-20 text-blue-300 border border-blue-500 border-opacity-30"
-                        : "text-white text-opacity-75 hover:bg-white hover:bg-opacity-10"
-                    }`}
-                  >
-                    <CreditCard size={20} />
-                    <span>Payment Methods</span>
-                  </button>
-                </li>
-              </ul>
-            </nav>
+        {(error || success) && (
+          <div className="cb-stack" style={{ marginBottom: 20 }}>
+            {error && <Alert tone="error">{error}</Alert>}
+            {success && <Alert tone="ok">{success}</Alert>}
           </div>
+        )}
 
-          {/* Main Content */}
-          <div className="flex-1">
-            {loading && activeTab === "overview" ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader size={32} className="animate-spin text-white" />
-              </div>
-            ) : (
-              renderContent()
-            )}
-          </div>
-        </div>
-      </div>
+        {loading && activeTab === "overview" && !userProfile.email ? (
+          <Loading label="Opening your account" />
+        ) : (
+          renderContent()
+        )}
+      </main>
     </div>
   );
 };

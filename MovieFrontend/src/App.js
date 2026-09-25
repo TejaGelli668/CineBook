@@ -3,7 +3,7 @@ import "./App.css";
 import "./utils/debugUtils";
 
 // Import your ENHANCED chatbot with bookings
-import EnhancedChatbotWithBookings from "./components/chatbot/EnhancedChatbotWithBookings";
+import Concierge from "./components/chatbot/Concierge";
 
 // Component Imports
 import HomePage from "./components/user/HomePage";
@@ -12,6 +12,7 @@ import SeatSelectionPage from "./components/user/SeatSelectionPage";
 import PaymentPage from "./components/user/PaymentPage";
 import SuccessPage from "./components/user/SuccessPage";
 import AdminDashboard from "./components/admin/AdminDashboard";
+import AdminLogin from "./components/admin/AdminLogin";
 import LoginModal from "./components/auth/LoginModal";
 import AuthTestComponent from "./components/AuthTestComponent";
 import UserDashboard from "./components/user/UserDashboard";
@@ -44,20 +45,23 @@ const App = () => {
   const [isUserLoggedIn, setIsUserLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
 
+  // The manager's desk lives only at /admin; customers never see a way in
+  const onAdminRoute = window.location.pathname.startsWith("/admin");
+
   useEffect(() => {
     const checkAuthStatus = () => {
-      if (isAdminAuthenticated()) {
+      if (onAdminRoute && isAdminAuthenticated()) {
         setIsAdminLoggedIn(true);
         setCurrentUser(getCurrentAdmin());
         setCurrentPage("admin");
-      } else if (isAuthenticated()) {
+      } else if (!onAdminRoute && isAuthenticated()) {
         setIsUserLoggedIn(true);
         setCurrentUser(getCurrentUser());
         setCurrentPage("home");
       }
     };
     checkAuthStatus();
-  }, []);
+  }, [onAdminRoute]);
 
   // Enhanced movie selection handler that can be triggered by chatbot
   const handleMovieSelect = (movie) => {
@@ -205,7 +209,6 @@ const App = () => {
       setCurrentUser(getCurrentAdmin());
       setCurrentPage("admin");
       setShowLoginModal(false);
-      alert("Welcome to Admin Dashboard!");
     } catch (error) {
       console.error("Admin login error:", error);
       alert("Login failed. Please try again.");
@@ -217,8 +220,7 @@ const App = () => {
       setIsUserLoggedIn(true);
       setCurrentUser(getCurrentUser());
       setShowLoginModal(false);
-      setCurrentPage("home");
-      alert("User login successful!");
+      // Stay where the customer was (e.g. mid-booking on the seat map)
     } catch (error) {
       console.error("User login error:", error);
       alert("Login failed. Please try again.");
@@ -231,7 +233,6 @@ const App = () => {
       setIsAdminLoggedIn(false);
       setCurrentUser(null);
       setCurrentPage("home");
-      alert("Admin logged out successfully!");
     } catch (error) {
       console.error("Admin logout error:", error);
       setIsAdminLoggedIn(false);
@@ -246,7 +247,6 @@ const App = () => {
       setIsUserLoggedIn(false);
       setCurrentUser(null);
       setCurrentPage("home");
-      alert("Logged out successfully!");
     } catch (error) {
       console.error("User logout error:", error);
       setIsUserLoggedIn(false);
@@ -255,22 +255,18 @@ const App = () => {
     }
   };
 
-  // Admin Pages
-  if (isAdminLoggedIn) {
+  // Admin Pages (only at /admin)
+  if (onAdminRoute && !isAdminLoggedIn) {
+    return <AdminLogin onAdminLogin={handleAdminLogin} />;
+  }
+
+  if (onAdminRoute && isAdminLoggedIn) {
     if (currentPage === "theater-management") {
       return (
         <>
           <TheaterManagement
             onNavigateToAddTheater={handleNavigateToAddTheater}
             onNavigateToEditTheater={handleNavigateToEditTheater}
-          />
-          {/* Enhanced Chatbot with bookings */}
-          <EnhancedChatbotWithBookings
-            onMovieSelect={handleMovieSelect}
-            onNavigateToPage={handleNavigateToPage}
-            isUserLoggedIn={isAdminLoggedIn}
-            onShowLogin={handleShowLogin}
-            currentUser={currentUser}
           />
         </>
       );
@@ -284,13 +280,6 @@ const App = () => {
             onBack={handleBackToTheaterManagement}
             onSave={handleSaveTheater}
           />
-          <EnhancedChatbotWithBookings
-            onMovieSelect={handleMovieSelect}
-            onNavigateToPage={handleNavigateToPage}
-            isUserLoggedIn={isAdminLoggedIn}
-            onShowLogin={handleShowLogin}
-            currentUser={currentUser}
-          />
         </>
       );
     }
@@ -298,22 +287,14 @@ const App = () => {
     if (currentPage === "fix-shows") {
       return (
         <>
-          <div>
-            <button
-              onClick={handleBackToAdmin}
-              className="m-4 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg"
-            >
-              ← Back to Admin Dashboard
-            </button>
-            <AdminFixShows />
+          <div className="cb-app">
+            <main className="cb-main">
+              <button type="button" onClick={handleBackToAdmin} className="cb-btn cb-btn--ghost cb-btn--sm" style={{ marginBottom: 20 }}>
+                Back to the manager's desk
+              </button>
+              <AdminFixShows />
+            </main>
           </div>
-          <EnhancedChatbotWithBookings
-            onMovieSelect={handleMovieSelect}
-            onNavigateToPage={handleNavigateToPage}
-            isUserLoggedIn={isAdminLoggedIn}
-            onShowLogin={handleShowLogin}
-            currentUser={currentUser}
-          />
         </>
       );
     }
@@ -325,14 +306,6 @@ const App = () => {
           currentUser={currentUser}
           onNavigateToTheaterManagement={handleNavigateToTheaterManagement}
           onNavigateToFixShows={handleNavigateToFixShows}
-        />
-        {/* Enhanced Chatbot for admins */}
-        <EnhancedChatbotWithBookings
-          onMovieSelect={handleMovieSelect}
-          onNavigateToPage={handleNavigateToPage}
-          isUserLoggedIn={isAdminLoggedIn}
-          onShowLogin={handleShowLogin}
-          currentUser={currentUser}
         />
       </>
     );
@@ -354,6 +327,7 @@ const App = () => {
 
       {currentPage === "userDashboard" && isUserLoggedIn && (
         <UserDashboard
+          onMovieSelect={handleMovieSelect}
           currentUser={currentUser}
           onLogout={handleUserLogout}
           onBackToMovies={handleBackToMovies}
@@ -406,17 +380,17 @@ const App = () => {
       <LoginModal
         isOpen={showLoginModal}
         onClose={handleCloseLoginModal}
-        onAdminLogin={handleAdminLogin}
         onUserLogin={handleUserLogin}
       />
-
-      {/* ENHANCED Interactive Chatbot with Bookings & Profile Navigation */}
-      <EnhancedChatbotWithBookings
+      {/* Box office concierge: an AI agent that looks up films, showtimes and bookings */}
+      <Concierge
         onMovieSelect={handleMovieSelect}
         onNavigateToPage={handleNavigateToPage}
         isUserLoggedIn={isUserLoggedIn}
         onShowLogin={handleShowLogin}
-        currentUser={currentUser}
+        onCheckout={handleCheckout}
+        page={currentPage}
+        movie={selectedMovie}
       />
     </div>
   );

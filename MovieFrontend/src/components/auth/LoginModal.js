@@ -1,12 +1,33 @@
 import React, { useState, useEffect } from "react";
 import { X, Eye, EyeOff } from "lucide-react";
-import { validateAdminLogin, loginUser, registerUser } from "../../utils/auth";
+import { loginUser, registerUser } from "../../utils/auth";
+import { getMovies } from "../../utils/movieAPI";
+import "./boxoffice.css";
 
-const LoginModal = ({ isOpen, onClose, onAdminLogin, onUserLogin }) => {
+const LoginModal = ({ isOpen, onClose, onUserLogin }) => {
   const [activeTab, setActiveTab] = useState("signin");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [posters, setPosters] = useState([]); // now-showing posters for the wall behind
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let alive = true;
+    getMovies().then((movies) => {
+      const urls = movies
+        .filter((m) => m.posterUrl)
+        .map((m) => `http://localhost:8080${m.posterUrl}`);
+      if (alive) setPosters(urls);
+    });
+    const onKey = (e) => e.key === "Escape" && !loading && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => {
+      alive = false;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [isOpen, loading, onClose]);
 
   useEffect(() => {
     document.body.style.overflow = isOpen ? "hidden" : "";
@@ -44,35 +65,6 @@ const LoginModal = ({ isOpen, onClose, onAdminLogin, onUserLogin }) => {
     (_, i) => new Date().getFullYear() - i
   );
 
-  const handleAdminSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-
-    const form = e.currentTarget;
-    const email = form.elements.namedItem("admin-email").value;
-    const password = form.elements.namedItem("admin-password").value;
-
-    try {
-      console.log("Attempting admin login with:", { email, password }); // Debug log
-      const result = await validateAdminLogin(email, password);
-      console.log("Login result:", result); // Debug log
-
-      if (result.success) {
-        alert("Admin login successful!");
-        onAdminLogin?.(email, password);
-        onClose();
-      } else {
-        setError(result.message || "Invalid admin credentials");
-      }
-    } catch (error) {
-      console.error("Login error:", error); // Debug log
-      setError("Login failed. Please check your credentials and try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleSignIn = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -83,14 +75,11 @@ const LoginModal = ({ isOpen, onClose, onAdminLogin, onUserLogin }) => {
     const password = form.elements.namedItem("signin-password").value;
 
     try {
-      console.log("Attempting user login with:", { email }); // Debug log
       const result = await loginUser(email, password);
-      console.log("Login result:", result); // Debug log
 
       if (result.success) {
         // Verify token was stored
         const storedToken = localStorage.getItem("userToken");
-        console.log("Stored token after login:", storedToken); // Debug log
 
         if (!storedToken || storedToken === "undefined") {
           throw new Error("Authentication token not received");
@@ -133,8 +122,8 @@ const LoginModal = ({ isOpen, onClose, onAdminLogin, onUserLogin }) => {
       const result = await registerUser(userData);
 
       if (result.success) {
-        alert("Account created successfully! You can now sign in.");
         setActiveTab("signin");
+        setNotice("Account created. Sign in with your email and password.");
       } else {
         setError(result.message || "Registration failed");
       }
@@ -145,295 +134,190 @@ const LoginModal = ({ isOpen, onClose, onAdminLogin, onUserLogin }) => {
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="relative bg-white bg-opacity-10 backdrop-blur-xl rounded-lg border border-white border-opacity-20 p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-        <button
-          className="absolute top-4 right-4 text-white hover:text-gray-300 transition-colors"
-          onClick={onClose}
-          disabled={loading}
-        >
-          <X size={24} />
-        </button>
-        <h2 className="text-3xl text-white font-bold text-center mb-2">
-          Welcome
-        </h2>
-        <p className="text-white text-opacity-75 text-center mb-6">
-          Access your account or join the community
-        </p>
-        {error && (
-          <div className="bg-red-500 bg-opacity-20 border border-red-500 text-red-100 px-4 py-2 rounded-lg mb-4">
-            {error}
-          </div>
-        )}
-        <div className="flex bg-white bg-opacity-20 rounded-lg overflow-hidden mb-6">
-          {["signin", "signup", "admin"].map((tab) => (
-            <button
-              key={tab}
-              className={`flex-1 py-2 font-semibold transition-colors ${
-                activeTab === tab
-                  ? "bg-gradient-to-r from-red-500 to-yellow-400 text-white"
-                  : "text-white text-opacity-70 hover:text-opacity-90"
-              }`}
-              onClick={() => setActiveTab(tab)}
-              disabled={loading}
-            >
-              {tab === "signin"
-                ? "Sign In"
-                : tab === "signup"
-                ? "Sign Up"
-                : "Admin"}
-            </button>
-          ))}
-        </div>
-        {activeTab === "signin" && (
-          <form onSubmit={handleSignIn} className="space-y-4">
-            <div>
-              <label htmlFor="signin-email" className="block text-white mb-1">
-                Email
-              </label>
-              <input
-                id="signin-email"
-                name="signin-email"
-                type="email"
-                placeholder="Enter email"
-                required
-                disabled={loading}
-                className="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-60 border border-white border-opacity-30 focus:outline-none focus:border-opacity-50 disabled:opacity-50"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="signin-password"
-                className="block text-white mb-1"
-              >
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  id="signin-password"
-                  name="signin-password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Enter password"
-                  required
-                  disabled={loading}
-                  className="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-60 border border-white border-opacity-30 focus:outline-none focus:border-opacity-50 disabled:opacity-50"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  disabled={loading}
-                  className="absolute inset-y-0 right-3 flex items-center text-white hover:text-gray-300 transition-colors disabled:opacity-50"
-                >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-            </div>
-            <a
-              href="#"
-              className="block text-red-400 hover:text-red-300 transition-colors mb-4"
-            >
-              Forgot Password?
-            </a>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 bg-gradient-to-r from-red-500 to-yellow-400 hover:from-red-600 hover:to-yellow-500 text-white rounded-lg font-bold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? "Signing In..." : "Sign In"}
-            </button>
-            <p className="text-center text-white mt-4">
-              Not a member?{" "}
-              <button
-                type="button"
-                className="text-red-400 underline hover:text-red-300 transition-colors"
-                onClick={() => setActiveTab("signup")}
-                disabled={loading}
-              >
-                Join Now
-              </button>
-            </p>
-          </form>
-        )}
-        {activeTab === "signup" && (
-          <form onSubmit={handleSignUp} className="space-y-4">
-            <div>
-              <label htmlFor="signup-email" className="block text-white mb-1">
-                Email
-              </label>
-              <input
-                id="signup-email"
-                name="signup-email"
-                type="email"
-                placeholder="Enter email"
-                required
-                disabled={loading}
-                className="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-60 border border-white border-opacity-30 focus:outline-none focus:border-opacity-50 disabled:opacity-50"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="signup-password"
-                className="block text-white mb-1"
-              >
-                Create Password
-              </label>
-              <div className="relative">
-                <input
-                  id="signup-password"
-                  name="signup-password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Create password"
-                  required
-                  disabled={loading}
-                  className="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-60 border border-white border-opacity-30 focus:outline-none focus:border-opacity-50 disabled:opacity-50"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  disabled={loading}
-                  className="absolute inset-y-0 right-3 flex items-center text-white hover:text-gray-300 transition-colors disabled:opacity-50"
-                >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-            </div>
-            <div className="flex space-x-4">
-              <div className="flex-1">
-                <label htmlFor="first-name" className="block text-white mb-1">
-                  First Name
-                </label>
-                <input
-                  id="first-name"
-                  name="first-name"
-                  type="text"
-                  placeholder="First Name"
-                  required
-                  disabled={loading}
-                  className="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-60 border border-white border-opacity-30 focus:outline-none focus:border-opacity-50 disabled:opacity-50"
-                />
-              </div>
-              <div className="flex-1">
-                <label htmlFor="last-name" className="block text-white mb-1">
-                  Last Name
-                </label>
-                <input
-                  id="last-name"
-                  name="last-name"
-                  type="text"
-                  placeholder="Last Name"
-                  required
-                  disabled={loading}
-                  className="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-60 border border-white border-opacity-30 focus:outline-none focus:border-opacity-50 disabled:opacity-50"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-white mb-1">Birthday</label>
-              <div className="flex space-x-2 mb-2">
-                <select
-                  name="birth-month"
-                  disabled={loading}
-                  className="flex-1 p-3 rounded-lg bg-white bg-opacity-20 text-white border border-white border-opacity-30 focus:outline-none focus:border-opacity-50 disabled:opacity-50"
-                >
-                  <option value="" className="text-black">
-                    Month
-                  </option>
-                  {months.map((m, index) => (
-                    <option key={m} value={index + 1} className="text-black">
-                      {m}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  name="birth-day"
-                  disabled={loading}
-                  className="flex-1 p-3 rounded-lg bg-white bg-opacity-20 text-white border border-white border-opacity-30 focus:outline-none focus:border-opacity-50 disabled:opacity-50"
-                >
-                  <option value="" className="text-black">
-                    Day
-                  </option>
-                  {days.map((d) => (
-                    <option key={d} value={d} className="text-black">
-                      {d}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  name="birth-year"
-                  disabled={loading}
-                  className="flex-1 p-3 rounded-lg bg-white bg-opacity-20 text-white border border-white border-opacity-30 focus:outline-none focus:border-opacity-50 disabled:opacity-50"
-                >
-                  <option value="" className="text-black">
-                    Year
-                  </option>
-                  {years.map((y) => (
-                    <option key={y} value={y} className="text-black">
-                      {y}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 bg-gradient-to-r from-red-500 to-yellow-400 hover:from-red-600 hover:to-yellow-500 text-white rounded-lg font-bold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? "Creating Account..." : "Continue"}
-            </button>
-          </form>
-        )}
+  const TABS = [
+    { id: "signin", label: "Sign in" },
+    { id: "signup", label: "New here" },
+  ];
+  const copy = {
+    signin: ["Welcome back", "Sign in to hold seats and find your tickets."],
+    signup: ["Get your ticket", "One minute, and every booking lives in one place."],
+  }[activeTab];
+  const stubLabel = { signin: "Admit one", signup: "New member" }[activeTab];
 
-        {activeTab === "admin" && (
-          <form onSubmit={handleAdminSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="admin-email" className="block text-white mb-1">
-                Admin Username
-              </label>
-              <input
-                id="admin-email"
-                name="admin-email"
-                type="text" // Changed from "email" to "text"
-                placeholder="admin" // Updated placeholder
-                required
+  // Three drifting columns of posters, each list doubled so the loop is seamless
+  const columns = posters.length
+    ? [0, 1, 2, 3].map((c) => {
+        const col = posters.map((_, i) => posters[(i * 3 + c * 2) % posters.length]);
+        return [...col, ...col];
+      })
+    : [];
+
+  const passwordToggle = (
+    <button
+      type="button"
+      className="cb-ink-field__eye"
+      onClick={() => setShowPassword((v) => !v)}
+      disabled={loading}
+      aria-label={showPassword ? "Hide password" : "Show password"}
+    >
+      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+    </button>
+  );
+
+  const inkField = (id, label, props, extra) => (
+    <div className="cb-ink-field">
+      <label htmlFor={id}>{label}</label>
+      <div className="cb-ink-field__line">
+        <input id={id} name={id} disabled={loading} {...props} />
+        {extra}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="cb-boxoffice" role="dialog" aria-modal="true" aria-labelledby="cb-login-title">
+      <div className="cb-boxoffice__wall" aria-hidden="true">
+        {columns.map((col, i) => (
+          <div key={i} className="cb-boxoffice__col" style={{ "--speed": `${70 + i * 18}s`, "--dir": i % 2 ? "reverse" : "normal" }}>
+            {col.map((src, j) => (
+              <img key={j} src={src} alt="" />
+            ))}
+          </div>
+        ))}
+      </div>
+      <div className="cb-boxoffice__shade" onMouseDown={() => !loading && onClose()} />
+
+      <button
+        type="button"
+        className="cb-iconbtn cb-boxoffice__close"
+        onClick={onClose}
+        disabled={loading}
+        aria-label="Close"
+      >
+        <X size={20} />
+      </button>
+
+      <div className="cb-ticketform">
+        <div className="cb-ticketform__main">
+          <div className="cb-ticketform__head">
+            <span className="cb-ticketform__brand">CineBook</span>
+            <span lang="te">బాక్స్ ఆఫీస్</span>
+          </div>
+
+          <div className="cb-ticketform__tabs" role="tablist" aria-label="Account type">
+            {TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === tab.id}
+                onClick={() => {
+                  setNotice("");
+                  setActiveTab(tab.id);
+                }}
                 disabled={loading}
-                className="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-60 border border-white border-opacity-30 focus:outline-none focus:border-opacity-50 disabled:opacity-50"
-              />
-            </div>
-            <div>
-              <label htmlFor="admin-password" className="block text-white mb-1">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  id="admin-password"
-                  name="admin-password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="admin123"
-                  required
-                  disabled={loading}
-                  className="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-60 border border-white border-opacity-30 focus:outline-none focus:border-opacity-50 disabled:opacity-50"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  disabled={loading}
-                  className="absolute inset-y-0 right-3 flex items-center text-white hover:text-gray-300 transition-colors disabled:opacity-50"
-                >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          <h2 id="cb-login-title" className="cb-ticketform__title">
+            {copy[0]}
+          </h2>
+          <p className="cb-ticketform__lede">{copy[1]}</p>
+
+          {error && (
+            <p className="cb-ticketform__msg cb-ticketform__msg--error" role="alert">
+              {error}
+            </p>
+          )}
+          {notice && (
+            <p className="cb-ticketform__msg" role="status">
+              {notice}
+            </p>
+          )}
+
+          {activeTab === "signin" && (
+            <form onSubmit={handleSignIn} className="cb-ticketform__form">
+              {inkField("signin-email", "Email", {
+                type: "email",
+                autoComplete: "email",
+                placeholder: "you@example.com",
+                required: true,
+              })}
+              {inkField(
+                "signin-password",
+                "Password",
+                { type: showPassword ? "text" : "password", autoComplete: "current-password", required: true },
+                passwordToggle
+              )}
+              <button type="submit" disabled={loading} className="cb-btn cb-btn--stamp cb-btn--block cb-btn--lg">
+                {loading ? "Checking…" : "Sign in"}
+              </button>
+              <p className="cb-ticketform__switch">
+                First time here?{" "}
+                <button type="button" onClick={() => setActiveTab("signup")} disabled={loading}>
+                  Create an account
                 </button>
+              </p>
+            </form>
+          )}
+
+          {activeTab === "signup" && (
+            <form onSubmit={handleSignUp} className="cb-ticketform__form">
+              <div className="cb-ticketform__row">
+                {inkField("first-name", "First name", { type: "text", autoComplete: "given-name", required: true })}
+                {inkField("last-name", "Last name", { type: "text", autoComplete: "family-name", required: true })}
               </div>
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 bg-gradient-to-r from-blue-600 to-green-500 hover:from-blue-700 hover:to-green-600 text-white rounded-lg font-bold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? "Logging In..." : "Admin Login"}
-            </button>
-          </form>
-        )}
+              {inkField("signup-email", "Email", {
+                type: "email",
+                autoComplete: "email",
+                placeholder: "you@example.com",
+                required: true,
+              })}
+              {inkField(
+                "signup-password",
+                "Password (6 or more characters)",
+                { type: showPassword ? "text" : "password", autoComplete: "new-password", minLength: 6, required: true },
+                passwordToggle
+              )}
+              <fieldset className="cb-ink-field">
+                <legend>Birthday (optional)</legend>
+                <div className="cb-ticketform__dob">
+                  <select name="birth-day" disabled={loading} aria-label="Day">
+                    <option value="">Day</option>
+                    {days.map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                  <select name="birth-month" disabled={loading} aria-label="Month">
+                    <option value="">Month</option>
+                    {months.map((m, index) => (
+                      <option key={m} value={index + 1}>{m}</option>
+                    ))}
+                  </select>
+                  <select name="birth-year" disabled={loading} aria-label="Year">
+                    <option value="">Year</option>
+                    {years.map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+              </fieldset>
+              <button type="submit" disabled={loading} className="cb-btn cb-btn--stamp cb-btn--block cb-btn--lg">
+                {loading ? "Creating account…" : "Create account"}
+              </button>
+            </form>
+          )}
+
+        </div>
+
+        <div className="cb-ticketform__stub" aria-hidden="true">
+          <span className="cb-ticketform__admit">{stubLabel}</span>
+          <span className="cb-ticketform__serial">No. {String(Date.now()).slice(-8)}</span>
+          <span className="cb-ticketform__city">Hyderabad</span>
+        </div>
       </div>
     </div>
   );

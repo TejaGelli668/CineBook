@@ -416,7 +416,9 @@
 
 // export default PaymentPage;
 import React, { useState, useEffect } from "react";
-import { ChevronLeft, Coffee, CreditCard } from "lucide-react";
+import { Lock } from "lucide-react";
+import { TopBar, BookingSteps, Loading, FilmBackdrop } from "../ui/Chrome";
+import "./booking.css";
 import { loadStripe } from "@stripe/stripe-js";
 import {
   Elements,
@@ -429,10 +431,28 @@ import {
   getBeverageItemById,
 } from "../../data/beveragesData";
 
-// ✅ Using your actual Stripe publishable key
-const stripePromise = loadStripe(
-  "use your stripe key here" // Replace with your actual Stripe publishable key
-);
+// Stripe.js is loaded with the publishable key served by the backend (from .env)
+let stripePromise = null;
+const getStripe = () => {
+  if (!stripePromise) {
+    stripePromise = fetch("http://localhost:8080/api/payments/config")
+      .then((r) => r.json())
+      .then((r) => {
+        const key = r?.data?.publishableKey;
+        if (!key) {
+          throw new Error(
+            "Stripe publishable key missing: add STRIPE_PUBLISHABLE_KEY (pk_…) to the .env file and restart the backend."
+          );
+        }
+        return loadStripe(key);
+      })
+      .catch((e) => {
+        stripePromise = null; // allow a retry after the key is added
+        throw e;
+      });
+  }
+  return stripePromise;
+};
 
 // Stripe Checkout Form Component
 const StripeCheckoutForm = ({ bookingData, onPaymentSuccess, totalAmount }) => {
@@ -519,63 +539,38 @@ const StripeCheckoutForm = ({ bookingData, onPaymentSuccess, totalAmount }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Stripe Payment Element */}
-      <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-        <PaymentElement
-          options={{
-            appearance: {
-              theme: "night", // Dark theme to match your app
-              variables: {
-                colorPrimary: "#6366f1", // Purple to match your theme
-                colorBackground: "rgba(255, 255, 255, 0.05)",
-                colorText: "#ffffff",
-                colorDanger: "#ef4444",
-                fontFamily: "system-ui, sans-serif",
-                spacingUnit: "6px",
-                borderRadius: "8px",
-              },
-            },
-            layout: {
-              type: "tabs",
-              defaultCollapsed: false,
-            },
-          }}
-        />
-      </div>
+    <form onSubmit={handleSubmit} className="cb-form">
+      <PaymentElement
+        options={{
+          layout: { type: "tabs", defaultCollapsed: false },
+        }}
+      />
 
-      {/* Error Message */}
       {errorMessage && (
-        <div className="bg-red-900/50 border border-red-500/50 text-red-300 rounded-lg p-3">
-          <p className="text-sm">{errorMessage}</p>
+        <div className="cb-alert cb-alert--error" role="alert">
+          {errorMessage}
         </div>
       )}
 
-      {/* Pay Button */}
       <button
         type="submit"
         disabled={!stripe || !elements || isProcessing}
-        className="w-full py-4 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl font-bold text-lg hover:from-green-600 hover:to-green-700 transform hover:scale-105 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center space-x-2"
+        className="cb-btn cb-btn--stamp cb-btn--lg cb-btn--block"
       >
         {isProcessing ? (
           <>
-            <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-            <span>Processing Payment...</span>
+            <span className="cb-spinner cb-spinner--sm" />
+            Processing payment…
           </>
         ) : (
-          <>
-            <CreditCard className="w-5 h-5" />
-            <span>Pay ₹{totalAmount}</span>
-          </>
+          <>Pay ₹{totalAmount}</>
         )}
       </button>
 
-      {/* Security Info */}
-      <div className="text-center">
-        <p className="text-gray-400 text-xs">
-          🔒 Secured by Stripe • Your payment information is encrypted
-        </p>
-      </div>
+      <p className="cb-muted cb-small cb-pay__secure">
+        <Lock size={14} aria-hidden="true" /> Card details go straight to
+        Stripe. CineBook never sees them.
+      </p>
     </form>
   );
 };
@@ -586,6 +581,15 @@ const PaymentPage = ({ bookingData, onBack, onPaymentComplete }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [lockExtended, setLockExtended] = useState(false);
+  const [stripe, setStripe] = useState(null);
+  const [stripeError, setStripeError] = useState("");
+  const [serverTotal, setServerTotal] = useState(null); // the amount Stripe will actually charge
+
+  useEffect(() => {
+    getStripe()
+      .then(setStripe)
+      .catch((e) => setStripeError(e.message));
+  }, []);
 
   // Get beverage items from booking data
   const getBeverageItems = () => {
@@ -598,7 +602,9 @@ const PaymentPage = ({ bookingData, onBack, onPaymentComplete }) => {
 
     const items = [];
     Object.entries(bookingData.beverages).forEach(([itemId, quantity]) => {
-      const item = getBeverageItemById(itemId);
+      const item =
+        bookingData.foodItems?.find((f) => f.id === parseInt(itemId)) ||
+        getBeverageItemById(itemId);
 
       if (item && quantity > 0) {
         items.push({
@@ -613,7 +619,6 @@ const PaymentPage = ({ bookingData, onBack, onPaymentComplete }) => {
   };
 
   const beverageItems = getBeverageItems();
-  const hasBeverages = beverageItems.length > 0;
 
   // Calculate breakdown
   const ticketPrice = bookingData.ticketPrice || 0;
@@ -674,22 +679,14 @@ const PaymentPage = ({ bookingData, onBack, onPaymentComplete }) => {
         console.log("Total price:", totalPrice);
         console.log("Booking data:", bookingData);
 
+        // Only WHAT is being bought goes to the server; it works out the price itself
         const requestBody = {
-          amount: totalPrice * 100, // Stripe expects amount in paise (cents)
-          currency: "inr",
-          bookingData: {
-            movieTitle: bookingData.movie?.title,
-            theaterName: bookingData.theater?.name,
-            showTime: bookingData.showTime,
-            seats: bookingData.seats?.join(", "),
-            showDate: bookingData.date,
-            showId: bookingData.showId,
-            seatNumbers: bookingData.seats,
-            foodItems: bookingData.beverages, // Include food items if any
-          },
+          showId: bookingData.showId,
+          seatNumbers: bookingData.seats,
+          foodItems: Object.entries(bookingData.beverages || {})
+            .map(([itemId, quantity]) => ({ foodItemId: parseInt(itemId), quantity }))
+            .filter((item) => item.quantity > 0),
         };
-
-        console.log("📤 Payment intent request body:", requestBody);
 
         const response = await fetch(
           "http://localhost:8080/api/payments/create-payment-intent",
@@ -697,15 +694,16 @@ const PaymentPage = ({ bookingData, onBack, onPaymentComplete }) => {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
+              Authorization: `Bearer ${localStorage.getItem("userToken")}`,
             },
             body: JSON.stringify(requestBody),
           }
         );
 
-        console.log("📥 Payment intent response status:", response.status);
-
         if (!response.ok) {
-          const errorText = await response.text();
+          const errBody = await response.json().catch(() => null);
+          if (errBody?.message) throw new Error(errBody.message);
+          const errorText = "";
           console.error("❌ Payment intent API error:", errorText);
           throw new Error(
             `HTTP ${response.status}: ${
@@ -728,6 +726,7 @@ const PaymentPage = ({ bookingData, onBack, onPaymentComplete }) => {
             responseData.data.clientSecret.substring(0, 20) + "..."
           );
           setClientSecret(responseData.data.clientSecret);
+          setServerTotal(responseData.data.amount);
 
           // Clear any warning errors if payment intent creation succeeds
           if (lockExtended) {
@@ -741,7 +740,7 @@ const PaymentPage = ({ bookingData, onBack, onPaymentComplete }) => {
         }
       } catch (err) {
         console.error("💥 Error creating payment intent:", err);
-        setError(`Failed to initialize payment: ${err.message}`);
+        setError(err.message);
       } finally {
         setIsLoading(false);
         console.log("🏁 Payment intent creation finished");
@@ -806,7 +805,6 @@ const PaymentPage = ({ bookingData, onBack, onPaymentComplete }) => {
         paymentIntentId:
           paymentResponse.stripePaymentIntentId || paymentResponse.paymentId,
         paymentMethod: "stripe",
-        totalAmount: totalPrice,
       };
 
       // Include food items if beverages were selected
@@ -824,17 +822,28 @@ const PaymentPage = ({ bookingData, onBack, onPaymentComplete }) => {
 
       console.log("Booking request body:", bookingRequestBody);
 
-      const bookingResponse = await fetch(
-        "http://localhost:8080/api/seats/book",
-        {
+      const authHeaders = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("userToken")}`,
+      };
+      const book = () =>
+        fetch("http://localhost:8080/api/seats/book", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("userToken")}`,
-          },
+          headers: authHeaders,
           body: JSON.stringify(bookingRequestBody),
-        }
-      );
+        });
+
+      let bookingResponse = await book();
+      if (!bookingResponse.ok) {
+        // The payment already went through, so if the seat hold lapsed,
+        // hold the same seats again (they're still free) and retry once.
+        await fetch("http://localhost:8080/api/seats/lock", {
+          method: "POST",
+          headers: authHeaders,
+          body: JSON.stringify({ showId: bookingData.showId, seatNumbers: bookingData.seats }),
+        }).catch(() => {});
+        bookingResponse = await book();
+      }
 
       if (!bookingResponse.ok) {
         const errorData = await bookingResponse.json();
@@ -850,6 +859,7 @@ const PaymentPage = ({ bookingData, onBack, onPaymentComplete }) => {
       // Call the parent's completion handler
       onPaymentComplete({
         ...bookingData,
+        totalPrice: serverTotal ?? bookingData.totalPrice,
         paymentMethod: "stripe",
         paymentStatus: "completed",
         paymentId: paymentResponse.paymentId,
@@ -878,245 +888,199 @@ const PaymentPage = ({ bookingData, onBack, onPaymentComplete }) => {
     lockExtended,
   });
 
+  const topSub = [bookingData.movie?.title, bookingData.theater?.name]
+    .filter(Boolean)
+    .join(", ");
+  const showDate = bookingData.date
+    ? new Date(`${bookingData.date}T00:00:00`).toLocaleDateString("en-IN", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+      })
+    : "";
+
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-900 via-blue-900 to-purple-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-t-transparent mx-auto mb-4"></div>
-          <p className="text-white">Initializing payment...</p>
-          {lockExtended && (
-            <p className="text-green-400 text-sm mt-2">
-              ✅ Seat locks extended
-            </p>
-          )}
-        </div>
+      <div className="cb-app cb-app--film">
+        <FilmBackdrop movie={bookingData.movie} />
+        <Loading label="Setting up secure payment" page />
       </div>
     );
   }
 
-  if (error && !clientSecret) {
+  if ((error && !clientSecret) || stripeError) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-900 via-blue-900 to-purple-900 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-400 mb-4">{error}</p>
-          <button
-            onClick={onBack}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Go Back
-          </button>
-        </div>
+      <div className="cb-app cb-app--film">
+        <FilmBackdrop movie={bookingData.movie} />
+        <TopBar onBack={onBack} backLabel="Back to seats" title="Pay" sub={topSub} />
+        <BookingSteps current="Payment" />
+        <main className="cb-main cb-main--narrow">
+          <div className="cb-empty">
+            <h2 className="cb-h2">Payment couldn't start</h2>
+            <p>
+              Your seats are still held for a few minutes. Go back and try
+              again. If it keeps happening, the cinema's payment setup needs
+              attention.
+            </p>
+            <div className="cb-alert cb-alert--error" style={{ marginBottom: 20 }}>
+              <div>
+                {stripeError || /api key|stripe/i.test(error)
+                  ? "Online payments aren't switched on yet: the cinema's Stripe keys are missing."
+                  : error}
+                <details className="cb-small" style={{ marginTop: 8 }}>
+                  <summary>Technical details</summary>
+                  <p style={{ marginTop: 6, wordBreak: "break-word" }}>{stripeError || error}</p>
+                </details>
+              </div>
+            </div>
+            <button type="button" className="cb-btn cb-btn--pink" onClick={onBack}>
+              Back to seats
+            </button>
+          </div>
+        </main>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-900 via-blue-900 to-purple-900">
-      <header className="bg-black/20 backdrop-blur-md border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center space-x-4">
-          <button
-            onClick={onBack}
-            className="p-2 hover:bg-white/10 rounded-full transition-colors"
-          >
-            <ChevronLeft className="w-6 h-6 text-white" />
-          </button>
-          <h1 className="text-2xl font-bold text-white">Payment</h1>
-        </div>
-      </header>
+    <div className="cb-app cb-app--film">
+        <FilmBackdrop movie={bookingData.movie} />
+      <TopBar onBack={onBack} backLabel="Back to seats" title="Pay" sub={topSub} />
+      <BookingSteps current="Payment" />
 
-      {/* DEBUG INFO - Remove this in production */}
-      <div className="max-w-4xl mx-auto px-6 py-2">
-        <div className="bg-yellow-900/50 border border-yellow-500/50 text-yellow-300 rounded-lg p-3 mb-4">
-          <h4 className="font-bold">🐛 Debug Info (Remove in production)</h4>
-          <p>Loading: {isLoading ? "Yes" : "No"}</p>
-          <p>Error: {error || "None"}</p>
-          <p>Client Secret: {clientSecret ? "Present" : "Missing"}</p>
-          <p>Lock Extended: {lockExtended ? "Yes" : "No"}</p>
-          <p>Total Price: ₹{totalPrice}</p>
-          <p>Show ID: {bookingData.showId}</p>
-          <p>Seats: {bookingData.seats?.join(", ") || "None"}</p>
-        </div>
-      </div>
+      <main className="cb-main">
+        <div className="cb-split">
+          <section className="cb-panel cb-pay" aria-labelledby="cb-pay-title">
+            <h2 id="cb-pay-title" className="cb-h2">
+              Pay securely
+            </h2>
+            <p className="cb-muted cb-pay__lede">
+              Your tickets are issued the moment payment goes through.
+            </p>
 
-      {/* Warning Message */}
-      {error && clientSecret && (
-        <div className="max-w-4xl mx-auto px-6 py-2">
-          <div className="bg-yellow-900/50 border border-yellow-500/50 text-yellow-300 rounded-lg p-3 mb-4">
-            <p className="text-sm">⚠️ {error}</p>
-          </div>
-        </div>
-      )}
-
-      <div className="max-w-4xl mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Booking Summary - Left Side */}
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-            <h3 className="text-xl font-bold text-white mb-6">
-              Booking Summary
-            </h3>
-
-            <div className="space-y-4">
-              {/* Movie Details */}
-              <div className="flex justify-between">
-                <span className="text-gray-300">Movie</span>
-                <span className="text-white font-semibold">
-                  {bookingData.movie?.title || "Movie"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-300">Theater</span>
-                <span className="text-white">
-                  {bookingData.theater?.name || "Theater"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-300">Date & Time</span>
-                <span className="text-white">
-                  {bookingData.showTime},{" "}
-                  {new Date(bookingData.date).toLocaleDateString()}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-300">Seats</span>
-                <span className="text-white">
-                  {bookingData.seats?.join(", ") || "No seats"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-300">Number of Tickets</span>
-                <span className="text-white">
-                  {bookingData.seats?.length || 0}
-                </span>
-              </div>
-
-              {/* Lock Status */}
-              {lockExtended && (
-                <div className="flex justify-between">
-                  <span className="text-gray-300">Seat Lock Status</span>
-                  <span className="text-green-400 font-medium">
-                    🔒 Extended
-                  </span>
-                </div>
-              )}
-
-              {/* Beverages Section */}
-              {hasBeverages && (
-                <div className="border-t border-white/20 pt-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Coffee className="w-5 h-5 text-orange-400" />
-                    <span className="text-white font-semibold">
-                      Food & Beverages
-                    </span>
-                  </div>
-                  <div className="space-y-2 ml-7">
-                    {beverageItems.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex justify-between items-center"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg">{item.image}</span>
-                          <div>
-                            <span className="text-white text-sm">
-                              {item.name}
-                            </span>
-                            <span className="text-gray-400 text-xs ml-2">
-                              x{item.quantity}
-                            </span>
-                          </div>
-                        </div>
-                        <span className="text-white font-medium">
-                          ₹{item.totalPrice}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Price Breakdown */}
-              <div className="border-t border-white/20 pt-4 space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-gray-300">
-                    Tickets ({bookingData.seats?.length || 0})
-                  </span>
-                  <span className="text-white">₹{ticketPrice}</span>
-                </div>
-
-                {hasBeverages && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-300">Food & Beverages</span>
-                    <span className="text-white">₹{beveragePrice}</span>
-                  </div>
-                )}
-
-                <div className="flex justify-between">
-                  <span className="text-gray-300">Convenience Fee</span>
-                  <span className="text-white">₹{convenienceFee}</span>
-                </div>
-
-                <div className="border-t border-white/20 pt-2">
-                  <div className="flex justify-between text-lg">
-                    <span className="text-gray-300 font-semibold">
-                      Total Amount
-                    </span>
-                    <span className="text-green-400 font-bold text-2xl">
-                      ₹{totalPrice}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Special Instructions for Beverages */}
-              {hasBeverages && (
-                <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3 mt-4">
-                  <p className="text-orange-300 text-sm">
-                    <span className="font-medium">
-                      📋 Collection Instructions:
-                    </span>
-                    <br />
-                    Please collect your food & beverages from the concession
-                    counter before the movie starts. Show this booking
-                    confirmation.
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Stripe Payment Form - Right Side */}
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-            <h3 className="text-xl font-bold text-white mb-6">
-              Secure Payment
-            </h3>
-
-            {clientSecret ? (
-              <Elements
-                stripe={stripePromise}
-                options={{
-                  clientSecret,
-                  appearance: {
-                    theme: "night",
-                  },
-                }}
-              >
-                <StripeCheckoutForm
-                  bookingData={bookingData}
-                  onPaymentSuccess={handlePaymentSuccess}
-                  totalAmount={totalPrice}
-                />
-              </Elements>
-            ) : (
-              <div className="text-center py-8">
-                <p className="text-red-400">Payment form not available</p>
-                <p className="text-gray-400 text-sm mt-2">
-                  Check console for details
-                </p>
+            {error && clientSecret && (
+              <div className="cb-alert cb-alert--warn" style={{ marginBottom: 18 }}>
+                {error}
               </div>
             )}
-          </div>
+
+            {stripe && (
+            <Elements
+              stripe={stripe}
+              options={{
+                clientSecret,
+                fonts: [
+                  {
+                    cssSrc:
+                      "https://fonts.googleapis.com/css2?family=Archivo:wght@400;600&display=swap",
+                  },
+                ],
+                appearance: {
+                  theme: "night",
+                  variables: {
+                    colorPrimary: "#f6c4d0",
+                    colorBackground: "#1c1535",
+                    colorText: "#fff6e9",
+                    colorTextSecondary: "#b8b0d6",
+                    colorDanger: "#ff8a93",
+                    fontFamily: "Archivo, system-ui, sans-serif",
+                    borderRadius: "10px",
+                    spacingUnit: "5px",
+                  },
+                  rules: {
+                    ".Input": { border: "1px solid rgba(184, 176, 214, 0.36)" },
+                    ".Input:focus": {
+                      border: "1px solid #ffc94a",
+                      boxShadow: "0 0 0 3px rgba(255, 201, 74, 0.18)",
+                    },
+                    ".Tab--selected": { backgroundColor: "#f6c4d0", color: "#2a1630" },
+                  },
+                },
+              }}
+            >
+              <StripeCheckoutForm
+                bookingData={bookingData}
+                onPaymentSuccess={handlePaymentSuccess}
+                totalAmount={serverTotal ?? totalPrice}
+              />
+            </Elements>
+            )}
+          </section>
+
+          <aside>
+            <div className="cb-paper cb-receipt">
+              <div className="cb-paper__brand">
+                CineBook
+                <span lang="te">బిల్లు</span>
+              </div>
+              <p className="cb-paper__title">
+                {bookingData.movie?.title || "Your booking"}
+              </p>
+              <dl className="cb-fields" style={{ marginTop: 16 }}>
+                <div>
+                  <dt>Cinema</dt>
+                  <dd>{bookingData.theater?.name || "—"}</dd>
+                </div>
+                <div>
+                  <dt>Show</dt>
+                  <dd>
+                    {showDate}
+                    {bookingData.showTime && `, ${bookingData.showTime}`}
+                  </dd>
+                </div>
+              </dl>
+
+              <div className="cb-tear" />
+
+              <p className="cb-receipt__label">
+                {bookingData.seats?.length || 0}{" "}
+                {bookingData.seats?.length === 1 ? "seat" : "seats"}
+              </p>
+              <ul className="cb-receipt__seats">
+                {(bookingData.seats || []).map((seat) => (
+                  <li key={seat}>{seat}</li>
+                ))}
+              </ul>
+
+              <dl className="cb-kv">
+                <div>
+                  <dt>Tickets</dt>
+                  <dd>₹{ticketPrice}</dd>
+                </div>
+                {beverageItems.map((item) => (
+                  <div key={item.id}>
+                    <dt>
+                      {item.name} × {item.quantity}
+                    </dt>
+                    <dd>₹{item.totalPrice}</dd>
+                  </div>
+                ))}
+                {beveragePrice > 0 && beverageItems.length === 0 && (
+                  <div>
+                    <dt>Snacks</dt>
+                    <dd>₹{beveragePrice}</dd>
+                  </div>
+                )}
+                <div>
+                  <dt>Convenience fee (2%)</dt>
+                  <dd>₹{convenienceFee}</dd>
+                </div>
+                <div className="cb-kv__total">
+                  <dt>Total</dt>
+                  <dd>₹{serverTotal ?? totalPrice}</dd>
+                </div>
+              </dl>
+
+              {beveragePrice > 0 && (
+                <p className="cb-muted cb-small" style={{ marginTop: 16 }}>
+                  Collect snacks at the canteen counter before the show. Show
+                  your ticket.
+                </p>
+              )}
+            </div>
+          </aside>
         </div>
-      </div>
+      </main>
     </div>
   );
 };
