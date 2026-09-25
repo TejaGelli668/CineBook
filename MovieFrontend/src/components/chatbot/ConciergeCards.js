@@ -3,6 +3,7 @@ import QRCode from "qrcode";
 import { MapPin, Lock, Check } from "lucide-react";
 import { posterSrc } from "../../utils/tmdbImage";
 import SnackArt, { TINT } from "../ui/SnackArt";
+import { cinemaNow, parseCinemaTime } from "../../utils/cinemaTime";
 
 const byKey = (items, key) =>
   items.reduce((acc, it) => {
@@ -14,12 +15,12 @@ const rupees = (n) => `₹${Math.round(n || 0).toLocaleString("en-IN")}`;
 
 // "12:04" left on a seat hold, ticking
 const useCountdown = (iso) => {
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => cinemaNow().getTime());
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
+    const t = setInterval(() => setNow(cinemaNow().getTime()), 1000);
     return () => clearInterval(t);
   }, []);
-  const left = Math.max(0, new Date(iso).getTime() - now);
+  const left = Math.max(0, (parseCinemaTime(iso)?.getTime() ?? 0) - now);
   const m = Math.floor(left / 60000);
   const s = Math.floor((left % 60000) / 1000);
   return { left, label: `${m}:${String(s).padStart(2, "0")}` };

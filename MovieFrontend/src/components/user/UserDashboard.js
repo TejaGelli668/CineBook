@@ -15,6 +15,7 @@ import {
 import { TopBar, Alert, Loading, FilmBackdrop } from "../ui/Chrome";
 import { getMovies, formatMovieData } from "../../utils/movieAPI";
 import "./dashboard.css";
+import { cinemaNow } from "../../utils/cinemaTime";
 
 // Import API functions
 import {
@@ -155,7 +156,7 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout, onMovieSelect })
 
       // Create the show date/time using local timezone (no UTC conversion)
       const showDateTime = new Date(year, month - 1, day, hours, minutes);
-      const currentDateTime = new Date();
+      const currentDateTime = cinemaNow();
 
       // Check if the date is valid
       if (isNaN(showDateTime.getTime())) {
@@ -269,7 +270,7 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout, onMovieSelect })
       return true;
     }
 
-    const now = new Date();
+    const now = cinemaNow();
     const canCancel = now < deadline;
 
     console.log("Cancellation check:", {
@@ -724,7 +725,7 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout, onMovieSelect })
   const heroMovie = (nextShow && movieFor(nextShow.movieTitle)) || nowShowing[0];
 
   const countdown = (start) => {
-    const mins = Math.round((start - new Date()) / 60000);
+    const mins = Math.round((start - cinemaNow()) / 60000);
     if (mins < 60) return `Starts in ${Math.max(mins, 0)} min`;
     const hours = Math.round(mins / 60);
     if (hours < 24) return `Starts in ${hours} ${hours === 1 ? "hour" : "hours"}`;
@@ -783,9 +784,9 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout, onMovieSelect })
       <section className="cb-wallet__hero">
         <div>
           <p className="cb-muted">
-            {new Date().getHours() < 12
+            {cinemaNow().getHours() < 12
               ? "Good morning"
-              : new Date().getHours() < 17
+              : cinemaNow().getHours() < 17
               ? "Good afternoon"
               : "Good evening"}
           </p>

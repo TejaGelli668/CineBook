@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
  * stores its own seat numbers, amounts and payment reference. Physical seats and the
  * shows themselves are kept.
  *
- * Runs every night at 3 AM, and once at startup in case the server was off at 3 AM.
+ * Runs every night at 3 AM Hyderabad time, and once at startup in case the server was off at 3 AM.
  */
 @Component
 public class PastShowSeatCleanup {
@@ -32,7 +32,7 @@ public class PastShowSeatCleanup {
     @Autowired
     private TransactionTemplate tx;
 
-    @Scheduled(cron = "${app.cleanup.show-seats-cron:0 0 3 * * *}")
+    @Scheduled(cron = "${app.cleanup.show-seats-cron:0 0 3 * * *}", zone = "${app.time-zone:Asia/Kolkata}")
     public void nightly() {
         run();
     }

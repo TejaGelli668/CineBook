@@ -5,6 +5,7 @@ import { TopBar, BookingSteps, Loading, FilmBackdrop } from "../ui/Chrome";
 import "./booking.css";
 import { tmdbSrcSet } from "../../utils/tmdbImage";
 import { getSeatPrices } from "../../utils/seatPrices";
+import { cinemaNow } from "../../utils/cinemaTime";
 
 const BookingPage = ({ movie, onBack, onSeatSelect }) => {
   const [selectedDate, setSelectedDate] = useState("");
@@ -20,12 +21,12 @@ const BookingPage = ({ movie, onBack, onSeatSelect }) => {
   const [selectedShow, setSelectedShow] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [currentTime, setCurrentTime] = useState(cinemaNow());
 
   // 🕐 Update current time every minute
   useEffect(() => {
     const timer = setInterval(() => {
-      setCurrentTime(new Date());
+      setCurrentTime(cinemaNow());
     }, 60000); // Update every minute
 
     return () => clearInterval(timer);
@@ -33,7 +34,7 @@ const BookingPage = ({ movie, onBack, onSeatSelect }) => {
 
   // 1️⃣ Initialize today's date
   useEffect(() => {
-    const t = new Date();
+    const t = cinemaNow();
     const todayIso = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
     // A show picked on the landing page's board opens with that day selected
     setSelectedDate(movie.preselect?.date || todayIso);
@@ -373,7 +374,7 @@ const BookingPage = ({ movie, onBack, onSeatSelect }) => {
 
   // ─── build a sliding 7-day window from today ─────────────────
   const dates = Array.from({ length: 7 }, (_, i) => {
-    const today = new Date();
+    const today = cinemaNow();
     const targetDate = new Date(
       today.getFullYear(),
       today.getMonth(),

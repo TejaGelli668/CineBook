@@ -9,6 +9,7 @@ import {
 import "./HomePage.css";
 import { tmdbSize, tmdbSrcSet } from "../../utils/tmdbImage";
 import { getSeatPrices, fromPrice } from "../../utils/seatPrices";
+import { cinemaNow } from "../../utils/cinemaTime";
 
 // "Pushpa 2 - The Rule" → ["Pushpa 2", "The Rule"]
 const splitTitle = (title = "") => {
@@ -23,7 +24,7 @@ const localStart = (iso) => {
 };
 
 const dayLabel = (d) => {
-  const today = new Date();
+  const today = cinemaNow();
   const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
   if (d.toDateString() === today.toDateString()) return "Today";
   if (d.toDateString() === tomorrow.toDateString()) return "Tomorrow";
@@ -248,7 +249,7 @@ const HomePage = ({
     return groups;
   }, [comingSoon]);
 
-  const now = new Date();
+  const now = cinemaNow();
   const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
   // Days on the board: today and the next days that have shows

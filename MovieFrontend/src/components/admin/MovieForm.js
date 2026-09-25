@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { uploadMoviePoster } from "../../utils/movieAPI";
 import TmdbImportPanel from "./TmdbImportPanel";
+import { cinemaNow, cinemaToday, isoDate } from "../../utils/cinemaTime";
 import {
   X,
   UploadCloud,
@@ -189,7 +190,7 @@ const MovieForm = ({ movie, onClose, onSave }) => {
       if (!showDates.includes(formattedDate)) {
         // Ensure the date is not in the past - fix timezone issue
         const selectedDate = new Date(formattedDate + "T00:00:00"); // Add time to avoid timezone issues
-        const today = new Date();
+        const today = cinemaNow();
         today.setHours(0, 0, 0, 0);
 
         console.log("Selected date:", selectedDate);
@@ -369,9 +370,9 @@ const MovieForm = ({ movie, onClose, onSave }) => {
       // For new movies, set default dates (next 7 days)
       const defaultDates = [];
       for (let i = 0; i < 7; i++) {
-        const date = new Date();
+        const date = cinemaNow();
         date.setDate(date.getDate() + i);
-        defaultDates.push(date.toISOString().split("T")[0]);
+        defaultDates.push(isoDate(date));
       }
       setShowDates(defaultDates);
     }
@@ -726,10 +727,9 @@ const MovieForm = ({ movie, onClose, onSave }) => {
                 : (() => {
                     const dates = [];
                     for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
-                      const today = new Date();
-                      const showDate = new Date(today);
-                      showDate.setDate(today.getDate() + dayOffset);
-                      dates.push(showDate.toISOString().split("T")[0]);
+                      const showDate = cinemaNow();
+                      showDate.setDate(showDate.getDate() + dayOffset);
+                      dates.push(isoDate(showDate));
                     }
                     return dates;
                   })();
@@ -1109,7 +1109,7 @@ const MovieForm = ({ movie, onClose, onSave }) => {
                   aria-label="Show date"
                   value={dateInput}
                   onChange={(e) => setDateInput(e.target.value)}
-                  min={new Date().toISOString().split("T")[0]}
+                  min={cinemaToday()}
                   className="cb-input"
                 />
                 <button

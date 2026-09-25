@@ -1,5 +1,6 @@
 import React from "react";
 import { LogOut } from "lucide-react";
+import { cinemaNow } from "../../utils/cinemaTime";
 
 const MENU = [
   { tab: "dashboard", label: "Overview", te: "సారాంశం" },
@@ -25,7 +26,7 @@ const AdminSidebar = ({ activeTab, setActiveTab, currentView, onNavigate, onLogo
   const current = activeTab || currentView || "dashboard";
   const active = OWNER[current] || current;
   const go = onNavigate || setActiveTab || (() => {});
-  const today = new Date();
+  const today = cinemaNow();
 
   const handleLogout = () => {
     if (!window.confirm("Sign out of the manager's desk?")) return;

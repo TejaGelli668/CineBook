@@ -548,7 +548,7 @@
 //         console.log("Seats locked successfully:", lockBody);
 
 //         setLockedSeats(uniqueSeats);
-//         setLockExpiresAt(new Date(lockBody.expiresAt));
+//         setLockExpiresAt(parseCinemaTime(lockBody.expiresAt));
 
 //         return true;
 //       } catch (err) {
@@ -1636,6 +1636,7 @@ import { Plus, Minus, Coffee, Cookie, IceCream } from "lucide-react";
 import { TopBar, BookingSteps, Loading, HoldTimer, FilmBackdrop } from "../ui/Chrome";
 import SnackArt, { TINT } from "../ui/SnackArt";
 import "./booking.css";
+import { cinemaNow, parseCinemaTime } from "../../utils/cinemaTime";
 
 const API_BASE = "http://localhost:8080";
 
@@ -2110,7 +2111,7 @@ export default function SeatSelectionPage({
     }
 
     const updateTimer = () => {
-      const now = new Date();
+      const now = cinemaNow();
       const diff = lockExpiresAt - now;
 
       if (diff <= 0) {
@@ -2173,7 +2174,7 @@ export default function SeatSelectionPage({
         console.log("Seats locked successfully:", lockBody);
 
         setLockedSeats(uniqueSeats);
-        setLockExpiresAt(new Date(lockBody.expiresAt));
+        setLockExpiresAt(parseCinemaTime(lockBody.expiresAt));
 
         return true;
       } catch (err) {
