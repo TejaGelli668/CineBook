@@ -16,6 +16,7 @@ import { TopBar, Alert, Loading, FilmBackdrop } from "../ui/Chrome";
 import { getMovies, formatMovieData } from "../../utils/movieAPI";
 import "./dashboard.css";
 import { cinemaNow } from "../../utils/cinemaTime";
+import { assetUrl } from "../../config";
 
 // Import API functions
 import {
@@ -72,7 +73,7 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout, onMovieSelect })
     ) {
       return profilePicture;
     }
-    return `http://localhost:8080${profilePicture}`;
+    return assetUrl(profilePicture);
   };
 
   // FIXED: Helper function to parse time without timezone conversion

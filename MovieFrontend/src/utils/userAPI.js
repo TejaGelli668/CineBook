@@ -1,6 +1,7 @@
+import { API_URL } from "../config";
 // src/utils/userAPI.js
 
-const API_BASE_URL = "http://localhost:8080";
+const API_BASE_URL = API_URL;
 
 // Helper function to get auth headers
 const getAuthHeaders = () => {
@@ -192,7 +193,7 @@ export const getBookingHistory = async () => {
       return { success: false, message: "No authentication token found" };
     }
 
-    const response = await fetch("http://localhost:8080/api/bookings/user", {
+    const response = await fetch(`${API_URL}/api/bookings/user`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -327,7 +328,7 @@ export const getBookingDetails = async (bookingId) => {
     }
 
     const response = await fetch(
-      `http://localhost:8080/api/bookings/${bookingId}`,
+      `${API_URL}/api/bookings/${bookingId}`,
       {
         method: "GET",
         headers: {
@@ -366,7 +367,7 @@ export const cancelBooking = async (bookingId) => {
     }
 
     const response = await fetch(
-      `http://localhost:8080/api/bookings/${bookingId}/cancel`,
+      `${API_URL}/api/bookings/${bookingId}/cancel`,
       {
         method: "PUT",
         headers: {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Plus, Edit, Trash2, MapPin, AlertCircle } from "lucide-react";
 import { Loading } from "../ui/Chrome";
+import { API_URL } from "../../config";
 
 const TheaterManagement = ({
   onNavigateToAddTheater,
@@ -11,7 +12,7 @@ const TheaterManagement = ({
   const [error, setError] = useState("");
 
   // API functions
-  const API_BASE_URL = "http://localhost:8080";
+  const API_BASE_URL = API_URL;
 
   const apiCall = async (endpoint, options = {}) => {
     const { headers: customHeaders = {}, ...rest } = options;

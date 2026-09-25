@@ -3,6 +3,7 @@ import { X, Eye, EyeOff } from "lucide-react";
 import { loginUser, registerUser } from "../../utils/auth";
 import { getMovies } from "../../utils/movieAPI";
 import "./boxoffice.css";
+import { assetUrl } from "../../config";
 
 const LoginModal = ({ isOpen, onClose, onUserLogin }) => {
   const [activeTab, setActiveTab] = useState("signin");
@@ -18,7 +19,7 @@ const LoginModal = ({ isOpen, onClose, onUserLogin }) => {
     getMovies().then((movies) => {
       const urls = movies
         .filter((m) => m.posterUrl)
-        .map((m) => `http://localhost:8080${m.posterUrl}`);
+        .map((m) => assetUrl(m.posterUrl));
       if (alive) setPosters(urls);
     });
     const onKey = (e) => e.key === "Escape" && !loading && onClose();

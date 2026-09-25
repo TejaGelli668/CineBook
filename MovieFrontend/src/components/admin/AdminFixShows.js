@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
+import { API_URL } from "../../config";
 
 const apiCall = async (url, options = {}) => {
-  const response = await fetch(`http://localhost:8080${url}`, {
+  const response = await fetch(`${API_URL}${url}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",

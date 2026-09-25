@@ -14,7 +14,7 @@
 //   IceCream,
 // } from "lucide-react";
 
-// const API_BASE = "http://localhost:8080";
+// const API_BASE = API_URL;
 
 // export default function SeatSelectionPage({
 //   bookingData,
@@ -1637,8 +1637,9 @@ import { TopBar, BookingSteps, Loading, HoldTimer, FilmBackdrop } from "../ui/Ch
 import SnackArt, { TINT } from "../ui/SnackArt";
 import "./booking.css";
 import { cinemaNow, parseCinemaTime } from "../../utils/cinemaTime";
+import { API_URL } from "../../config";
 
-const API_BASE = "http://localhost:8080";
+const API_BASE = API_URL;
 
 export default function SeatSelectionPage({
   bookingData,

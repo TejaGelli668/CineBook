@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { X, Upload, Link2, Trash2, Plus } from "lucide-react";
 import SnackArt, { TINT } from "../ui/SnackArt";
+import { API_URL } from "../../config";
 
 // Canteen item editor. An item with no theater is sold at every cinema.
 const FoodItemForm = ({ foodItem, onClose, onSave }) => {
@@ -25,7 +26,7 @@ const FoodItemForm = ({ foodItem, onClose, onSave }) => {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    fetch("http://localhost:8080/api/theaters", {
+    fetch(`${API_URL}/api/theaters`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("adminToken")}` },
     })
       .then((r) => r.json())
@@ -95,7 +96,7 @@ const FoodItemForm = ({ foodItem, onClose, onSave }) => {
   const uploadImage = async (file) => {
     const formDataUpload = new FormData();
     formDataUpload.append("image", file);
-    const response = await fetch("http://localhost:8080/api/upload/image", {
+    const response = await fetch(`${API_URL}/api/upload/image`, {
       method: "POST",
       headers: { Authorization: `Bearer ${localStorage.getItem("adminToken")}` },
       body: formDataUpload,

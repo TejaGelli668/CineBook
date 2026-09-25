@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Film, Building2, Wrench, MapPin } from "lucide-react";
 import { Loading } from "../ui/Chrome";
+import { API_URL } from "../../config";
 
 // Admin overview: real numbers only, written like a box-office ledger
 const DashboardStats = ({
@@ -18,7 +19,7 @@ const DashboardStats = ({
     const fetchTheaters = async () => {
       try {
         setLoading(true);
-        const response = await fetch("http://localhost:8080/api/theaters", {
+        const response = await fetch(`${API_URL}/api/theaters`, {
           headers: {
             Authorization: `Bearer ${
               localStorage.getItem("adminToken") ||

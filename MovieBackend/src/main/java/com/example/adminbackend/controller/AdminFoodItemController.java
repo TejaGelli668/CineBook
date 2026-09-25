@@ -13,7 +13,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/food-items")
-@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:5173", "http://localhost:3001"}, allowCredentials = "true")
 @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
 public class AdminFoodItemController {
 

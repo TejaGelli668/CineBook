@@ -24,15 +24,14 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
      * Register the STOMP endpoint that clients will use to connect.
      * Clients should use ws://<host>:<port>/ws (and SockJS as a fallback).
      */
+    @org.springframework.beans.factory.annotation.Value("${app.cors.allowed-origins}")
+    private String[] allowedOrigins;
+
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry
                 .addEndpoint("/ws")
-                .setAllowedOriginPatterns(
-                        "http://localhost:3000",
-                        "http://localhost:5173",
-                        "http://localhost:3001"
-                )    // adjust to your allowed origins
+                .setAllowedOriginPatterns(allowedOrigins) // app.cors.allowed-origins
                 .withSockJS();
     }
 }

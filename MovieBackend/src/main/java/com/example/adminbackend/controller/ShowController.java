@@ -29,7 +29,6 @@ import org.slf4j.LoggerFactory;
 
 @RestController
 @RequestMapping({ "/shows", "/api/shows" })
-@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:5173"})
 public class ShowController {
 
     private static final Logger logger = LoggerFactory.getLogger(ShowController.class);

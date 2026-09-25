@@ -1,10 +1,11 @@
+import { API_URL } from "../config";
 // What seats cost at each theater (the category prices checkout charges),
 // fetched once per page load: { [theaterId]: { from, to, categories: [{ name, price, rows }] } }
 let request = null;
 
 export const getSeatPrices = () => {
   if (!request) {
-    request = fetch("http://localhost:8080/api/theaters/seat-prices")
+    request = fetch(`${API_URL}/api/theaters/seat-prices`)
       .then((r) => (r.ok ? r.json() : { data: {} }))
       .then((d) => d.data || {})
       .catch(() => {

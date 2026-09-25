@@ -2,8 +2,9 @@
 import { useEffect, useState, useCallback } from "react";
 import SockJS from "sockjs-client";
 import { Stomp } from "@stomp/stompjs";
+import { API_URL } from "../config";
 
-const API_BASE = "http://localhost:8080";
+const API_BASE = API_URL;
 
 export default function useShowSeats(showId, jwtToken) {
   const [seats, setSeats] = useState({}); // { "A1": { seatNumber:"A1", status:"AVAILABLE", ... }, ... }

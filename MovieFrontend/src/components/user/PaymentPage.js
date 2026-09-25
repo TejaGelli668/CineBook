@@ -420,6 +420,7 @@ import { Lock } from "lucide-react";
 import { TopBar, BookingSteps, Loading, FilmBackdrop } from "../ui/Chrome";
 import "./booking.css";
 import { loadStripe } from "@stripe/stripe-js";
+import { API_URL } from "../../config";
 import {
   Elements,
   PaymentElement,
@@ -435,7 +436,7 @@ import {
 let stripePromise = null;
 const getStripe = () => {
   if (!stripePromise) {
-    stripePromise = fetch("http://localhost:8080/api/payments/config")
+    stripePromise = fetch(`${API_URL}/api/payments/config`)
       .then((r) => r.json())
       .then((r) => {
         const key = r?.data?.publishableKey;
@@ -476,7 +477,7 @@ const StripeCheckoutForm = ({ bookingData, onPaymentSuccess, totalAmount }) => {
       console.log("🔒 Extending seat locks before payment confirmation...");
       try {
         const extendResponse = await fetch(
-          "http://localhost:8080/api/seats/extend-lock",
+          `${API_URL}/api/seats/extend-lock`,
           {
             method: "POST",
             headers: {
@@ -639,7 +640,7 @@ const PaymentPage = ({ bookingData, onBack, onPaymentComplete }) => {
           try {
             console.log("🔒 Extending seat locks for payment process...");
             const extendResponse = await fetch(
-              "http://localhost:8080/api/seats/extend-lock",
+              `${API_URL}/api/seats/extend-lock`,
               {
                 method: "POST",
                 headers: {
@@ -689,7 +690,7 @@ const PaymentPage = ({ bookingData, onBack, onPaymentComplete }) => {
         };
 
         const response = await fetch(
-          "http://localhost:8080/api/payments/create-payment-intent",
+          `${API_URL}/api/payments/create-payment-intent`,
           {
             method: "POST",
             headers: {
@@ -760,7 +761,7 @@ const PaymentPage = ({ bookingData, onBack, onPaymentComplete }) => {
       try {
         console.log("🔄 Extending locks (periodic)...");
         const response = await fetch(
-          "http://localhost:8080/api/seats/extend-lock",
+          `${API_URL}/api/seats/extend-lock`,
           {
             method: "POST",
             headers: {
@@ -825,7 +826,7 @@ const PaymentPage = ({ bookingData, onBack, onPaymentComplete }) => {
         Authorization: `Bearer ${localStorage.getItem("userToken")}`,
       };
       const book = () =>
-        fetch("http://localhost:8080/api/seats/book", {
+        fetch(`${API_URL}/api/seats/book`, {
           method: "POST",
           headers: authHeaders,
           body: JSON.stringify(bookingRequestBody),
@@ -835,7 +836,7 @@ const PaymentPage = ({ bookingData, onBack, onPaymentComplete }) => {
       if (!bookingResponse.ok) {
         // The payment already went through, so if the seat hold lapsed,
         // hold the same seats again (they're still free) and retry once.
-        await fetch("http://localhost:8080/api/seats/lock", {
+        await fetch(`${API_URL}/api/seats/lock`, {
           method: "POST",
           headers: authHeaders,
           body: JSON.stringify({ showId: bookingData.showId, seatNumbers: bookingData.seats }),

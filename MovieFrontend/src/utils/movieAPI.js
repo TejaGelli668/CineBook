@@ -1,5 +1,6 @@
+import { API_URL, assetUrl } from "../config";
 // src/utils/movieAPI.js
-const API_BASE_URL = "http://localhost:8080";
+const API_BASE_URL = API_URL;
 
 // Generic API helper – always forces JSON content type
 const apiCall = async (endpoint, options = {}) => {
@@ -221,7 +222,7 @@ export const updateMoviePoster = async (movieId, file) => {
 export const formatMovieData = (m) => ({
   ...m,
   poster: m.posterUrl
-    ? `http://localhost:8080${m.posterUrl}`
+    ? assetUrl(m.posterUrl)
     : "/api/placeholder/300/400",
   price: m.price || 0,
   rating: m.rating || 0,

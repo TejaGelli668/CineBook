@@ -1,7 +1,8 @@
+import { API_URL } from "../config";
 // src/utils/debugUtils.js
 // Debug utilities for seat management
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8080";
+const API_BASE_URL = API_URL;
 
 // Get auth token from localStorage
 const getAuthToken = () => {

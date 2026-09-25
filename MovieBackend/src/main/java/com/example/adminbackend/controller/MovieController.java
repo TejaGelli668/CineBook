@@ -238,7 +238,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 
 @RestController
 @RequestMapping({ "/movies", "/api/movies" })
-@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:5173"})
 public class MovieController {
 
     @Autowired

@@ -10,6 +10,7 @@ import "./HomePage.css";
 import { tmdbSize, tmdbSrcSet } from "../../utils/tmdbImage";
 import { getSeatPrices, fromPrice } from "../../utils/seatPrices";
 import { cinemaNow } from "../../utils/cinemaTime";
+import { API_URL } from "../../config";
 
 // "Pushpa 2 - The Rule" → ["Pushpa 2", "The Rule"]
 const splitTitle = (title = "") => {
@@ -172,7 +173,7 @@ const HomePage = ({
       .catch((err) => console.error("Failed to load movies:", err))
       .finally(() => setLoaded(true));
     getComingSoon(16).then(setComingSoon);
-    fetch("http://localhost:8080/api/theaters")
+    fetch(`${API_URL}/api/theaters`)
       .then((r) => r.json())
       .then((d) => {
         setTheaters(d.data || []);

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { uploadMoviePoster } from "../../utils/movieAPI";
 import TmdbImportPanel from "./TmdbImportPanel";
 import { cinemaNow, cinemaToday, isoDate } from "../../utils/cinemaTime";
+import { API_URL, assetUrl } from "../../config";
 import {
   X,
   UploadCloud,
@@ -79,7 +80,7 @@ const MovieForm = ({ movie, onClose, onSave }) => {
   const [isAdmin, setIsAdmin] = useState(false);
 
   // API functions
-  const API_BASE_URL = "http://localhost:8080";
+  const API_BASE_URL = API_URL;
 
   const apiCall = async (endpoint, options = {}) => {
     const { headers: customHeaders = {}, ...rest } = options;
@@ -358,7 +359,7 @@ const MovieForm = ({ movie, onClose, onSave }) => {
 
       // Set poster preview
       setPosterPreview(
-        movie.posterUrl ? `http://localhost:8080${movie.posterUrl}` : ""
+        movie.posterUrl ? assetUrl(movie.posterUrl) : ""
       );
 
       // Set initial form data without theaters first
@@ -402,7 +403,7 @@ const MovieForm = ({ movie, onClose, onSave }) => {
           setLoading(true);
           const posterUrl = await uploadMoviePoster(file);
           setFormData((prev) => ({ ...prev, posterUrl }));
-          setPosterPreview(`http://localhost:8080${posterUrl}`);
+          setPosterPreview(assetUrl(posterUrl));
           console.log("Poster uploaded successfully:", posterUrl);
         } catch (error) {
           console.error("Failed to upload poster:", error);
@@ -438,7 +439,7 @@ const MovieForm = ({ movie, onClose, onSave }) => {
     }));
     if (tmdbMovie.posterUrl) {
       setPosterFile(null);
-      setPosterPreview(`http://localhost:8080${tmdbMovie.posterUrl}`);
+      setPosterPreview(assetUrl(tmdbMovie.posterUrl));
     }
   };
 

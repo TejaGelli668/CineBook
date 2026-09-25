@@ -3,12 +3,13 @@ import { X, RotateCcw, Mic, MicOff, ArrowUp, Ticket, Sparkles } from "lucide-rea
 import { getMovies, formatMovieData } from "../../utils/movieAPI";
 import Card from "./ConciergeCards";
 import "./concierge.css";
+import { API_URL } from "../../config";
 
 // The two assistants share this window: customers get the box office concierge,
 // staff at /admin get the manager's assistant.
 const MODES = {
   customer: {
-    api: "http://localhost:8080/api/chat",
+    api: `${API_URL}/api/chat`,
     store: "cb:concierge",
     token: () => localStorage.getItem("userToken") || localStorage.getItem("authToken"),
     title: "Box office",
@@ -20,7 +21,7 @@ const MODES = {
     starters: ["What's playing tonight?", "2 seats for a Telugu film tomorrow", "Show my ticket", "What snacks can I get?"],
   },
   admin: {
-    api: "http://localhost:8080/api/admin/chat",
+    api: `${API_URL}/api/admin/chat`,
     store: "cb:manager-assistant",
     token: () => localStorage.getItem("adminToken"),
     title: "Assistant",

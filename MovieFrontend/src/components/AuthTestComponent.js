@@ -1,5 +1,6 @@
 // src/components/AuthTestComponent.js
 import React, { useState } from "react";
+import { API_URL } from "../config";
 import {
   validateAdminLogin,
   logoutAdmin,
@@ -63,7 +64,7 @@ const AuthTestComponent = () => {
   const testDirectAPI = async () => {
     setLoading(true);
     try {
-      const response = await fetch("http://localhost:8080/api/auth/health");
+      const response = await fetch(`${API_URL}/api/auth/health`);
       const data = await response.json();
       setResult(`Health check: ${JSON.stringify(data, null, 2)}`);
     } catch (error) {

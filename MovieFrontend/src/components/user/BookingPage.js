@@ -6,6 +6,7 @@ import "./booking.css";
 import { tmdbSrcSet } from "../../utils/tmdbImage";
 import { getSeatPrices } from "../../utils/seatPrices";
 import { cinemaNow } from "../../utils/cinemaTime";
+import { assetUrl } from "../../config";
 
 const BookingPage = ({ movie, onBack, onSeatSelect }) => {
   const [selectedDate, setSelectedDate] = useState("");
@@ -397,7 +398,7 @@ const BookingPage = ({ movie, onBack, onSeatSelect }) => {
   });
 
   const poster = movie.posterUrl
-    ? `http://localhost:8080${movie.posterUrl}`
+    ? assetUrl(movie.posterUrl)
     : null;
   const backdrop = movie.backdropUrl || poster;
   const cast = Array.isArray(movie.cast) ? movie.cast : [];
