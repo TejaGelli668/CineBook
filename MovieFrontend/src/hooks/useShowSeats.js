@@ -34,6 +34,7 @@ export default function useShowSeats(showId, jwtToken) {
   useEffect(() => {
     const socket = new SockJS(`${API_BASE}/ws`);
     const client = Stomp.over(socket);
+    client.debug = () => {}; // frame logs would print the sign-in token
 
     client.connect({ Authorization: `Bearer ${jwtToken}` }, () => {
       client.subscribe(

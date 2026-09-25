@@ -431,7 +431,7 @@
 //     const socket = new SockJS(`${API_BASE}/ws`);
 //     const client = Stomp.over(socket);
 
-//     client.debug = (str) => console.log("STOMP:", str);
+//     client.debug = () => {}; // frame logs would print the sign-in token
 
 //     client.connect(
 //       { Authorization: `Bearer ${token}` },
@@ -2057,7 +2057,7 @@ export default function SeatSelectionPage({
     const socket = new SockJS(`${API_BASE}/ws`);
     const client = Stomp.over(socket);
 
-    client.debug = (str) => console.log("STOMP:", str);
+    client.debug = () => {}; // frame logs would print the sign-in token
 
     client.connect(
       { Authorization: `Bearer ${token}` },

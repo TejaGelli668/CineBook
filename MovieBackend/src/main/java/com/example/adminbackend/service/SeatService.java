@@ -214,7 +214,17 @@ public class SeatService {
      */
     @Transactional
     public BookingResponse bookSeats(BookingRequest request) {
-        User currentUser = getCurrentUser();
+        return bookSeatsFor(getCurrentUser(), request);
+    }
+
+    /**
+     * Same as {@link #bookSeats} for a known customer: used by the Stripe webhook,
+     * which books on the customer's behalf when their browser didn't finish.
+     * Callers should hold {@link BookingLocks} for the payment so the browser and
+     * the webhook can't book the same payment at once.
+     */
+    @Transactional
+    public BookingResponse bookSeatsFor(User currentUser, BookingRequest request) {
         logger.info("Booking seats {} for show {} (payment {})",
                 request.getSeatNumbers(), request.getShowId(), request.getPaymentIntentId());
 
@@ -238,6 +248,16 @@ public class SeatService {
 
         // The payment is real. Seats must still be ours (held) or free; if someone else got
         // them meanwhile, give the money back rather than keep a payment with no booking.
+        // Seats already booked under this same payment mean another path (browser or
+        // webhook) finished first: hand that booking back, never refund it
+        for (ShowSeat seat : quote.showSeats) {
+            Booking owner = seat.getBooking();
+            if (seat.getStatus() == SeatStatus.BOOKED && owner != null
+                    && request.getPaymentIntentId() != null && request.getPaymentIntentId().equals(owner.getPaymentId())) {
+                return toResponse(owner);
+            }
+        }
+
         List<String> lost = new ArrayList<>();
         for (ShowSeat seat : quote.showSeats) {
             boolean heldByMe = seat.getStatus() == SeatStatus.LOCKED && seat.getLockedByUser() != null

@@ -56,12 +56,10 @@ const apiCall = async (endpoint, options = {}) => {
       ...options,
     };
 
-    console.log(`Making API call to: ${url}`, config);
 
     const response = await fetch(url, config);
     const data = await response.json();
 
-    console.log(`API Response:`, data);
 
     if (!response.ok) {
       throw new Error(data.message || `HTTP error! status: ${response.status}`);
@@ -84,7 +82,6 @@ export const getUserProfile = async () => {
 
 export const updateUserProfile = async (profileData) => {
   try {
-    console.log("Updating profile with data:", profileData);
 
     // Create the request payload with direct date string
     const requestPayload = {
@@ -95,7 +92,6 @@ export const updateUserProfile = async (profileData) => {
       dateOfBirth: profileData.dateOfBirth, // Send as string directly
     };
 
-    console.log("Request payload:", requestPayload);
 
     return apiCall("/user/profile", {
       method: "PUT",
@@ -213,12 +209,10 @@ export const getBookingHistory = async () => {
     }
 
     const data = await response.json();
-    console.log("Raw booking data from API:", data);
 
     if (Array.isArray(data)) {
       // Transform the booking data to match the expected format
       const transformedBookings = data.map((booking) => {
-        console.log("Processing booking:", booking);
 
         // FIXED: Use timezone-safe time parsing instead of new Date().toLocaleTimeString()
         let formattedShowTime = "Unknown Time";
@@ -295,7 +289,6 @@ export const getBookingHistory = async () => {
         };
       });
 
-      console.log("Transformed bookings:", transformedBookings);
 
       return {
         success: true,

@@ -713,7 +713,6 @@ const PaymentPage = ({ bookingData, onBack, onPaymentComplete }) => {
         }
 
         const responseData = await response.json();
-        console.log("✅ Payment intent response data:", responseData);
 
         // ✅ Extract client secret from your ApiResponse format
         if (
@@ -820,7 +819,6 @@ const PaymentPage = ({ bookingData, onBack, onPaymentComplete }) => {
           .filter((item) => item.quantity > 0);
       }
 
-      console.log("Booking request body:", bookingRequestBody);
 
       const authHeaders = {
         "Content-Type": "application/json",
@@ -871,10 +869,14 @@ const PaymentPage = ({ bookingData, onBack, onPaymentComplete }) => {
     } catch (error) {
       console.error("Failed to create booking after payment:", error);
 
-      // Handle this carefully - payment succeeded but booking failed
+      // The payment went through. Unless the server refunded it (seats taken), Stripe's
+      // webhook finishes the booking on the server even though this request failed.
+      const reason = error?.message || "";
       alert(
-        "Payment successful but booking creation failed. Please contact support with your payment reference: " +
-          paymentResponse.paymentId
+        /refund/i.test(reason)
+          ? reason
+          : "Your payment went through. We're finishing your booking on our side: it will appear in My bookings " +
+            "within a minute, and you won't be charged twice. Payment reference: " + paymentResponse.paymentId
       );
     }
   };

@@ -228,6 +228,9 @@ public class BookingController {
     private com.example.adminbackend.service.CancellationService cancellationService;
 
     @Autowired
+    private com.example.adminbackend.service.BookingLocks bookingLocks;
+
+    @Autowired
     private com.example.adminbackend.service.SeatService seatService;
 
     @Autowired
@@ -246,7 +249,8 @@ public class BookingController {
         // Every booking goes through the same checks: a verified Stripe payment
         // for exactly these seats and snacks (see SeatService.bookSeats).
         try {
-            BookingResponse booking = seatService.bookSeats(request);
+            BookingResponse booking = bookingLocks.withPaymentLock(request.getPaymentIntentId(),
+                    () -> seatService.bookSeats(request));
             return ResponseEntity.ok(new ApiResponse<>(true, "Booking created successfully", booking));
         } catch (Exception e) {
             return ResponseEntity.badRequest()

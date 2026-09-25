@@ -161,7 +161,6 @@ public class JwtUtils {
      */
     public boolean validateToken(String token) {
         try {
-            logger.debug("Validating token: {}", token.substring(0, Math.min(20, token.length())) + "...");
             Jwts.parserBuilder().setSigningKey(getSignKey()).build().parseClaimsJws(token);
             logger.debug("Token validation successful");
             return true;

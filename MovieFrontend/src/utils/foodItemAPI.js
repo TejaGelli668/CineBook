@@ -84,7 +84,6 @@ export const getFoodItems = async () => {
     }
 
     const data = await response.json();
-    console.log("Raw admin API response:", data);
 
     const items = data.success ? data.data : data;
     console.log("Extracted items array:", items);

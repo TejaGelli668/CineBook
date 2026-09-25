@@ -76,7 +76,6 @@ public class AuthController {
             String password = credentials.get("password");
 
             logger.info("Received username: {}", username);
-            logger.info("Received password length: {}", password != null ? password.length() : 0);
 
             // Check database
             long adminCount = adminRepository.count();

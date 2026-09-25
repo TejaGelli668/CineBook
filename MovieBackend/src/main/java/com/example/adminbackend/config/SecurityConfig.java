@@ -250,6 +250,8 @@ public class SecurityConfig {
                                 "/api/shows/**"
                         ).hasAnyRole("ADMIN", "SUPER_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/payments/config").permitAll()
+                        // Stripe's server calls this; the signature check in StripeWebhookController is the guard
+                        .requestMatchers(HttpMethod.POST, "/api/payments/webhook").permitAll()
 
                         // 19) everything else requires authentication - MUST BE LAST!
                         .anyRequest().authenticated()
