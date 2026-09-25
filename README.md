@@ -34,5 +34,5 @@ All times are Hyderabad time (Asia/Kolkata), whatever the server's or visitor's 
   signing secret. This books paid orders even if the customer's browser closes.
 
 **Website** (e.g. Vercel): set `REACT_APP_API_URL` to the backend's address (see
-`MovieFrontend/.env.example`). Because the site is a single-page app, route every
-path to `index.html` so `/admin` works.
+`MovieFrontend/.env.example`) and the project root to `MovieFrontend`.
+`MovieFrontend/vercel.json` routes every path to the app, so `/admin` works.
