@@ -65,55 +65,6 @@ public class AuthController {
     }
 
     /**
-     * Debug endpoint to check login without security
-     */
-    @PostMapping("/debug-login")
-    public ResponseEntity<?> debugLogin(@RequestBody Map<String, String> credentials) {
-        try {
-            logger.info("=== DEBUG LOGIN ENDPOINT ===");
-            String username = credentials.get("username");
-            String password = credentials.get("password");
-
-            logger.info("Received username: {}", username);
-
-            // Check database
-            long adminCount = adminRepository.count();
-            boolean adminExists = adminRepository.existsByUsername(username);
-
-            Map<String, Object> debugInfo = new HashMap<>();
-            debugInfo.put("totalAdmins", adminCount);
-            debugInfo.put("adminExists", adminExists);
-            debugInfo.put("receivedUsername", username);
-            debugInfo.put("passwordReceived", password != null && !password.isEmpty());
-
-            if (adminExists) {
-                var admin = adminRepository.findByUsername(username);
-                debugInfo.put("adminFound", admin.isPresent());
-                if (admin.isPresent()) {
-                    debugInfo.put("adminEmail", admin.get().getEmail());
-                    debugInfo.put("adminRole", admin.get().getRole());
-                    debugInfo.put("adminActive", admin.get().getIsActive());
-                }
-            }
-
-            return ResponseEntity.ok(new ApiResponse<>(
-                    true,
-                    "Debug info collected",
-                    debugInfo
-            ));
-
-        } catch (Exception e) {
-            logger.error("Debug login failed: {}", e.getMessage(), e);
-            return ResponseEntity.badRequest()
-                    .body(new ApiResponse<>(
-                            false,
-                            "Debug failed: " + e.getMessage(),
-                            null
-                    ));
-        }
-    }
-
-    /**
      * Admin logout endpoint - REQUIRES AUTHENTICATION
      */
     @PostMapping("/logout")

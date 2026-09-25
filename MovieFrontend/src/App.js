@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import "./App.css";
-import "./utils/debugUtils";
 
 // Import your ENHANCED chatbot with bookings
 import Concierge from "./components/chatbot/Concierge";
@@ -14,7 +13,6 @@ import SuccessPage from "./components/user/SuccessPage";
 import AdminDashboard from "./components/admin/AdminDashboard";
 import AdminLogin from "./components/admin/AdminLogin";
 import LoginModal from "./components/auth/LoginModal";
-import AuthTestComponent from "./components/AuthTestComponent";
 import UserDashboard from "./components/user/UserDashboard";
 import AdminFixShows from "./components/admin/AdminFixShows";
 
@@ -375,7 +373,6 @@ const App = () => {
         />
       )}
 
-      {currentPage === "test" && <AuthTestComponent />}
 
       <LoginModal
         isOpen={showLoginModal}
