@@ -18,6 +18,12 @@ The staff login is at http://localhost:3000/admin with `ADMIN_USERNAME` / `ADMIN
 
 All times are Hyderabad time (Asia/Kolkata), whatever the server's or visitor's clock says.
 
+To fill a week of shows for every active film (only free screens are used, so re-running is safe):
+
+    python3 scripts/schedule_shows.py --dry-run     # preview
+    python3 scripts/schedule_shows.py               # next 7 days
+    python3 scripts/schedule_shows.py 2026-10-06 7  # a given start date and number of days
+
 ## Going live
 
 **Backend** (e.g. Render), environment variables:
