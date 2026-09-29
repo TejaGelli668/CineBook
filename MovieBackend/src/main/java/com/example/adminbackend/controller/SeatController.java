@@ -90,50 +90,6 @@ public class SeatController {
     }
     // Add this endpoint to your SeatController.java
 
-    @GetMapping("/debug/find-duplicates")
-    //@PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
-    //@PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_SUPER_ADMIN')")
-    public ResponseEntity<?> findDuplicateSeats() {
-        try {
-            // Find duplicates in seats table
-            List<Object[]> duplicates = seatRepository.findDuplicateSeats();
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("duplicateCount", duplicates.size());
-            response.put("duplicates", duplicates.stream().map(row -> {
-                Map<String, Object> duplicate = new HashMap<>();
-                duplicate.put("seatNumber", row[0]);
-                duplicate.put("theaterId", row[1]);
-                duplicate.put("count", row[2]);
-                return duplicate;
-            }).collect(Collectors.toList()));
-
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body("Error finding duplicates: " + e.getMessage());
-        }
-    }
-
-    @DeleteMapping("/debug/delete-all-base-seats")
-//    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
-   // @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_SUPER_ADMIN')")
-    public ResponseEntity<?> deleteAllBaseSeats() {
-        try {
-            // First delete all show_seats to avoid foreign key constraints
-            showSeatRepository.deleteAll();
-
-            // Then delete all seats
-            seatRepository.deleteAll();
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("message", "All seats deleted successfully");
-            response.put("timestamp", LocalDateTime.now());
-
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body("Error deleting seats: " + e.getMessage());
-        }
-    }
     @PostMapping("/extend-lock")
     public ResponseEntity<ApiResponse<SeatLockResponse>> extendSeatLocks(@RequestBody SeatLockRequest request) {
         try {

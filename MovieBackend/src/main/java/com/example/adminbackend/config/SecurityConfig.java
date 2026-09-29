@@ -84,7 +84,6 @@ public class SecurityConfig {
                         // 0) Manager-only tools. Listed first so no broader rule below can open them up.
                         .requestMatchers(
                                 "/api/admin/**",
-                                "/api/seats/debug/**",
                                 "/api/shows/seats-statistics",
                                 "/api/shows/*/seats-count"
                         ).hasAnyRole("ADMIN", "SUPER_ADMIN")

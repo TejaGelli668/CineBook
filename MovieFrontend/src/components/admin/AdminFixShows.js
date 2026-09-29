@@ -32,7 +32,6 @@ const AdminFixShows = () => {
   const [error, setError] = useState("");
   const [statistics, setStatistics] = useState("");
   const [layoutPreview, setLayoutPreview] = useState(null);
-  const [duplicates, setDuplicates] = useState([]);
   const [shows, setShows] = useState([]);
   const [theaters, setTheaters] = useState([]);
 
@@ -44,7 +43,6 @@ const AdminFixShows = () => {
     await Promise.all([
       loadStatistics(),
       loadLayoutPreview(),
-      loadDuplicates(),
       loadShows(),
       loadTheaters(),
     ]);
@@ -71,18 +69,6 @@ const AdminFixShows = () => {
       setLayoutPreview(response);
     } catch (err) {
       console.error("Error loading layout preview:", err);
-    }
-  };
-
-  const loadDuplicates = async () => {
-    try {
-      const response = await apiCall("/api/seats/debug/find-duplicates", {
-        method: "GET",
-        headers: withAuth(),
-      });
-      setDuplicates(response.duplicates || []);
-    } catch (err) {
-      console.error("Error loading duplicates:", err);
     }
   };
 
@@ -128,32 +114,6 @@ const AdminFixShows = () => {
     }
   };
 
-  // 🚀 NUCLEAR OPTION: Complete Reset
-  const completeReset = () =>
-    window.confirm(
-      "Delete every seat map and rebuild them? Held seats are released. Use only if seat maps are badly broken."
-    ) &&
-    executeAction("Complete Reset", async () => {
-      // Delete all seats
-      const deleteResponse = await apiCall(
-        "/api/seats/debug/delete-all-base-seats",
-        {
-          method: "DELETE",
-          headers: withAuth(),
-        }
-      );
-
-      // Fix all shows
-      const fixResponse = await apiCall("/api/shows/fix-all-shows", {
-        method: "POST",
-        headers: withAuth(),
-      });
-
-      return {
-        message: `Reset complete: ${deleteResponse.message} + ${fixResponse.message}`,
-      };
-    });
-
   // 🏢 Fix All Theaters
   const fixAllTheaters = () =>
     executeAction("Fix All Theaters", async () => {
@@ -182,33 +142,6 @@ const AdminFixShows = () => {
         method: "POST",
         headers: withAuth(),
       });
-    });
-
-  // 🧹 Clean Up Duplicates
-  const cleanupDuplicates = () =>
-    window.confirm("Rebuild seat maps to remove the duplicates?") &&
-    executeAction("Cleanup Duplicates", async () => {
-      if (duplicates.length === 0) {
-        return { message: "No duplicates found to clean up" };
-      }
-
-      // Delete all seats and regenerate clean
-      const deleteResponse = await apiCall(
-        "/api/seats/debug/delete-all-base-seats",
-        {
-          method: "DELETE",
-          headers: withAuth(),
-        }
-      );
-
-      const fixResponse = await apiCall("/api/shows/fix-seats", {
-        method: "POST",
-        headers: withAuth(),
-      });
-
-      return {
-        message: `Cleaned ${duplicates.length} duplicates and regenerated seats`,
-      };
     });
 
   // 🎯 Fix Specific Show
@@ -270,22 +203,7 @@ const AdminFixShows = () => {
             <dt>Price tiers</dt>
             <dd>{Object.keys(layoutPreview.categories || {}).length}</dd>
           </div>
-          <div>
-            <dt>Duplicate seats</dt>
-            <dd style={duplicates.length ? { color: "#ff8a93" } : undefined}>{duplicates.length}</dd>
-          </div>
         </dl>
-      )}
-
-      {duplicates.length > 0 && (
-        <div className="cb-alert cb-alert--warn">
-          <span style={{ flex: 1 }}>
-            {duplicates.length} duplicate seats found. Customers may see the same seat twice.
-          </span>
-          <button type="button" className="cb-btn cb-btn--pink cb-btn--sm" onClick={cleanupDuplicates} disabled={loading}>
-            Remove duplicates
-          </button>
-        </div>
       )}
 
       <section className="cb-panel">
@@ -361,17 +279,6 @@ const AdminFixShows = () => {
           </button>
         </div>
         <pre className="cb-repair__stats">{statistics || "Loading…"}</pre>
-      </section>
-
-      <section className="cb-panel cb-repair__danger">
-        <h2 className="cb-h3" style={{ marginBottom: 6 }}>Last resort</h2>
-        <p className="cb-muted cb-small" style={{ marginBottom: 14 }}>
-          Deletes every seat map and rebuilds them from scratch. Held seats are
-          released. Only use this if the fixes above don't help.
-        </p>
-        <button type="button" className="cb-btn cb-btn--danger" onClick={completeReset} disabled={loading}>
-          Reset all seat maps
-        </button>
       </section>
     </div>
   );

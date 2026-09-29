@@ -617,9 +617,6 @@
   font-size: 0.88rem;
   white-space: pre-wrap;
 }
-.cb-repair__danger {
-  border-color: rgba(217, 43, 58, 0.45);
-}
 .cb-table td.cb-num {
   white-space: nowrap;
 }
