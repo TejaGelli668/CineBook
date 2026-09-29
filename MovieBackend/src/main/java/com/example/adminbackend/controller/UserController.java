@@ -25,6 +25,9 @@ import java.util.Map;
 public class UserController {
 
     @org.springframework.beans.factory.annotation.Autowired
+    private com.example.adminbackend.service.IpRateLimiter ipRateLimiter;
+
+    @org.springframework.beans.factory.annotation.Autowired
     private com.example.adminbackend.service.LoginAttemptService loginAttemptService;
 
     private static final Logger logger = LoggerFactory.getLogger(UserController.class);
@@ -38,7 +41,11 @@ public class UserController {
      * User Registration
      */
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<UserResponse>> registerUser(@Valid @RequestBody UserRegistrationRequest request) {
+    public ResponseEntity<ApiResponse<UserResponse>> registerUser(@Valid @RequestBody UserRegistrationRequest request,
+                                                              jakarta.servlet.http.HttpServletRequest http) {
+        if (!ipRateLimiter.allow("register", http, 10, 60 * 60 * 1000L)) {
+            return ResponseEntity.status(429).body(new ApiResponse<>(false, "Too many attempts from your network. Try again in a few minutes.", null));
+        }
         try {
             logger.info("User registration attempt for email: {}", request.getEmail());
             UserResponse userResponse = userService.registerUser(request);
@@ -58,7 +65,11 @@ public class UserController {
      * User Login
      */
     @PostMapping("/login")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> loginUser(@Valid @RequestBody UserLoginRequest loginRequest) {
+    public ResponseEntity<ApiResponse<Map<String, Object>>> loginUser(@Valid @RequestBody UserLoginRequest loginRequest,
+                                                                  jakarta.servlet.http.HttpServletRequest http) {
+        if (!ipRateLimiter.allow("login", http, 30, 10 * 60 * 1000L)) {
+            return ResponseEntity.status(429).body(new ApiResponse<>(false, "Too many attempts from your network. Try again in a few minutes.", null));
+        }
         String login = loginRequest.getEmail();
         long blocked = loginAttemptService.minutesBlocked("user", login);
         if (blocked > 0) {
@@ -75,26 +86,6 @@ public class UserController {
             // Same answer whether the email is registered or not
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(false,
                     "That email and password didn't match.", null));
-        }
-    }
-
-    /**
-     * Manual Login (for testing)
-     */
-    @PostMapping("/manual-login")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> manualLoginUser(@Valid @RequestBody UserLoginRequest loginRequest) {
-        try {
-            logger.info("Manual login attempt for email: {}", loginRequest.getEmail());
-            Map<String, Object> loginResponse = userService.manualLoginUser(loginRequest);
-
-            ApiResponse<Map<String, Object>> response = new ApiResponse<>(true, "Manual login successful", loginResponse);
-            logger.info("Manual login successful for email: {}", loginRequest.getEmail());
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            logger.error("Manual login failed: {}", e.getMessage());
-            ApiResponse<Map<String, Object>> response = new ApiResponse<>(false, e.getMessage(), null);
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
         }
     }
 
@@ -239,6 +230,7 @@ public class UserController {
      * Get User by ID
      */
     @GetMapping("/{id}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<UserResponse>> getUserById(@PathVariable Long id) {
         try {
             logger.info("Getting user by ID: {}", id);
@@ -258,6 +250,7 @@ public class UserController {
      * Deactivate User (Admin only)
      */
     @PutMapping("/{id}/deactivate")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<Object>> deactivateUser(@PathVariable Long id) {
         try {
             logger.info("Deactivating user with ID: {}", id);

@@ -40,6 +40,7 @@ public class SeatService {
     private SimpMessagingTemplate messagingTemplate;
 
     private static final int LOCK_DURATION_MINUTES = 10;
+    private static final int MAX_HELD_SEATS = 10;
 
     public ShowSeatsDTO getShowSeats(Long showId) {
         logger.info("Getting seats for show: {}", showId);
@@ -110,6 +111,17 @@ public class SeatService {
         // Check if all seats are available
         List<String> unavailableSeats = new ArrayList<>();
         User currentUser = getCurrentUser();
+
+        // One customer can't hold a whole show: at most MAX_HELD_SEATS at a time, across all shows
+        // (seats in this request that they already hold aren't counted twice)
+        long heldElsewhere = showSeatRepository.findActiveHoldsByUser(currentUser.getId(), LocalDateTime.now()).stream()
+                .filter(ss -> !(ss.getShow().getId().equals(request.getShowId())
+                        && uniqueSeatNumbers.contains(ss.getSeat().getSeatNumber())))
+                .count();
+        if (heldElsewhere + uniqueSeatNumbers.size() > MAX_HELD_SEATS) {
+            throw new RuntimeException("You can hold up to " + MAX_HELD_SEATS + " seats at a time."
+                    + (heldElsewhere > 0 ? " Release the seats you're holding first." : ""));
+        }
 
         for (ShowSeat seat : seatsToLock) {
             if (seat.getStatus() == SeatStatus.BOOKED) {

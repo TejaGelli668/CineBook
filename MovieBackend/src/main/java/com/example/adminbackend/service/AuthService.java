@@ -77,7 +77,7 @@ public class AuthService {
                     .disabled(!admin.getIsActive())
                     .build();
 
-            String token = jwtUtils.generateToken(userDetails);
+            String token = jwtUtils.generateStaffToken(admin.getUsername());
             logger.info("JWT token generated for admin: {}", admin.getUsername());
 
             // Step 5: Update last login time

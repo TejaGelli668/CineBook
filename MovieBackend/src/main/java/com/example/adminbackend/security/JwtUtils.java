@@ -29,6 +29,32 @@ public class JwtUtils {
     /**
      * Generate JWT token for user (UserDetails)
      */
+    /** Which kind of account a token is for; staff and customers live in separate tables. */
+    public static final String ACCOUNT_CLAIM = "acct";
+    public static final String STAFF = "staff";
+    public static final String CUSTOMER = "customer";
+
+    /** A token for a manager at /admin (subject = admin username). */
+    public String generateStaffToken(String username) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put(ACCOUNT_CLAIM, STAFF);
+        return createToken(claims, username);
+    }
+
+    /** A token for a customer (subject = email). */
+    public String generateCustomerToken(String email) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put(ACCOUNT_CLAIM, CUSTOMER);
+        return createToken(claims, email);
+    }
+
+    /** STAFF or CUSTOMER. Tokens issued before the claim existed were customer tokens. */
+    public String extractAccountType(String token) {
+        Object type = Jwts.parserBuilder().setSigningKey(getSignKey()).build()
+                .parseClaimsJws(token).getBody().get(ACCOUNT_CLAIM);
+        return STAFF.equals(type) ? STAFF : CUSTOMER;
+    }
+
     public String generateToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
         return createToken(claims, userDetails.getUsername());

@@ -88,6 +88,15 @@ public class SecurityConfig {
                                 "/api/shows/*/seats-count"
                         ).hasAnyRole("ADMIN", "SUPER_ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/shows/**", "/shows/**").hasAnyRole("ADMIN", "SUPER_ADMIN")
+                        // Managing customer accounts by id (numeric ids only, so /user/profile etc. stay open to customers)
+                        .requestMatchers(regex("^/(api/)?user/(all|stats|\\d+(/deactivate)?)(\\?.*)?$", null)).hasAnyRole("ADMIN", "SUPER_ADMIN")
+                        // Every change to the catalogue (films, theaters, shows), whatever the HTTP method
+                        .requestMatchers(
+                                regex(CATALOGUE, "POST"), regex(CATALOGUE, "PUT"),
+                                regex(CATALOGUE, "PATCH"), regex(CATALOGUE, "DELETE")).hasAnyRole("ADMIN", "SUPER_ADMIN")
+                        // Uploads: customers may set their own profile picture; everything else is staff-only
+                        .requestMatchers(HttpMethod.POST, "/api/upload/profile-picture").authenticated()
+                        .requestMatchers("/api/upload/**").hasAnyRole("ADMIN", "SUPER_ADMIN")
 
                         // 1) PUBLIC AUTH ENDPOINTS
                         .requestMatchers(HttpMethod.POST,
@@ -262,6 +271,13 @@ public class SecurityConfig {
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    /** Films, theaters and shows (the regex also sees any query string). */
+    private static final String CATALOGUE = "^/(api/)?(movies|theaters|shows)(/[^?]*)?(\\?.*)?$";
+
+    private static org.springframework.security.web.util.matcher.RegexRequestMatcher regex(String pattern, String method) {
+        return new org.springframework.security.web.util.matcher.RegexRequestMatcher(pattern, method);
     }
 
     @org.springframework.beans.factory.annotation.Value("${app.cors.allowed-origins}")

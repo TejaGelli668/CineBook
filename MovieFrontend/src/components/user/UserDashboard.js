@@ -515,8 +515,8 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout, onMovieSelect })
       setError("New passwords don't match!");
       return;
     }
-    if (passwordData.newPassword.length < 6) {
-      setError("Password must be at least 6 characters long!");
+    if (passwordData.newPassword.length < 8) {
+      setError("Use at least 8 characters for your new password.");
       return;
     }
     setLoading(true);
@@ -1030,7 +1030,7 @@ const UserDashboard = ({ currentUser, onBackToMovies, onLogout, onMovieSelect })
         <div className="cb-panel__head" style={{ marginBottom: showPasswordFields ? 18 : 0 }}>
           <div>
             <h3 className="cb-h3">Password</h3>
-            <p className="cb-muted cb-small">Use at least 6 characters.</p>
+            <p className="cb-muted cb-small">Use at least 8 characters.</p>
           </div>
           <button
             type="button"

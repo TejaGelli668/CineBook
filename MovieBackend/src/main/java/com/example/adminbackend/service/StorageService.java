@@ -14,7 +14,6 @@ import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
@@ -71,19 +70,28 @@ public class StorageService {
         if (ext == null) throw new UploadException("Use a JPEG, PNG, GIF or WebP image");
         if (file.getSize() > MAX_BYTES) throw new UploadException("The image must be under 5 MB");
 
+        byte[] bytes;
+        try {
+            bytes = file.getBytes();
+        } catch (IOException e) {
+            throw new UploadException("The image couldn't be read. Try again.");
+        }
+        // Don't trust the type the browser claims: the file must really start like that image type
+        if (!looksLike(type, bytes)) throw new UploadException("That file isn't a valid image");
+
         String name = UUID.randomUUID() + ext;
         try {
-            return usesSupabase() ? storeInSupabase(folder, name, type, file.getBytes()) : storeLocally(folder, name, file);
+            return usesSupabase() ? storeInSupabase(folder, name, type, bytes) : storeLocally(folder, name, bytes);
         } catch (IOException e) {
             log.error("Couldn't store {}/{}: {}", folder, name, e.getMessage());
             throw new UploadException("The image couldn't be saved. Try again.");
         }
     }
 
-    private String storeLocally(String folder, String name, MultipartFile file) throws IOException {
+    private String storeLocally(String folder, String name, byte[] bytes) throws IOException {
         Path dir = Paths.get("uploads", folder);
         Files.createDirectories(dir);
-        Files.copy(file.getInputStream(), dir.resolve(name), StandardCopyOption.REPLACE_EXISTING);
+        Files.write(dir.resolve(name), bytes);
         return "/uploads/" + folder + "/" + name;
     }
 
@@ -129,5 +137,18 @@ public class StorageService {
             Thread.currentThread().interrupt();
             throw new IOException("Interrupted");
         }
+    }
+
+    /** Checks the file's first bytes ("magic number") match the claimed image type. */
+    private static boolean looksLike(String type, byte[] b) {
+        if (b.length < 12) return false;
+        return switch (type) {
+            case "image/jpeg", "image/jpg" -> (b[0] & 0xFF) == 0xFF && (b[1] & 0xFF) == 0xD8 && (b[2] & 0xFF) == 0xFF;
+            case "image/png" -> (b[0] & 0xFF) == 0x89 && b[1] == 'P' && b[2] == 'N' && b[3] == 'G';
+            case "image/gif" -> b[0] == 'G' && b[1] == 'I' && b[2] == 'F' && b[3] == '8';
+            case "image/webp" -> b[0] == 'R' && b[1] == 'I' && b[2] == 'F' && b[3] == 'F'
+                    && b[8] == 'W' && b[9] == 'E' && b[10] == 'B' && b[11] == 'P';
+            default -> false;
+        };
     }
 }

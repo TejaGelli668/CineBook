@@ -38,6 +38,8 @@ public interface AdminRepository extends JpaRepository<Admin, Long> {
      */
     boolean existsByEmail(String email);
 
+    boolean existsByEmailIgnoreCase(String email);
+
     /**
      * Find active admin by username
      */

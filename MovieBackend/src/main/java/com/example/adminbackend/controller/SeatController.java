@@ -24,6 +24,9 @@ import java.time.LocalDateTime;
 @RequestMapping("/api/seats")
 public class SeatController {
 
+    @Autowired
+    private com.example.adminbackend.service.BookingLocks bookingLocks;
+
 
 
     @Autowired
@@ -60,7 +63,8 @@ public class SeatController {
     @PostMapping("/book")
     public ResponseEntity<?> bookSeats(@RequestBody BookingRequest request) {
         try {
-            BookingResponse response = seatService.bookSeats(request);
+            BookingResponse response = bookingLocks.withPaymentLock(request.getPaymentIntentId(),
+                    () -> seatService.bookSeats(request));
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));

@@ -30,34 +30,26 @@ public class CustomUserDetailsService implements UserDetailsService {
     private AdminRepository adminRepository;
 
     @Override
-    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        logger.info("Attempting to load principal for email: {}", email);
+    public UserDetails loadUserByUsername(String name) throws UsernameNotFoundException {
+        // Staff sign in by username, customers by email. An email is never looked up
+        // among staff, so a customer can't become an admin by reusing an admin's email.
+        Optional<Admin> admin = adminRepository.findByUsername(name);
+        if (admin.isPresent()) return new Principal(admin.get(), name);
+        return loadCustomer(name);
+    }
 
-        // First try Admins
-        Optional<Admin> adminOpt = adminRepository.findByEmail(email);
-        if (adminOpt.isPresent()) {
-            Admin admin = adminOpt.get();
-            logger.info("Found ADMIN with email {}", email);
-            return new Principal(admin);
-        }
+    /** A manager, by the username in a staff token. */
+    public UserDetails loadStaff(String username) throws UsernameNotFoundException {
+        Admin admin = adminRepository.findByUsername(username)
+                .orElseThrow(() -> new UsernameNotFoundException("No staff account " + username));
+        return new Principal(admin, username);
+    }
 
-        // Then try regular Users
-        Optional<User> userOpt = userRepository.findByEmail(email);
-        if (userOpt.isPresent()) {
-            User user = userOpt.get();
-            logger.info("Found USER with email {}", email);
-            return new Principal(user);
-        }
-
-        // Admin JWTs carry the admin's username (not email) as their subject
-        Optional<Admin> adminByUsername = adminRepository.findByUsername(email);
-        if (adminByUsername.isPresent()) {
-            logger.info("Found ADMIN with username {}", email);
-            return new Principal(adminByUsername.get(), email);
-        }
-
-        logger.error("No user or admin found with email {}", email);
-        throw new UsernameNotFoundException("No account found for " + email);
+    /** A customer, by the email in a customer token. */
+    public UserDetails loadCustomer(String email) throws UsernameNotFoundException {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("No customer account " + email));
+        return new Principal(user);
     }
 
     /**

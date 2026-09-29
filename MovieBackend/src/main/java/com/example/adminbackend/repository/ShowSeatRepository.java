@@ -141,4 +141,8 @@ public interface ShowSeatRepository extends JpaRepository<ShowSeat, Long> {
     @Query("SELECT ss.show.id, ss.status, COUNT(ss) FROM ShowSeat ss WHERE ss.show.id IN :showIds GROUP BY ss.show.id, ss.status")
     List<Object[]> countSeatsByStatusForShows(@Param("showIds") List<Long> showIds);
 
+
+    // Seats a customer is holding right now, in any show
+    @Query("SELECT ss FROM ShowSeat ss JOIN FETCH ss.seat WHERE ss.lockedByUser.id = :userId AND ss.status = 'LOCKED' AND ss.expiresAt > :now")
+    List<ShowSeat> findActiveHoldsByUser(@Param("userId") Long userId, @Param("now") LocalDateTime now);
 }

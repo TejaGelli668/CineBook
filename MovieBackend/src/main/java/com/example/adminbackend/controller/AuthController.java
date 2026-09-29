@@ -23,6 +23,9 @@ import java.util.Map;
 public class AuthController {
 
     @org.springframework.beans.factory.annotation.Autowired
+    private com.example.adminbackend.service.IpRateLimiter ipRateLimiter;
+
+    @org.springframework.beans.factory.annotation.Autowired
     private com.example.adminbackend.service.LoginAttemptService loginAttemptService;
 
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
@@ -40,7 +43,11 @@ public class AuthController {
      * Admin login endpoint - PUBLIC ACCESS
      */
     @PostMapping("/login")
-    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest loginRequest,
+                                   jakarta.servlet.http.HttpServletRequest http) {
+        if (!ipRateLimiter.allow("staff-login", http, 20, 10 * 60 * 1000L)) {
+            return ResponseEntity.status(429).body(java.util.Map.of("success", false, "message", "Too many attempts from your network. Try again in a few minutes."));
+        }
         String login = loginRequest.getUsername();
         long blocked = loginAttemptService.minutesBlocked("admin", login);
         if (blocked > 0) {

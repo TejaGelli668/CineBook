@@ -280,7 +280,7 @@ const LoginModal = ({ isOpen, onClose, onUserLogin }) => {
               {inkField(
                 "signup-password",
                 "Password (6 or more characters)",
-                { type: showPassword ? "text" : "password", autoComplete: "new-password", minLength: 6, required: true },
+                { type: showPassword ? "text" : "password", autoComplete: "new-password", minLength: 8, required: true },
                 passwordToggle
               )}
               <fieldset className="cb-ink-field">

@@ -31,6 +31,9 @@ public class BookingController {
     private com.example.adminbackend.service.BookingLocks bookingLocks;
 
     @Autowired
+    private com.example.adminbackend.service.CurrentUserService currentUserService;
+
+    @Autowired
     private com.example.adminbackend.service.SeatService seatService;
 
     @Autowired
@@ -61,11 +64,24 @@ public class BookingController {
     @GetMapping("/details/{id}")
     public ResponseEntity<ApiResponse<BookingResponse>> getBookingDetails(@PathVariable Long id) {
         try {
+            // Only the customer who made the booking (or staff) may see it; anyone else
+            // gets "not found", so booking numbers can't be probed
+            var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            boolean staff = auth != null && auth.getAuthorities().stream()
+                    .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_SUPER_ADMIN"));
+            if (!staff) {
+                Long me = currentUserService.require().getId();
+                Optional<Booking> owned = bookingService.getBookingById(id)
+                        .filter(b -> b.getUser() != null && b.getUser().getId().equals(me));
+                if (owned.isEmpty()) {
+                    return ResponseEntity.status(404).body(new ApiResponse<>(false, "Booking not found", null));
+                }
+            }
             BookingResponse booking = bookingService.getBookingWithFoodItems(id);
             return ResponseEntity.ok(new ApiResponse<>(true, "Booking details retrieved successfully", booking));
         } catch (Exception e) {
             return ResponseEntity.status(404)
-                    .body(new ApiResponse<>(false, "Booking not found: " + e.getMessage(), null));
+                    .body(new ApiResponse<>(false, "Booking not found", null));
         }
     }
 

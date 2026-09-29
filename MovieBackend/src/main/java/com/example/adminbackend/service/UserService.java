@@ -30,6 +30,9 @@ import java.util.stream.Collectors;
 public class UserService {
 
     @Autowired
+    private com.example.adminbackend.repository.AdminRepository adminRepository;
+
+    @Autowired
     private StorageService storage;
 
     private static final Logger logger = LoggerFactory.getLogger(UserService.class);
@@ -65,6 +68,10 @@ public class UserService {
             logger.info("Starting user registration for email: {}", request.getEmail());
 
             // Check if user already exists
+            // An email that belongs to a staff account can't also be a customer account
+            if (adminRepository.existsByEmailIgnoreCase(request.getEmail().trim())) {
+                throw new RuntimeException("This email can't be used. Try another one.");
+            }
             if (userRepository.existsByEmail(request.getEmail())) {
                 logger.warn("User already exists with email: {}", request.getEmail());
                 throw new RuntimeException("User already exists with email: " + request.getEmail());
@@ -137,7 +144,7 @@ public class UserService {
             }
 
             // Generate JWT token
-            String jwt = jwtUtils.generateToken(dbUser.getEmail());
+            String jwt = jwtUtils.generateCustomerToken(dbUser.getEmail());
             logger.info("JWT token generated successfully");
 
             // Update last login time
@@ -163,63 +170,6 @@ public class UserService {
         } catch (Exception e) {
             logger.error("Login failed for email: {} - Unexpected error: {}", loginRequest.getEmail(), e.getMessage(), e);
             throw new RuntimeException("Login failed: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Manual login method for testing - ADDED MISSING METHOD
-     */
-    public Map<String, Object> manualLoginUser(UserLoginRequest loginRequest) {
-        try {
-            logger.info("=== Manual login attempt for email: {} ===", loginRequest.getEmail());
-
-            // Find user by email
-            Optional<User> userOpt = userRepository.findByEmail(loginRequest.getEmail());
-            if (userOpt.isEmpty()) {
-                logger.error("User not found: {}", loginRequest.getEmail());
-                throw new RuntimeException("Invalid email or password");
-            }
-
-            User user = userOpt.get();
-            logger.info("User found: {}", user.getEmail());
-
-            // Check if user is active
-            if (!user.getIsActive()) {
-                logger.error("User account is deactivated: {}", loginRequest.getEmail());
-                throw new RuntimeException("Account is deactivated");
-            }
-
-            // Verify password
-            if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPassword())) {
-                logger.error("Password verification failed for user: {}", loginRequest.getEmail());
-                throw new RuntimeException("Invalid email or password");
-            }
-
-            logger.info("Password verified successfully");
-
-            // Generate JWT token
-            String jwt = jwtUtils.generateToken(user.getEmail());
-            logger.info("JWT token generated");
-
-            // Update last login
-            user.setLastLogin(LocalDateTime.now());
-            userRepository.save(user);
-
-            // Create response
-            UserResponse userResponse = convertToUserResponse(user);
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("token", jwt);
-            response.put("type", "Bearer");
-            response.put("user", userResponse);
-            response.put("message", "Manual login successful");
-
-            logger.info("=== Manual login completed successfully ===");
-            return response;
-
-        } catch (Exception e) {
-            logger.error("Manual login failed for email: {} - Error: {}", loginRequest.getEmail(), e.getMessage(), e);
-            throw new RuntimeException("Manual login failed: " + e.getMessage());
         }
     }
 
